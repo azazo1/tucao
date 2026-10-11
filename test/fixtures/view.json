@@ -1,0 +1,29 @@
+{
+  "code": 200,
+  "result": {
+    "hid": "4107869",
+    "typeid": "11",
+    "typename": "连载新番",
+    "title": "【10月】极致软弱千金小姐，不小心答应了精明未婚夫的赌局",
+    "play": "14312",
+    "url": "/play/h4107869/",
+    "thumb": "https://www.tucao.my/uploadfile/2026/1004/20261004112338150.jpg",
+    "user": "永恒之光",
+    "userid": "30944",
+    "part": 1,
+    "video": [
+      {
+        "type": "video",
+        "file": "https://get.tucao.my/yowaki-max-anime1",
+        "title": "【10月】极致软弱千金小姐，不小心答应了精明未婚夫的赌局"
+      },
+      {
+        "type": "video",
+        "file": "https://get.tucao.my/yowaki-max-anime2",
+        "title": "02"
+      }
+    ],
+    "description": "这里是一段描述",
+    "keywords": "恋爱,日常"
+  }
+}

@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tucao/models/api_response.dart';
 import 'package:tucao/models/danmaku.dart';
@@ -140,6 +142,45 @@ void main() {
       expect(danmaku.time, 12.5);
       expect(danmaku.mode, 0);
       expect(danmaku.color, 0);
+    });
+  });
+
+  group('视频详情解析', () {
+    // 样本取自站点真实响应, 用于锁定分P字段名.
+    late VideoModel video;
+
+    setUpAll(() {
+      final raw = File('test/fixtures/view.json').readAsStringSync();
+      final json = jsonDecode(raw) as Map<String, dynamic>;
+      final result = json['result'] as Map<String, dynamic>;
+      video = VideoModel.fromJson(result);
+    });
+
+    test('分P来自 video 字段', () {
+      expect(video.parts, hasLength(2));
+      expect(video.parts.first.title, isNotEmpty);
+    });
+
+    test('自建源分P带可播放地址', () {
+      for (final part in video.parts) {
+        expect(part.isThirdParty, isFalse);
+        expect(part.file, startsWith('http'));
+      }
+    });
+
+    test('详情字段完整', () {
+      expect(video.hid, '4107869');
+      expect(video.title, isNotEmpty);
+      expect(video.userName, isNotEmpty);
+      expect(video.userId, greaterThan(0));
+      expect(video.cover, startsWith('http'));
+    });
+
+    test('第三方源分P判定为不可播放', () {
+      const third = VideoPart(file: '', vid: 'abc', title: '旧投稿');
+      expect(third.isThirdParty, isTrue);
+      const empty = VideoPart(file: '', title: '无地址');
+      expect(empty.isThirdParty, isTrue);
     });
   });
 }
