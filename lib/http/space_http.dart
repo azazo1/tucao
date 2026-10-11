@@ -84,9 +84,12 @@ abstract final class SpaceHttp {
 
     final avatar = header?.querySelector('img.avatar')?.attributes['src'] ?? '';
     final bannerNode = header?.querySelector('img.banner');
-    final banner =
-        _parseBackground(bannerNode?.attributes['style'] ?? '').isNotEmpty
-        ? _parseBackground(bannerNode!.attributes['style']!)
+    // 背景图写在 style 里, 缺失时退回 src. 只解析一次, 避免依赖两次解析结果一致.
+    final bannerStyle = _parseBackground(
+      bannerNode?.attributes['style'] ?? '',
+    );
+    final banner = bannerStyle.isNotEmpty
+        ? bannerStyle
         : bannerNode?.attributes['src'] ?? '';
     final paragraphs = header?.querySelectorAll('p') ?? const [];
     final meta = paragraphs.isNotEmpty ? paragraphs.first.text.trim() : '';
