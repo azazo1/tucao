@@ -17,25 +17,66 @@ abstract final class BgmHttp {
   /// 站点每页固定返回的条数, 用于判断是否还有下一页.
   static const pageSize = 50;
 
+  /// 季度筛选项, 与站点上的 "季度" 一栏一致.
+  static const seasonOptions = <String, int>{
+    '1月': 1,
+    '4月': 4,
+    '7月': 7,
+    '10月': 10,
+    '剧场版': 99,
+  };
+
+  /// 年代筛选项, 与站点上的 "年代" 一栏一致.
+  static const yearOptions = <String>[
+    '1906-1999',
+    '2000-2009',
+    '2010',
+    '2011',
+    '2012',
+    '2013',
+    '2014',
+    '2015',
+    '2016',
+    '2017',
+    '2018',
+    '2019',
+    '2020',
+    '2021',
+    '2022',
+    '2023',
+    '2024',
+    '2025',
+    '2026',
+    '2027',
+  ];
+
   /// 拉取一页番组.
   ///
-  /// [month] 为 1-12 的月份, [year] 为四位年份, 两者为空表示不限.
+  /// [month] 为 1-12 的月份, [year] 为四位年份或站点给出的年代区间,
+  /// [types] 为题材关键词, 例如 恋爱. 均为空表示不限.
   static Future<List<VideoModel>> fetch({
     int? month,
-    int? year,
+    String? year,
+    String? types,
     int page = 1,
     CancelToken? cancelToken,
   }) async {
     final response = await HttpUtil.dio.get(
       '${Constants.baseUrl}${ApiPath.bgmUrl}',
-      queryParameters: {'page': page, 'month': ?month, 'year': ?year},
+      queryParameters: {
+        'page': page,
+        'month': ?month,
+        'year': ?year,
+        'types': ?types,
+      },
       cancelToken: cancelToken,
       options: Options(headers: {'user-agent': Constants.desktopUserAgent}),
     );
     final raw = response.data.toString();
     final list = parseBgmHtml(raw);
     Log.i(
-      '番组索引 month=${month ?? '全部'} year=${year ?? '全部'} 第 $page 页: '
+      '番组索引 month=${month ?? '全部'} year=${year ?? '全部'} '
+      'types=${types ?? '全部'} 第 $page 页: '
       '解析到 ${list.length} 条, 共 ${_parseTotal(raw)} 条',
     );
     return list;

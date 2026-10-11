@@ -6,10 +6,10 @@ import 'package:tucao/common/widgets/video_card.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/pages/bgm/bgm_index_controller.dart';
 
-/// 番组索引页, 即站点的新番时间表.
+/// 番组索引页, 即站点的番组库.
 ///
-/// 站点只提供 html, 数据由 [BgmHttp] 抓取. 顶部按年份与月份筛选,
-/// 内容为两列网格, 卡片下方补充站点独有的集数状态与题材标签.
+/// 站点只提供 html, 数据由 [BgmHttp] 抓取. 顶部提供季度, 年代与题材三组
+/// 筛选, 内容为两列网格, 卡片下方补充站点独有的集数状态与题材标签.
 class BgmIndexPage extends StatefulWidget {
   const BgmIndexPage({super.key});
 
@@ -37,7 +37,16 @@ class _BgmIndexPageState extends State<BgmIndexPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('新番索引')),
+      appBar: AppBar(
+        title: const Text('番组索引'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.tune),
+            tooltip: '题材',
+            onPressed: _showTypePicker,
+          ),
+        ],
+      ),
       body: Column(
         children: [
           _buildFilter(),
@@ -48,27 +57,119 @@ class _BgmIndexPageState extends State<BgmIndexPage> {
     );
   }
 
-  /// 年份与月份筛选条.
+  /// 季度与年代筛选条.
   Widget _buildFilter() {
-    final year = DateTime.now().year;
     return Obx(
       () => Column(
         children: [
           ChannelBar(
-            channels: BgmIndexController.years(year),
-            currentId: _controller.year.value,
-            onChanged: _controller.changeYear,
+            channels: BgmIndexController.seasons,
+            currentId: _controller.seasonIndex,
+            onChanged: _controller.changeSeason,
+            showAll: true,
+            allLabel: '全部季度',
           ),
           ChannelBar(
-            channels: BgmIndexController.months,
-            currentId: _controller.month.value,
-            onChanged: _controller.changeMonth,
+            channels: BgmIndexController.years,
+            currentId: _controller.yearIndex,
+            onChanged: _controller.changeYear,
             showAll: true,
+            allLabel: '全部年代',
           ),
         ],
       ),
     );
   }
+
+  /// 题材筛选项较多, 用底部弹层承载.
+  Future<void> _showTypePicker() async {
+    final selected = await showModalBottomSheet<String?>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        maxChildSize: 0.9,
+        builder: (context, scrollController) => ListView(
+          controller: scrollController,
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          children: [
+            Text('题材', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ChoiceChip(
+                  label: const Text('不限'),
+                  selected: _controller.types.value == null,
+                  onSelected: (_) => Navigator.pop(context, ''),
+                ),
+                for (final type in _typeOptions)
+                  ChoiceChip(
+                    label: Text(type),
+                    selected: _controller.types.value == type,
+                    onSelected: (_) => Navigator.pop(context, type),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+    if (selected == null) {
+      return;
+    }
+    await _controller.changeTypes(selected.isEmpty ? null : selected);
+  }
+
+  /// 站点题材列表, 取自番组页的 "类型" 一栏.
+  static const _typeOptions = [
+    '搞笑',
+    '运动',
+    '励志',
+    '热血',
+    '战斗',
+    '竞技',
+    '校园',
+    '青春',
+    '爱情',
+    '恋爱',
+    '冒险',
+    '后宫',
+    '百合',
+    '治愈',
+    '萝莉',
+    '魔法',
+    '悬疑',
+    '推理',
+    '奇幻',
+    '科幻',
+    '游戏',
+    '神魔',
+    '恐怖',
+    '血腥',
+    '机战',
+    '战争',
+    '犯罪',
+    '历史',
+    '社会',
+    '职场',
+    '剧情',
+    '伪娘',
+    '耽美',
+    '童年',
+    '教育',
+    '亲子',
+    '真人',
+    '歌舞',
+    '肉番',
+    '美食',
+    '美少女',
+    '乙女向',
+    '泡面番',
+  ];
 
   Widget _buildBody() {
     return Obx(() {
@@ -98,7 +199,7 @@ class _BgmIndexPageState extends State<BgmIndexPage> {
               if (list.isEmpty)
                 const SliverFillRemaining(
                   hasScrollBody: false,
-                  child: EmptyWidget(message: '这个月份还没有番组'),
+                  child: EmptyWidget(message: '没有符合条件的番组'),
                 )
               else
                 SliverPadding(

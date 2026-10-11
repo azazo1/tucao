@@ -6,37 +6,35 @@ import 'package:tucao/models/video.dart';
 
 /// 番组索引页控制器.
 ///
-/// 月份与年份任意一项变化都从第一页重新拉取. 站点番组页没有可直接使用的
-/// 总数, 每页固定 50 条, 返回不足一页即认为没有下一页, 因此这里覆盖
-/// [hasMore], 不依赖基类的 total.
+/// 站点提供季度, 年代与类型三组筛选, 任意一项变化都从第一页重新拉取.
+/// 番组页没有可直接使用的总数, 每页固定 50 条, 返回不足一页即认为没有
+/// 下一页, 因此这里覆盖 [hasMore], 不依赖基类的 total.
 class BgmIndexController extends PagingController<VideoModel> {
-  /// 当前月份, 1-12, 为空表示全部月份.
+  /// 季度, 对应站点的 month 参数, 为空表示不限.
   final month = RxnInt();
 
-  /// 当前年份.
-  final year = RxnInt();
+  /// 年代, 对应站点的 year 参数, 可以是四位年份或站点给出的区间.
+  final year = RxnString();
+
+  /// 题材, 对应站点的 types 参数, 为空表示不限.
+  final types = RxnString();
 
   bool _hasMore = true;
 
   @override
   bool get hasMore => _hasMore;
 
-  /// 可选月份, "全部" 由 ChannelBar 的 showAll 提供.
-  static final List<ChannelItem> months = [
-    for (var i = 1; i <= 12; i++) ChannelItem(id: i, name: '$i月'),
+  /// 季度筛选项, "全部" 由 ChannelBar 的 showAll 提供.
+  static final List<ChannelItem> seasons = [
+    for (var i = 0; i < BgmHttp.seasonOptions.length; i++)
+      ChannelItem(id: i, name: BgmHttp.seasonOptions.keys.elementAt(i)),
   ];
 
-  /// 可选年份, 只提供当前年份与上一年.
-  static List<ChannelItem> years(int currentYear) => [
-    ChannelItem(id: currentYear, name: '$currentYear年'),
-    ChannelItem(id: currentYear - 1, name: '${currentYear - 1}年'),
+  /// 年代筛选项, 站点给出的是区间与逐年两项混排.
+  static final List<ChannelItem> years = [
+    for (var i = 0; i < BgmHttp.yearOptions.length; i++)
+      ChannelItem(id: i, name: BgmHttp.yearOptions[i]),
   ];
-
-  @override
-  void onInit() {
-    year.value = DateTime.now().year;
-    super.onInit();
-  }
 
   @override
   int get pageSize => BgmHttp.pageSize;
@@ -46,14 +44,18 @@ class BgmIndexController extends PagingController<VideoModel> {
     final result = await BgmHttp.fetch(
       month: month.value,
       year: year.value,
+      types: types.value,
       page: page,
     );
     _hasMore = result.length >= BgmHttp.pageSize;
     return result;
   }
 
-  /// 切换月份, 传 null 表示全部月份.
-  Future<void> changeMonth(int? value) async {
+  /// 切换季度, 传 null 表示不限.
+  Future<void> changeSeason(int? index) async {
+    final value = index == null
+        ? null
+        : BgmHttp.seasonOptions.values.elementAt(index);
     if (month.value == value) {
       return;
     }
@@ -61,13 +63,43 @@ class BgmIndexController extends PagingController<VideoModel> {
     await _restart();
   }
 
-  /// 切换年份.
-  Future<void> changeYear(int? value) async {
-    if (value == null || year.value == value) {
+  /// 切换年代, 传 null 表示不限.
+  Future<void> changeYear(int? index) async {
+    final value = index == null ? null : BgmHttp.yearOptions[index];
+    if (year.value == value) {
       return;
     }
     year.value = value;
     await _restart();
+  }
+
+  /// 按题材筛选, 传 null 表示不限.
+  Future<void> changeTypes(String? value) async {
+    if (types.value == value) {
+      return;
+    }
+    types.value = value;
+    await _restart();
+  }
+
+  /// 当前季度的下标, 供选择条高亮.
+  int? get seasonIndex {
+    final value = month.value;
+    if (value == null) {
+      return null;
+    }
+    final index = BgmHttp.seasonOptions.values.toList().indexOf(value);
+    return index < 0 ? null : index;
+  }
+
+  /// 当前年代的下标, 供选择条高亮.
+  int? get yearIndex {
+    final value = year.value;
+    if (value == null) {
+      return null;
+    }
+    final index = BgmHttp.yearOptions.indexOf(value);
+    return index < 0 ? null : index;
   }
 
   /// 筛选条件变化后从第一页重新加载.
