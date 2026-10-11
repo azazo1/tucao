@@ -87,6 +87,9 @@ class PlayerPageController extends GetxController {
 
   List<VideoPart> get parts => video.value?.parts ?? const [];
 
+  /// 视频所在分区, 弹幕与评论的接口 id 都包含它.
+  int get typeId => video.value?.typeId ?? 0;
+
   int get partCount => parts.isEmpty ? 1 : parts.length;
 
   /// 当前分P是否为第三方源.
@@ -223,7 +226,11 @@ class PlayerPageController extends GetxController {
   Future<void> _loadDanmaku(int index) async {
     List<DanmakuModel> list;
     try {
-      list = await DanmakuHttp.fetch(hid: hid, part: index);
+      list = await DanmakuHttp.fetch(
+        typeId: typeId,
+        hid: hid,
+        part: index,
+      );
       list.sort((a, b) => a.time.compareTo(b.time));
       Log.i('分P ${index + 1} 加载弹幕 ${list.length} 条');
     } catch (e, stackTrace) {
@@ -327,6 +334,7 @@ class PlayerPageController extends GetxController {
     sending.value = true;
     try {
       final raw = await DanmakuHttp.send(
+        typeId: typeId,
         hid: hid,
         part: part.value,
         text: content,

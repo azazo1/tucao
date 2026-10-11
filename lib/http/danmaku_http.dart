@@ -11,6 +11,7 @@ abstract final class DanmakuHttp {
   ///
   /// 接口返回 xml, 结构为 `<i><d p="时间,类型,字号,颜色,时间戳,...">文本</d></i>`.
   static Future<List<DanmakuModel>> fetch({
+    required int typeId,
     required String hid,
     required int part,
     CancelToken? cancelToken,
@@ -18,7 +19,7 @@ abstract final class DanmakuHttp {
     final response = await HttpUtil.dio.get(
       '${Constants.baseUrl}${ApiPath.danmakuInit}',
       queryParameters: {
-        'playerID': ApiPath.playerId(hid, part),
+        'playerID': ApiPath.playerId(typeId, hid, part),
         'r': DateTime.now().millisecondsSinceEpoch,
       },
       cancelToken: cancelToken,
@@ -27,6 +28,14 @@ abstract final class DanmakuHttp {
     if (raw.trim().isEmpty) {
       return const [];
     }
+    return parseDanmakuXml(raw);
+  }
+
+  /// 解析弹幕 xml.
+  ///
+  /// 站点格式是 `<d p='时间,模式,字号,颜色,时间戳'>内容</d>`,
+  /// 空内容或缺 p 属性的节点跳过. 抽成纯函数便于用固定样本测试.
+  static List<DanmakuModel> parseDanmakuXml(String raw) {
     final document = XmlDocument.parse(raw);
     final list = <DanmakuModel>[];
     for (final node in document.findAllElements('d')) {
@@ -49,6 +58,7 @@ abstract final class DanmakuHttp {
   /// playerID 为查询参数, cid / stime / message / user / size / mode / color 为表单字段.
   /// 接口要求登录态, 未登录时返回错误提示.
   static Future<String> send({
+    required int typeId,
     required String hid,
     required int part,
     required String text,
@@ -61,7 +71,7 @@ abstract final class DanmakuHttp {
   }) async {
     final response = await HttpUtil.dio.post(
       '${Constants.baseUrl}${ApiPath.danmakuSend}',
-      queryParameters: {'playerID': ApiPath.playerId(hid, part)},
+      queryParameters: {'playerID': ApiPath.playerId(typeId, hid, part)},
       data: {
         'cid': hid,
         'stime': time.toStringAsFixed(1),

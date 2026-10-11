@@ -12,9 +12,19 @@ import 'package:tucao/utils/utils.dart';
 ///
 /// [part] 是分 P 序号, 从 0 开始.
 class ReplyPage extends StatefulWidget {
-  const ReplyPage({super.key, required this.hid, required this.part});
+  const ReplyPage({
+    super.key,
+    required this.typeId,
+    required this.hid,
+    this.part = 0,
+  });
+
+  /// 视频所在分区, 与 hid 一起构成评论楼层 id.
+  final int typeId;
 
   final String hid;
+
+  /// 当前分P, 仅用于展示; 同一视频的所有分P共用一个评论楼层.
   final int part;
 
   @override
@@ -31,11 +41,16 @@ class _ReplyPageState extends State<ReplyPage> {
     final existing = Get.isRegistered<ReplyController>()
         ? Get.find<ReplyController>()
         : null;
-    if (existing != null &&
-        (existing.hid != widget.hid || existing.part != widget.part)) {
+    if (existing != null && existing.hid != widget.hid) {
       Get.delete<ReplyController>();
     }
-    controller = Get.put(ReplyController(hid: widget.hid, part: widget.part));
+    controller = Get.put(
+      ReplyController(
+        typeId: widget.typeId,
+        hid: widget.hid,
+        part: widget.part,
+      ),
+    );
   }
 
   @override

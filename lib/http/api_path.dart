@@ -43,10 +43,17 @@ abstract final class ApiPath {
   static const messageReply = 'index.php?m=message&c=index&a=reply';
 
   /// 生成弹幕接口需要的播放器 id.
-  static String playerId(String hid, int part) => '11-$hid-1-$part';
+  ///
+  /// 与官方 `generatePlayerId` 一致, 末尾的分P序号是弹幕的区分依据.
+  static String playerId(int typeId, String hid, int part) =>
+      '$typeId-$hid-1-$part';
 
   /// 生成评论接口需要的楼层 id.
-  static String commentId(String hid, int part) => 'content_11-$hid-1-$part';
+  ///
+  /// 与官方构造一致: `content_{typeid}-{hid}-1`, 末尾的 1 是固定值,
+  /// 不是分P序号, 同一视频的所有分P共用同一个评论楼层.
+  static String commentId(int typeId, String hid) =>
+      'content_$typeId-$hid-1';
 
   static String playUrl(String hid) => '${Constants.baseUrl}play/h$hid/';
 

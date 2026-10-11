@@ -10,8 +10,8 @@ abstract final class ReplyHttp {
   ///
   /// [replyId] 不为空时拉取该评论下的楼中楼回复.
   static Future<ReplyPage> list({
+    required int typeId,
     required String hid,
-    required int part,
     int page = 1,
     int pageSize = 20,
     int? replyId,
@@ -21,7 +21,7 @@ abstract final class ReplyHttp {
     final response = await HttpUtil.dio.get(
       '${Constants.baseUrl}${ApiPath.replyList}',
       queryParameters: {
-        'commentid': ApiPath.commentId(hid, part),
+        'commentid': ApiPath.commentId(typeId, hid),
         'replyid': ?replyId,
         'hot': hot ? 1 : 0,
         'page': page,
@@ -38,8 +38,8 @@ abstract final class ReplyHttp {
 
   /// 发送评论.
   static Future<String> send({
+    required int typeId,
     required String hid,
-    required int part,
     required String content,
     int? replyId,
     CancelToken? cancelToken,
@@ -47,7 +47,7 @@ abstract final class ReplyHttp {
     final response = await HttpUtil.dio.post(
       '${Constants.baseUrl}${ApiPath.replySend}',
       data: {
-        'commentid': ApiPath.commentId(hid, part),
+        'commentid': ApiPath.commentId(typeId, hid),
         'content': content,
         'replyid': replyId?.toString() ?? '',
       },

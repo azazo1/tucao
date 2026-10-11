@@ -220,6 +220,12 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
   }
 
   void _openReply() {
-    Get.to(() => ReplyPage(hid: _controller.hid, part: _controller.part.value));
+    Get.to(
+      () => ReplyPage(
+        typeId: _controller.typeId,
+        hid: _controller.hid,
+        part: _controller.part.value,
+      ),
+    );
   }
 }

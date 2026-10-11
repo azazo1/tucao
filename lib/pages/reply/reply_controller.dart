@@ -35,9 +35,16 @@ const _entities = <String, String>{
 ///
 /// 一级评论分页拉取, 楼中楼只在展开时拉取, 拉取后缓存在评论对象上.
 class ReplyController extends PagingController<ReplyModel> {
-  ReplyController({required this.hid, required this.part});
+  ReplyController({
+    required this.typeId,
+    required this.hid,
+    this.part = 0,
+  });
 
   /// 视频 id, 不带 h 前缀.
+  /// 视频所在分区, 评论接口的 id 由它与 hid 组成.
+  final int typeId;
+
   final String hid;
 
   /// 分 P 序号, 从 0 开始.
@@ -58,8 +65,8 @@ class ReplyController extends PagingController<ReplyModel> {
   @override
   Future<List<ReplyModel>> fetchPage(int page) async {
     final result = await ReplyHttp.list(
+      typeId: typeId,
       hid: hid,
-      part: part,
       page: page,
       pageSize: pageSize,
       hot: true,
@@ -113,8 +120,8 @@ class ReplyController extends PagingController<ReplyModel> {
     loadingReplies.add(id);
     try {
       final result = await ReplyHttp.list(
+        typeId: typeId,
         hid: hid,
-        part: part,
         page: 1,
         pageSize: pageSize,
         replyId: replyId,
@@ -142,8 +149,8 @@ class ReplyController extends PagingController<ReplyModel> {
     sending.value = true;
     try {
       final raw = await ReplyHttp.send(
+        typeId: typeId,
         hid: hid,
-        part: part,
         content: text,
         replyId: replyTo == null ? null : int.tryParse(replyTo.id),
       );
@@ -166,7 +173,7 @@ class ReplyController extends PagingController<ReplyModel> {
     }
     final commentId = comment.commentId.isNotEmpty
         ? comment.commentId
-        : ApiPath.commentId(hid, part);
+        : ApiPath.commentId(typeId, hid);
     final raw = await ReplyHttp.support(commentId: commentId, id: comment.id);
     _checkResult(raw, '点赞失败');
     supported.add(comment.id);

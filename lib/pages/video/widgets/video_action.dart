@@ -54,6 +54,7 @@ class _VideoActionBarState extends State<VideoActionBar> {
   void _openReply() {
     Get.to(
       () => ReplyPage(
+        typeId: widget.controller.typeId,
         hid: widget.controller.hid,
         part: widget.controller.part.value,
       ),

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tucao/models/api_response.dart';
+import 'package:tucao/http/danmaku_http.dart';
 import 'package:tucao/models/danmaku.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/utils/date_utils.dart';
@@ -181,6 +182,47 @@ void main() {
       expect(third.isThirdParty, isTrue);
       const empty = VideoPart(file: '', title: '无地址');
       expect(empty.isThirdParty, isTrue);
+    });
+  });
+
+  group('弹幕 xml 解析', () {
+    // 样本取自站点真实响应.
+    late List<DanmakuModel> list;
+
+    setUpAll(() {
+      final raw = File('test/fixtures/danmaku_real.xml').readAsStringSync();
+      list = DanmakuHttp.parseDanmakuXml(raw);
+    });
+
+    test('解析出真实弹幕', () {
+      expect(list, hasLength(8));
+      for (final item in list) {
+        expect(item.text, isNotEmpty);
+        expect(item.time, greaterThanOrEqualTo(0));
+        expect(item.mode, greaterThan(0));
+        expect(item.fontSize, greaterThan(0));
+        expect(item.color, greaterThan(0));
+      }
+    });
+
+    test('时间与内容对应正确', () {
+      expect(list.first.time, 334.1);
+      expect(list.first.text, contains('乙女游戏'));
+    });
+
+    test('空内容节点被跳过', () {
+      const raw = "<?xml version='1.0'?><i>"
+          "<d p='1,1,25,16777215,1'>  </d>"
+          "<d p='2,1,25,16777215,1'>有内容</d>"
+          '</i>';
+      final result = DanmakuHttp.parseDanmakuXml(raw);
+      expect(result, hasLength(1));
+      expect(result.first.text, '有内容');
+    });
+
+    test('缺 p 属性的节点被跳过', () {
+      const raw = "<?xml version='1.0'?><i><d>没有属性</d></i>";
+      expect(DanmakuHttp.parseDanmakuXml(raw), isEmpty);
     });
   });
 }
