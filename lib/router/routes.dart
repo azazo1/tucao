@@ -14,6 +14,7 @@ abstract final class Routes {
   static const history = '/history';
   static const bgmIndex = '/bgm';
   static const hotSearch = '/hot-search';
+  static const data = '/data';
   static const article = '/article';
 }
 

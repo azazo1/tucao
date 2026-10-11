@@ -1,4 +1,6 @@
 import 'package:get/get.dart';
+import 'package:tucao/pages/article/article_detail_page.dart';
+import 'package:tucao/pages/article/article_page.dart';
 import 'package:tucao/pages/bgm/bgm_index_page.dart';
 import 'package:tucao/pages/channel/channel_page.dart';
 import 'package:tucao/pages/history/history_page.dart';
@@ -24,5 +26,10 @@ abstract final class AppPages {
     GetPage(name: Routes.setting, page: () => const SettingPage()),
     GetPage(name: Routes.login, page: () => const LoginPage()),
     GetPage(name: Routes.hotSearch, page: () => const HotSearchPage()),
+    GetPage(name: Routes.data, page: () => const ArticlePage()),
+    GetPage(
+      name: Routes.article,
+      page: () => ArticleDetailPage(hid: Get.parameters['hid'] ?? ''),
+    ),
   ];
 }
