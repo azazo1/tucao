@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
+import 'package:tucao/common/widgets/video_card.dart';
 
 /// 支持下拉刷新与上拉加载的列表.
 ///

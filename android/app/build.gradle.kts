@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -15,10 +17,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.azazo1.tucao"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
@@ -29,11 +28,37 @@ android {
         versionName = flutter.versionName
     }
 
+    // 发布构建的签名, 密钥由 ci 从 secrets 还原到 android/key.properties.
+    // 本地没有该文件时回落到调试签名, 保证直接构建不失败.
+    val keyProperties = Properties().also {
+        val file = rootProject.file("key.properties")
+        if (file.exists()) {
+            it.load(file.inputStream())
+        }
+    }
+
+    val releaseSigning = keyProperties.getProperty("storeFile")?.let { storeFile ->
+        signingConfigs.create("release") {
+            this.storeFile = file(storeFile)
+            storePassword = keyProperties.getProperty("storePassword")
+            keyAlias = keyProperties.getProperty("keyAlias")
+            keyPassword = keyProperties.getProperty("keyPassword")
+            enableV1Signing = true
+            enableV2Signing = true
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = releaseSigning ?: signingConfigs.getByName("debug")
+            isMinifyEnabled = false
+            isShrinkResources = false
+        }
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
         }
     }
 }

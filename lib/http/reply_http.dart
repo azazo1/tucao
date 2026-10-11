@@ -22,7 +22,7 @@ abstract final class ReplyHttp {
       '${Constants.baseUrl}${ApiPath.replyList}',
       queryParameters: {
         'commentid': ApiPath.commentId(hid, part),
-        if (replyId != null) 'replyid': replyId,
+        'replyid': ?replyId,
         'hot': hot ? 1 : 0,
         'page': page,
         'num': pageSize,

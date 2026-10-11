@@ -1,0 +1,203 @@
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:tucao/common/style.dart';
+import 'package:tucao/common/widgets/channel_bar.dart';
+import 'package:tucao/common/widgets/loading_widget.dart';
+import 'package:tucao/common/widgets/paging_list.dart';
+import 'package:tucao/common/widgets/video_card.dart';
+import 'package:tucao/models/video.dart';
+import 'package:tucao/pages/search/search_controller.dart';
+
+/// 搜索页.
+///
+/// [embedded] 为 true 时作为主框架的 tab 使用, 不显示返回按钮.
+class SearchPage extends StatefulWidget {
+  const SearchPage({super.key, this.embedded = false});
+
+  final bool embedded;
+
+  @override
+  State<SearchPage> createState() => _SearchPageState();
+}
+
+class _SearchPageState extends State<SearchPage> {
+  /// 同一页面可能被多次打开, 用实例标识区分控制器.
+  late final String _tag = 'search_${identityHashCode(this)}';
+
+  late final SearchPageController _controller = Get.put(
+    SearchPageController(),
+    tag: _tag,
+  );
+
+  final _inputController = TextEditingController();
+  final _focusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _inputController.dispose();
+    _focusNode.dispose();
+    if (Get.isRegistered<SearchPageController>(tag: _tag)) {
+      Get.delete<SearchPageController>(tag: _tag);
+    }
+    super.dispose();
+  }
+
+  Future<void> _submit(String value) async {
+    final keyword = value.trim();
+    if (keyword.isEmpty) {
+      _controller.clearKeyword();
+      return;
+    }
+    if (_inputController.text != keyword) {
+      _inputController.value = TextEditingValue(
+        text: keyword,
+        selection: TextSelection.collapsed(offset: keyword.length),
+      );
+    }
+    _focusNode.unfocus();
+    await _controller.search(keyword);
+  }
+
+  void _clearInput() {
+    _inputController.clear();
+    _controller.clearKeyword();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        automaticallyImplyLeading: !widget.embedded,
+        titleSpacing: widget.embedded ? 12 : 4,
+        title: _buildInput(),
+      ),
+      body: Obx(() {
+        if (_controller.hasSearched) {
+          return _buildResult();
+        }
+        return _buildHistory();
+      }),
+    );
+  }
+
+  Widget _buildInput() {
+    return TextField(
+      controller: _inputController,
+      focusNode: _focusNode,
+      textInputAction: TextInputAction.search,
+      textAlignVertical: TextAlignVertical.center,
+      style: const TextStyle(fontSize: 14),
+      onChanged: (value) {
+        // 手动清空输入框时回到搜索历史.
+        if (value.isEmpty) {
+          _controller.clearKeyword();
+        }
+      },
+      onSubmitted: _submit,
+      decoration: InputDecoration(
+        hintText: '搜索视频',
+        hintStyle: const TextStyle(fontSize: 14),
+        prefixIcon: const Padding(
+          padding: EdgeInsets.only(left: 12, right: 6),
+          child: Icon(Icons.search, size: 20),
+        ),
+        prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+        suffixIcon: ValueListenableBuilder<TextEditingValue>(
+          valueListenable: _inputController,
+          builder: (context, value, child) {
+            if (value.text.isEmpty) {
+              return const SizedBox.shrink();
+            }
+            return IconButton(
+              onPressed: _clearInput,
+              tooltip: '清空',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+              icon: const Icon(Icons.cancel, size: 18),
+            );
+          },
+        ),
+        suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+      ),
+    );
+  }
+
+  Widget _buildHistory() {
+    return Obx(() {
+      final items = _controller.history;
+      if (items.isEmpty) {
+        return const EmptyWidget(message: '还没有搜索记录', icon: Icons.history);
+      }
+      return ListView(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        children: [
+          Padding(
+            padding: Style.pagePadding,
+            child: Row(
+              children: [
+                const Text('搜索历史', style: TextStyle(fontSize: 13)),
+                const Spacer(),
+                TextButton(
+                  onPressed: _controller.clearHistory,
+                  child: const Text('清空'),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: Style.pagePadding,
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 2,
+              children: [
+                for (final keyword in items)
+                  InputChip(
+                    label: Text(keyword),
+                    labelStyle: const TextStyle(fontSize: 13),
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    onPressed: () => _submit(keyword),
+                    deleteIcon: const Icon(Icons.close, size: 15),
+                    onDeleted: () => _controller.removeHistory(keyword),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      );
+    });
+  }
+
+  Widget _buildResult() {
+    return Column(
+      children: [
+        ChannelBar(
+          channels: _controller.channels,
+          currentId: _controller.typeId.value,
+          showAll: true,
+          onChanged: _controller.changeType,
+        ),
+        SortBar(
+          options: SortBar.videoSort,
+          current: _controller.order.value,
+          onChanged: _controller.changeOrder,
+        ),
+        Expanded(
+          child: PagingList<VideoModel>(
+            list: _controller.list,
+            hasMore: _controller.hasMore,
+            loading: _controller.loading.value,
+            firstLoading: _controller.firstLoading.value,
+            error: _controller.error.value,
+            emptyMessage: '没有找到相关视频',
+            onRefresh: _controller.refresh,
+            onLoadMore: _controller.loadMore,
+            onRetry: _controller.reload,
+            itemBuilder: (context, video, index) =>
+                VideoCardHorizontal(video: video),
+          ),
+        ),
+      ],
+    );
+  }
+}

@@ -21,7 +21,8 @@ dependencies:
   device_info_plus: ^13.3.0
   dio: ^5.11.1
   dio_cookie_manager: ^3.5.0
-  dynamic_color: ^2.1.0
+  # 2.0.0 起依赖 material_ui, 其 ColorScheme 与 Flutter SDK 的类型不兼容.
+  dynamic_color: ^1.9.0
   get: ^4.7.3
   hive_ce: ^2.20.2
   hive_ce_flutter: ^2.4.0
@@ -36,6 +37,7 @@ dependencies:
   path_provider: ^2.1.6
   url_launcher: ^6.3.3
   wakelock_plus: ^1.8.1
+  xml: ^7.0.1
 
 dev_dependencies:
   flutter_test:

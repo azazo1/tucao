@@ -1,0 +1,9 @@
+# 发布签名配置, 不要提交到版本库.
+#
+# 复制为 android/key.properties 并填写:
+#   storeFile=key.jks
+#   storePassword=******
+#   keyAlias=******
+#   keyPassword=******
+#
+# ci 构建时由 secrets 自动生成该文件, 见 .github/workflows/build.yml.

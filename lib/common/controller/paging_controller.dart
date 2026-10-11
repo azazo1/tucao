@@ -50,6 +50,7 @@ abstract class PagingController<T> extends GetxController {
   }
 
   /// 下拉刷新.
+  @override
   Future<void> refresh() async {
     error.value = null;
     try {

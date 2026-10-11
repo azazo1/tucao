@@ -1,5 +1,4 @@
 import 'package:get/get.dart';
-import 'package:tucao/models/reply.dart';
 import 'package:tucao/models/user.dart';
 import 'package:tucao/http/init.dart';
 import 'package:tucao/http/user_http.dart';
@@ -35,6 +34,7 @@ class AccountService extends GetxController {
   }
 
   /// 向服务端确认登录状态.
+  @override
   Future<void> refresh() async {
     try {
       final info = await UserHttp.info();

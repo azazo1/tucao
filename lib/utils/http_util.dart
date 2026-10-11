@@ -13,7 +13,7 @@ class HttpUtil {
 
   static late final Dio dio;
 
-  static void init({CookieInterceptor? cookieInterceptor}) {
+  static void init({Interceptor? cookieInterceptor}) {
     dio = Dio(
       BaseOptions(
         baseUrl: Constants.baseUrl,

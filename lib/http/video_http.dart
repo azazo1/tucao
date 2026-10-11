@@ -62,7 +62,7 @@ abstract final class VideoHttp {
     final response = await HttpUtil.dio.get(
       '${Constants.apiUrl}${ApiPath.search}',
       queryParameters: {
-        if (typeId != null) 'tid': typeId,
+        'tid': ?typeId,
         'page': page,
         'pagesize': pageSize,
         'order': order ?? 'date',

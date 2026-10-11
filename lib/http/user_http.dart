@@ -53,8 +53,8 @@ abstract final class UserHttp {
       data: {
         'username': username,
         'password': password,
-        if (questionId != null) 'questionid': questionId,
-        if (answer != null) 'answer': answer,
+        'questionid': ?questionId,
+        'answer': ?answer,
         'cookietime': '2592000',
       },
       options: Options(contentType: Headers.formUrlEncodedContentType),

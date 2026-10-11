@@ -57,7 +57,7 @@ abstract final class ChannelData {
         ChannelModel(id: 6, name: '音乐'),
         ChannelModel(id: 29, name: '游戏'),
       ],
-    ],
+    ),
   ];
 
   /// 首页顶部分页用到的分区顺序.
