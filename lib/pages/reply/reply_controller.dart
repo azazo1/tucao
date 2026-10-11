@@ -69,7 +69,6 @@ class ReplyController extends PagingController<ReplyModel> {
       hid: hid,
       page: page,
       pageSize: pageSize,
-      hot: true,
     );
     total.value = result.total;
     return result.list;
@@ -125,7 +124,6 @@ class ReplyController extends PagingController<ReplyModel> {
         page: 1,
         pageSize: pageSize,
         replyId: replyId,
-        hot: true,
       );
       _cacheReplies(id, result.list);
       expanded.add(id);

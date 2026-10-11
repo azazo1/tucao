@@ -128,4 +128,65 @@ void main() {
       expect(options.data, {'content': '顶层评论'});
     });
   });
+
+  group('拉取评论的参数', () {
+    RequestOptions? captured;
+
+    setUpAll(() {
+      // 复用上面已经初始化好的 dio, 只补挂一个拦截器.
+      HttpUtil.dio.interceptors.insert(
+        0,
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            captured = options;
+            handler.reject(
+              DioException(requestOptions: options, message: 'captured'),
+              true,
+            );
+          },
+        ),
+      );
+    });
+
+    setUp(() => captured = null);
+
+    test('只带官方定义的参数', () async {
+      await expectLater(
+        ReplyHttp.list(typeId: 11, hid: '4107869', page: 2, pageSize: 20),
+        throwsA(isA<DioException>()),
+      );
+      final options = captured!;
+      expect(options.queryParameters.keys.toSet(), {
+        'commentid',
+        'page',
+        'num',
+      });
+      expect(options.queryParameters['commentid'], 'content_11-4107869-1');
+      expect(options.queryParameters['page'], 2);
+      expect(options.queryParameters['num'], 20);
+      // hot 是站点忽略的参数, 不应出现.
+      expect(options.queryParameters.containsKey('hot'), isFalse);
+    });
+
+    test('楼中楼只多带 replyid', () async {
+      await expectLater(
+        ReplyHttp.list(
+          typeId: 11,
+          hid: '4107869',
+          page: 1,
+          pageSize: 20,
+          replyId: 316510,
+        ),
+        throwsA(isA<DioException>()),
+      );
+      final options = captured!;
+      expect(options.queryParameters.keys.toSet(), {
+        'commentid',
+        'replyid',
+        'page',
+        'num',
+      });
+      expect(options.queryParameters['replyid'], 316510);
+    });
+  });
 }

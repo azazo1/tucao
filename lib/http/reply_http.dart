@@ -8,6 +8,7 @@ import 'package:tucao/utils/http_util.dart';
 abstract final class ReplyHttp {
   /// 拉取评论.
   ///
+  /// 参数与官方 reply 一致: commentid, replyid, page, num.
   /// [replyId] 不为空时拉取该评论下的楼中楼回复.
   static Future<ReplyPage> list({
     required int typeId,
@@ -15,7 +16,6 @@ abstract final class ReplyHttp {
     int page = 1,
     int pageSize = 20,
     int? replyId,
-    bool hot = true,
     CancelToken? cancelToken,
   }) async {
     final response = await HttpUtil.dio.get(
@@ -23,7 +23,6 @@ abstract final class ReplyHttp {
       queryParameters: {
         'commentid': ApiPath.commentId(typeId, hid),
         'replyid': ?replyId,
-        'hot': hot ? 1 : 0,
         'page': page,
         'num': pageSize,
       },
