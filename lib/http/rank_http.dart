@@ -45,6 +45,7 @@ enum RankType {
   digg('神评论', 'html/digg.html'),
   zero('无人区', 'html/zero.html'),
   fav('追番榜', 'html/fav_hot.html'),
+  online('在线', 'html/ol.html'),
   user('u榜', 'html/user_hot.html');
 
   const RankType(this.label, this.path, {this.supportsChannel = false});
@@ -141,19 +142,25 @@ abstract final class RankHttp {
   /// 页面结构为若干 `div.time_item`, 每个下面是 `div.time_title` 与
   /// `div.list`, list 里是 `div.item`: `a.p` 里的封面, `a.t` 的标题与地址,
   /// `.i` 里的播放数与作者. 结果按时间维度分组, 空榜单会被跳过.
+  ///
+  /// 在线榜这类页面只有一个不带 `time_item` 的 `div.list`, 此时整页作为一组.
   static List<RankGroup> parseRankHtml(String raw) {
     final document = html_parser.parse(raw);
-    final groups = <RankGroup>[];
-    for (final node in document.querySelectorAll('.time_item')) {
-      final title = node.querySelector('.time_title')?.text.trim() ?? '';
-      final list = <VideoModel>[];
-      final seen = <String>{};
-      for (final item in node.querySelectorAll('.list .item')) {
-        final video = _parseItem(item, seen);
-        if (video != null) {
-          list.add(video);
-        }
+    final sections = document.querySelectorAll('.time_item');
+    if (sections.isEmpty) {
+      final list = _parseList(document, <String>{});
+      if (list.isEmpty) {
+        return const [];
       }
+      // 页面标题里的分组名, 取不到时用占位文案.
+      final title = document.querySelector('.title a.t')?.text.trim() ?? '';
+      return [RankGroup(title: title, period: -1, list: list)];
+    }
+
+    final groups = <RankGroup>[];
+    for (final node in sections) {
+      final title = node.querySelector('.time_title')?.text.trim() ?? '';
+      final list = _parseList(node, <String>{});
       if (list.isEmpty) {
         continue;
       }
@@ -167,6 +174,20 @@ abstract final class RankHttp {
       );
     }
     return groups;
+  }
+
+  /// 从一个容器里取出榜单条目, 同一榜单内重复的视频只保留靠前的一次.
+  ///
+  /// 容器可以是整个文档 (在线榜这类只有一个 list 的页面), 也可以是分组节点.
+  static List<VideoModel> _parseList(dynamic node, Set<String> seen) {
+    final list = <VideoModel>[];
+    for (final item in node.querySelectorAll('.list .item')) {
+      final video = _parseItem(item, seen);
+      if (video != null) {
+        list.add(video);
+      }
+    }
+    return list;
   }
 
   /// 解析单个榜单条目, 同一榜单内重复的视频只保留排名靠前的一次.

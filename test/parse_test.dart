@@ -110,6 +110,19 @@ void main() {
       }
     });
 
+    test('在线榜没有分组容器, 整页作为一组', () {
+      final raw = File('test/fixtures/rank_ol.html').readAsStringSync();
+      final groups = RankHttp.parseRankHtml(raw);
+      expect(groups, hasLength(1));
+      expect(groups.first.list, isNotEmpty);
+      expect(groups.first.period, -1);
+      for (final item in groups.first.list) {
+        expect(item.hid, isNotEmpty);
+        expect(item.title, isNotEmpty);
+        expect(item.cover, startsWith('http'));
+      }
+    });
+
     test('热搜榜解析出关键词与搜索次数', () {
       final raw = File('test/fixtures/rank_hot_search.html').readAsStringSync();
       final list = RankHttp.parseHotSearchHtml(raw);
