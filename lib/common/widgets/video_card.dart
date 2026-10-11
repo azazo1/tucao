@@ -121,6 +121,8 @@ class VideoCardVertical extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     return Card(
+      // 网格用的是固定高度, 去掉 Card 默认的外边距, 避免卡片被压小.
+      margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap ?? () => VideoPage.open(video),
@@ -129,15 +131,13 @@ class VideoCardVertical extends StatelessWidget {
           children: [
             Stack(
               children: [
-                AspectRatio(
-                  aspectRatio: Style.coverAspectRatio,
-                  child: VideoCover(
-                    url: video.cover,
-                    radius: 0,
-                    overlay: CoverBadge(
-                      text: Utils.formatCount(video.danmakuCount),
-                      icon: Icons.subtitles_outlined,
-                    ),
+                // 卡片自身已裁圆角, 封面不再单独裁切.
+                VideoCover(
+                  url: video.cover,
+                  radius: 0,
+                  overlay: CoverBadge(
+                    text: Utils.formatCount(video.danmakuCount),
+                    icon: Icons.subtitles_outlined,
                   ),
                 ),
                 if (badge != null && badge!.isNotEmpty)
