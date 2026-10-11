@@ -40,6 +40,29 @@ void main() {
       expect(ids.toSet().length, ids.length);
     });
 
+    test('取满一页时还有下一页', () {
+      // 站点每页 50 条, 取满即认为还有下一页.
+      expect(page.list.length, SpaceHttp.pageSize);
+      expect(page.hasMore, isTrue);
+    });
+
+    test('未取满一页时视为最后一页', () {
+      // 只保留前 3 条投稿, 应当判定为到底.
+      final raw = File('test/fixtures/space.html').readAsStringSync();
+      final listStart = raw.indexOf('<div class="list">');
+      final items = RegExp(
+        r'<div class="item">.*?</div></div>',
+        dotAll: true,
+      ).allMatches(raw.substring(listStart)).take(3).map((m) => m.group(0));
+      final short = SpaceHttp.parseSpaceHtml(
+        '<html><body><div class="list">${items.join()}</div></body></html>',
+        9599,
+        999,
+      );
+      expect(short.list, hasLength(3));
+      expect(short.hasMore, isFalse);
+    });
+
     test('空页面返回空列表而不是抛异常', () {
       final empty = SpaceHttp.parseSpaceHtml(
         '<html><body></body></html>',

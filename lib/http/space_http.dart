@@ -57,6 +57,9 @@ class SpacePage {
 /// 站点 `play/u{uid}/` 是投稿人的主页, 没有 json 接口, 只能抓页面,
 /// 分页参数是 `?page=N`.
 abstract final class SpaceHttp {
+  /// 站点用户空间每页固定返回的条数.
+  static const pageSize = 50;
+
   static Future<SpacePage> fetch({
     required int userId,
     int page = 1,
@@ -122,9 +125,9 @@ abstract final class SpaceHttp {
       );
     }
 
-    final hasMore = document.querySelectorAll('a').any(
-      (a) => (a.attributes['href'] ?? '').contains('page=${page + 1}'),
-    );
+    // 站点分页链接不一定出现, 因此以本页是否取满作为主要依据,
+    // 页大小固定 50, 与站点的实际行为一致.
+    final hasMore = list.length >= pageSize;
 
     Log.i('用户空间解析完成, uid=$userId 第 $page 页, ${list.length} 条');
     return SpacePage(
@@ -138,7 +141,7 @@ abstract final class SpaceHttp {
         total: total,
       ),
       list: list,
-      hasMore: hasMore || list.length >= 20,
+      hasMore: hasMore,
     );
   }
 
