@@ -113,7 +113,9 @@ class _InboxTile extends StatelessWidget {
     return InkWell(
       onTap: () => Get.toNamed(
         Routes.message,
-        parameters: {'id': item.id, 'name': item.username},
+        parameters: {'id': item.id},
+        // 昵称可能含中文与特殊字符, 走 arguments 而不是 url 参数.
+        arguments: item.username,
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),

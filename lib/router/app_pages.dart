@@ -38,7 +38,8 @@ abstract final class AppPages {
       name: Routes.message,
       page: () => MessagePage(
         messageId: Get.parameters['id'] ?? '',
-        userName: Get.parameters['name'] ?? '',
+        // 昵称由 arguments 传入, 避免中文进 url.
+        userName: Get.arguments is String ? Get.arguments as String : '',
       ),
     ),
     GetPage(name: Routes.data, page: () => const ArticlePage()),

@@ -33,6 +33,10 @@ class MessageController extends GetxController {
     firstLoading.value = true;
     error.value = null;
     try {
+      if (AccountService.instance.user.value == null) {
+        error.value = '请先登录后查看私信';
+        return;
+      }
       final result = await MessageHttp.detail(
         messageId: messageId,
         selfUid: selfUid,
@@ -117,7 +121,8 @@ class _MessagePageState extends State<MessagePage> {
       body: Column(
         children: [
           Expanded(child: _buildBody()),
-          _buildInput(context),
+          // 未登录时不给输入框, 避免发送必然失败.
+          if (AccountService.instance.isLogin) _buildInput(context),
         ],
       ),
     );
