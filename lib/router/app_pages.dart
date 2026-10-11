@@ -9,6 +9,7 @@ import 'package:tucao/pages/login/login_page.dart';
 import 'package:tucao/pages/main/main_page.dart';
 import 'package:tucao/pages/rank/hot_search_page.dart';
 import 'package:tucao/pages/rank/rank_page.dart';
+import 'package:tucao/pages/rank/user_rank_page.dart';
 import 'package:tucao/pages/search/search_page.dart';
 import 'package:tucao/pages/setting/setting_page.dart';
 import 'package:tucao/pages/space/space_page.dart';
@@ -29,6 +30,7 @@ abstract final class AppPages {
     GetPage(name: Routes.setting, page: () => const SettingPage()),
     GetPage(name: Routes.login, page: () => const LoginPage()),
     GetPage(name: Routes.hotSearch, page: () => const HotSearchPage()),
+    GetPage(name: Routes.userRank, page: () => const UserRankPage()),
     GetPage(name: Routes.data, page: () => const ArticlePage()),
     GetPage(
       name: Routes.article,

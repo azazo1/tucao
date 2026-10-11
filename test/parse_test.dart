@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tucao/http/rank_http.dart';
+import 'package:tucao/http/user_rank_http.dart';
 import 'package:tucao/http/week_http.dart';
 
 void main() {
@@ -138,6 +139,26 @@ void main() {
         }
       });
     }
+
+    test('u榜是用户榜, 需要独立解析', () {
+      final raw = File('test/fixtures/rank_user_hot.html').readAsStringSync();
+      // 视频榜单的解析器认不出用户链接, 结果为空.
+      expect(RankHttp.parseRankHtml(raw), isEmpty);
+
+      final groups = UserRankHttp.parseUserRankHtml(raw);
+      expect(groups, isNotEmpty);
+      for (final group in groups) {
+        expect(group.title, isNotEmpty);
+        expect(group.list, isNotEmpty);
+        for (final item in group.list) {
+          expect(item.userName, isNotEmpty);
+          expect(item.rank, greaterThan(0));
+          expect(item.avatar, startsWith('http'));
+        }
+        // 站点会给出 uid 为 0 的 "网友" 聚合条目, 属于正常数据.
+        expect(group.list.any((e) => e.userId > 0), isTrue);
+      }
+    });
 
     test('热搜榜解析出关键词与搜索次数', () {
       final raw = File('test/fixtures/rank_hot_search.html').readAsStringSync();

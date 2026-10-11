@@ -39,6 +39,7 @@ class HotKeyword {
 /// 站点榜单类型.
 ///
 /// 除排行榜外, 站点还有几个同结构的榜单页, 它们只有分组维度不同.
+/// u榜列的是用户而不是视频, 结构不同, 见 UserRankHttp.
 enum RankType {
   hot('排行榜', 'html/hot.html', supportsChannel: true),
   danmaku('弹幕榜', 'html/danmu.html'),
@@ -47,8 +48,7 @@ enum RankType {
   fav('追番榜', 'html/fav_hot.html'),
   online('在线', 'html/ol.html'),
   todayUpdate('今天更新', 'html/new.html'),
-  todayRecommend('今天推荐', 'html/pos.html'),
-  user('u榜', 'html/user_hot.html');
+  todayRecommend('今天推荐', 'html/pos.html');
 
   const RankType(this.label, this.path, {this.supportsChannel = false});
 

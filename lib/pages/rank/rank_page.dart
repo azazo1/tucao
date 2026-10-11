@@ -47,6 +47,11 @@ class _RankPageState extends State<RankPage> {
         title: const Text('排行榜'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.group_outlined),
+            tooltip: 'u榜',
+            onPressed: () => Get.toNamed(Routes.userRank),
+          ),
+          IconButton(
             icon: const Icon(Icons.local_fire_department_outlined),
             tooltip: '热搜榜',
             onPressed: () => Get.toNamed(Routes.hotSearch),
