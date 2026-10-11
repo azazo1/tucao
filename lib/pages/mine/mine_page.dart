@@ -140,6 +140,17 @@ class _MinePageState extends State<MinePage> {
             if (!AccountService.instance.isLogin) {
               return const SizedBox.shrink();
             }
+            return ListTile(
+              leading: const Icon(Icons.password_outlined),
+              title: const Text('修改密码'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Get.toNamed(Routes.changePassword),
+            );
+          }),
+          Obx(() {
+            if (!AccountService.instance.isLogin) {
+              return const SizedBox.shrink();
+            }
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: OutlinedButton(

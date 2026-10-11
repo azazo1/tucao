@@ -94,12 +94,29 @@ class AccountService extends GetxController {
     return raw;
   }
 
-  /// 从注册响应里提取失败原因, 成功时返回 null.
+  /// 修改密码.
+  Future<void> changePassword({
+    required String oldPassword,
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
+    final raw = await UserHttp.changePassword(
+      oldPassword: oldPassword,
+      newPassword: newPassword,
+      confirmPassword: confirmPassword,
+    );
+    final failure = formFailure(raw, fallback: '修改密码失败, 请检查填写的信息');
+    if (failure != null) {
+      throw Exception(failure);
+    }
+  }
+
+  /// 从表单类接口的响应里提取失败原因, 成功时返回 null.
   ///
   /// 站点成功时返回的页面正文是 "操作成功" 加一段跳转脚本,
   /// 因此这里正向判断成功, 其余情况再尝试提取提示文案.
   /// 是纯函数, 便于用固定响应做测试.
-  static String? registerFailure(String raw) {
+  static String? formFailure(String raw, {required String fallback}) {
     final text = raw.replaceAll(RegExp(r'<[^>]*>'), ' ').trim();
     if (text.contains('操作成功')) {
       return null;
@@ -112,13 +129,17 @@ class AccountService extends GetxController {
         return message;
       }
     }
-    for (final keyword in ['已存在', '已经被注册', '不正确', '不能为空', '失败']) {
+    for (final keyword in ['已存在', '已经被注册', '不正确', '不能为空', '失败', '过期']) {
       if (text.contains(keyword)) {
-        return '注册失败, 请检查填写的信息';
+        return fallback;
       }
     }
     return null;
   }
+
+  /// 注册响应的失败原因, 保留旧名字以便测试与调用方使用.
+  static String? registerFailure(String raw) =>
+      formFailure(raw, fallback: '注册失败, 请检查填写的信息');
 
   /// 退出登录.
   Future<void> logout() async {

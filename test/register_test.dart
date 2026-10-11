@@ -28,4 +28,36 @@ void main() {
       expect(AccountService.registerFailure(''), isNull);
     });
   });
+
+  group('修改密码响应判定', () {
+    test('会话过期时给出提示而不是静默成功', () {
+      // 站点未登录时返回的正文是 "您的会话已过期, 请重新登录.".
+      const raw = '<body>您的会话已过期，请重新登录。 '
+          'setTimeout("redirect(\'index.php?m=member&amp;c=index&amp;a=login\');",1250);'
+          '</body>';
+      final failure = AccountService.formFailure(
+        raw,
+        fallback: '修改密码失败, 请检查填写的信息',
+      );
+      expect(failure, isNotNull);
+    });
+
+    test('成功响应视为无错误', () {
+      const raw = '<body>操作成功 '
+          'setTimeout("redirect(\'index.php?m=member&amp;c=index\');",1250);'
+          '</body>';
+      expect(
+        AccountService.formFailure(raw, fallback: '修改密码失败'),
+        isNull,
+      );
+    });
+
+    test('旧密码错误时提取站点文案', () {
+      const raw = "<script>showmessage('原密码不正确', 'back');</script>";
+      expect(
+        AccountService.formFailure(raw, fallback: '修改密码失败'),
+        '原密码不正确',
+      );
+    });
+  });
 }

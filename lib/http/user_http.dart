@@ -97,4 +97,27 @@ abstract final class UserHttp {
     );
     return response.data.toString();
   }
+
+  /// 修改密码.
+  ///
+  /// 字段名与官方 changePassword 一致, 需要登录态.
+  static Future<String> changePassword({
+    required String oldPassword,
+    required String newPassword,
+    required String confirmPassword,
+    CancelToken? cancelToken,
+  }) async {
+    final response = await HttpUtil.dio.post(
+      '${Constants.baseUrl}${ApiPath.changePassword}',
+      data: {
+        'info[password]': oldPassword,
+        'info[newpassword]': newPassword,
+        'info[renewpassword]': confirmPassword,
+        'dosubmit': '1',
+      },
+      options: Options(contentType: Headers.formUrlEncodedContentType),
+      cancelToken: cancelToken,
+    );
+    return response.data.toString();
+  }
 }

@@ -35,6 +35,8 @@ abstract final class ApiPath {
   static const login = 'index.php?m=member&c=index&a=login';
   static const register = 'index.php?m=member&c=index&a=register&siteid=1';
   static const logout = 'index.php?m=member&c=index&a=logout&forward=&siteid=1';
+  static const changePassword =
+      'index.php?m=member&c=index&a=account_manage_password&t=account';
 
   /// 私信, 需要登录态.
   static const messageList = 'index.php?m=message&c=index&a=inbox';
