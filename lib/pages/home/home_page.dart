@@ -50,10 +50,21 @@ class _HomePageState extends State<HomePage>
         title: const Text('吐槽'),
         titleSpacing: 16,
         actions: [
-          IconButton(
+          PopupMenuButton<String>(
             icon: const Icon(Icons.calendar_month_outlined),
-            tooltip: '新番索引',
-            onPressed: () => Get.toNamed(Routes.bgmIndex),
+            tooltip: '新番',
+            onSelected: (value) {
+              switch (value) {
+                case 'week':
+                  Get.toNamed(Routes.weekBgm);
+                case 'index':
+                  Get.toNamed(Routes.bgmIndex);
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'week', child: Text('本周新番')),
+              PopupMenuItem(value: 'index', child: Text('新番索引')),
+            ],
           ),
           IconButton(
             icon: const Icon(Icons.search),

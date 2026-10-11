@@ -2,6 +2,7 @@ import 'package:get/get.dart';
 import 'package:tucao/pages/article/article_detail_page.dart';
 import 'package:tucao/pages/article/article_page.dart';
 import 'package:tucao/pages/bgm/bgm_index_page.dart';
+import 'package:tucao/pages/bgm/week_bgm_page.dart';
 import 'package:tucao/pages/channel/channel_page.dart';
 import 'package:tucao/pages/history/history_page.dart';
 import 'package:tucao/pages/login/login_page.dart';
@@ -22,6 +23,7 @@ abstract final class AppPages {
     GetPage(name: Routes.rank, page: () => const RankPage()),
     GetPage(name: Routes.search, page: () => const SearchPage()),
     GetPage(name: Routes.bgmIndex, page: () => const BgmIndexPage()),
+    GetPage(name: Routes.weekBgm, page: () => const WeekBgmPage()),
     GetPage(name: Routes.video, page: () => const VideoPage()),
     GetPage(name: Routes.history, page: () => const HistoryPage()),
     GetPage(name: Routes.setting, page: () => const SettingPage()),
