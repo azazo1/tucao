@@ -123,6 +123,22 @@ void main() {
       }
     });
 
+    // 今天更新与今天推荐也是单列表结构, 与在线榜同型.
+    for (final name in ['new', 'pos']) {
+      test('$name 单列表页整页作为一组', () {
+        final raw = File('test/fixtures/rank_$name.html').readAsStringSync();
+        final groups = RankHttp.parseRankHtml(raw);
+        expect(groups, hasLength(1));
+        expect(groups.first.period, -1);
+        expect(groups.first.list, isNotEmpty);
+        for (final item in groups.first.list) {
+          expect(item.hid, isNotEmpty);
+          expect(item.title, isNotEmpty);
+          expect(item.cover, contains('tucao.my'));
+        }
+      });
+    }
+
     test('热搜榜解析出关键词与搜索次数', () {
       final raw = File('test/fixtures/rank_hot_search.html').readAsStringSync();
       final list = RankHttp.parseHotSearchHtml(raw);
