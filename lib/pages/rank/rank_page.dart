@@ -4,6 +4,7 @@ import 'package:tucao/common/style.dart';
 import 'package:tucao/common/widgets/channel_bar.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/common/widgets/video_card.dart';
+import 'package:tucao/http/rank_http.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/pages/rank/rank_controller.dart';
 import 'package:tucao/router/routes.dart';
@@ -44,29 +45,70 @@ class _RankPageState extends State<RankPage> {
       appBar: AppBar(
         automaticallyImplyLeading: !widget.embedded,
         title: const Text('排行榜'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.local_fire_department_outlined),
+            tooltip: '热搜榜',
+            onPressed: () => Get.toNamed(Routes.hotSearch),
+          ),
+        ],
       ),
       body: Column(
         children: [
           Obx(
-            () => ChannelBar(
-              channels: _controller.channels,
-              currentId: _controller.typeId.value,
-              showAll: true,
-              allLabel: '全站',
-              onChanged: _controller.changeType,
-            ),
-          ),
-          Obx(
             () => SortBar(
-              options: RankPageController.periodOptions,
-              current: _controller.period.value.toString(),
+              options: RankPageController.typeOptions,
+              current: _controller.type.value.name,
               onChanged: (value) {
-                final period = int.tryParse(value ?? '');
-                if (period != null) {
-                  _controller.changePeriod(period);
+                for (final item in RankType.values) {
+                  if (item.name == value) {
+                    _controller.changeRankType(item);
+                    break;
+                  }
                 }
               },
             ),
+          ),
+          Obx(
+            () => _controller.hasChannel
+                ? ChannelBar(
+                    channels: _controller.channels,
+                    currentId: _controller.typeId.value,
+                    showAll: true,
+                    allLabel: '全站',
+                    onChanged: _controller.changeType,
+                  )
+                : const SizedBox.shrink(),
+          ),
+          Obx(
+            () => _controller.hasPeriod
+                ? SortBar(
+                    options: RankPageController.periodOptions,
+                    current: _controller.period.value.toString(),
+                    onChanged: (value) {
+                      final period = int.tryParse(value ?? '');
+                      if (period != null) {
+                        _controller.changePeriod(period);
+                      }
+                    },
+                  )
+                : _controller.groups.length > 1
+                ? ChannelBar(
+                    channels: [
+                      for (var i = 0; i < _controller.groups.length; i++)
+                        ChannelItem(
+                          id: i,
+                          name: _controller.groups[i].title,
+                        ),
+                    ],
+                    currentId: _controller.groupIndex.value,
+                    onChanged: (value) {
+                      if (value != null) {
+                        _controller.changeGroup(value);
+                      }
+                    },
+                  )
+                : const SizedBox.shrink(),
           ),
           Expanded(child: Obx(_buildBody)),
         ],

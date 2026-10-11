@@ -2,7 +2,6 @@ import 'package:dio/dio.dart';
 import 'package:html/dom.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:tucao/common/constants.dart';
-import 'package:tucao/http/api_path.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/utils/http_util.dart';
 
@@ -20,6 +19,43 @@ class RankGroup {
 
   /// 榜单内容, 顺序即排名.
   final List<VideoModel> list;
+}
+
+/// 热搜榜的一个关键词.
+class HotKeyword {
+  const HotKeyword({
+    required this.rank,
+    required this.keyword,
+    required this.count,
+  });
+
+  final int rank;
+  final String keyword;
+
+  /// 搜索次数.
+  final int count;
+}
+
+/// 站点榜单类型.
+///
+/// 除排行榜外, 站点还有几个同结构的榜单页, 它们只有分组维度不同.
+enum RankType {
+  hot('排行榜', 'html/hot.html', supportsChannel: true),
+  danmaku('弹幕榜', 'html/danmu.html'),
+  digg('神评论', 'html/digg.html'),
+  zero('无人区', 'html/zero.html'),
+  fav('追番榜', 'html/fav_hot.html'),
+  user('u榜', 'html/user_hot.html');
+
+  const RankType(this.label, this.path, {this.supportsChannel = false});
+
+  final String label;
+  final String path;
+
+  /// 是否支持按分区筛选, 目前只有排行榜支持.
+  final bool supportsChannel;
+
+  String get url => '${Constants.baseUrl}$path';
 }
 
 /// 排行榜数据源.
@@ -41,21 +77,63 @@ abstract final class RankHttp {
   static Future<List<RankGroup>> fetch({
     int? typeId,
     int period = 0,
+    RankType type = RankType.hot,
     CancelToken? cancelToken,
   }) async {
     final query = <String>[
-      if (typeId != null) 'p=$typeId',
+      if (type.supportsChannel && typeId != null) 'p=$typeId',
       if (period > 0) 't=$period',
     ];
     final url =
-        '${Constants.baseUrl}${ApiPath.rankHtml}'
-        '${query.isEmpty ? '' : '?${query.join('&')}'}';
+        '${type.url}${query.isEmpty ? '' : '?${query.join('&')}'}';
     final response = await HttpUtil.dio.get(
       url,
       cancelToken: cancelToken,
       options: Options(headers: {'user-agent': Constants.desktopUserAgent}),
     );
     return parseRankHtml(response.data.toString());
+  }
+
+  /// 拉取热搜榜.
+  ///
+  /// 该页面结构与其他榜单不同, 是关键词列表而不是视频列表.
+  static Future<List<HotKeyword>> fetchHotSearch({
+    CancelToken? cancelToken,
+  }) async {
+    final response = await HttpUtil.dio.get(
+      '${Constants.baseUrl}html/hot_search.html',
+      cancelToken: cancelToken,
+      options: Options(headers: {'user-agent': Constants.desktopUserAgent}),
+    );
+    return parseHotSearchHtml(response.data.toString());
+  }
+
+  /// 解析热搜榜页面.
+  ///
+  /// 每条是一段形如 `45次1无修` 的文本, 依次是搜索次数, 排名与关键词.
+  static List<HotKeyword> parseHotSearchHtml(String raw) {
+    final document = html_parser.parse(raw);
+    final list = <HotKeyword>[];
+    for (final item in document.querySelectorAll('.time_item .item')) {
+      final link = item.querySelector('a');
+      if (link == null) {
+        continue;
+      }
+      final match = RegExp(
+        r'^(\d+)次(\d+)(.+)$',
+      ).firstMatch(link.text.trim());
+      if (match == null) {
+        continue;
+      }
+      list.add(
+        HotKeyword(
+          count: int.tryParse(match.group(1)!) ?? 0,
+          rank: int.tryParse(match.group(2)!) ?? 0,
+          keyword: match.group(3)!.trim(),
+        ),
+      );
+    }
+    return list;
   }
 
   /// 解析排行榜页面.
@@ -80,7 +158,12 @@ abstract final class RankHttp {
         continue;
       }
       groups.add(
-        RankGroup(title: title, period: periodTitles[title] ?? 0, list: list),
+        RankGroup(
+          title: title,
+          // 分组名不是时间文案时记为 -1, 由调用方决定怎么展示.
+          period: periodTitles[title] ?? -1,
+          list: list,
+        ),
       );
     }
     return groups;

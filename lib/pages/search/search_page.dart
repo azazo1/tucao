@@ -11,6 +11,7 @@ import 'package:tucao/pages/search/search_controller.dart';
 /// 搜索页.
 ///
 /// [embedded] 为 true 时作为主框架的 tab 使用, 不显示返回按钮.
+/// 可以从路由参数 `keyword` 带关键词进入, 例如热搜榜的条目.
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key, this.embedded = false});
 
@@ -31,6 +32,20 @@ class _SearchPageState extends State<SearchPage> {
 
   final _inputController = TextEditingController();
   final _focusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    // 带关键词进入时直接发起搜索, 不再要求用户手动输入.
+    final keyword = Get.parameters['keyword'];
+    if (keyword != null && keyword.trim().isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _submit(keyword);
+        }
+      });
+    }
+  }
 
   @override
   void dispose() {

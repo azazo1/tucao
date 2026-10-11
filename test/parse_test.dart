@@ -80,4 +80,47 @@ void main() {
       }
     });
   });
+
+  group('其它榜单解析', () {
+    /// 弹幕榜, 神评论与追番榜与排行榜同结构, 都是四个时间维度.
+    for (final name in ['danmu', 'digg', 'fav_hot']) {
+      test('$name 解析出四个时间维度且条目完整', () {
+        final raw = File('test/fixtures/rank_$name.html').readAsStringSync();
+        final groups = RankHttp.parseRankHtml(raw);
+        expect(groups.map((e) => e.title).toList(), ['今天', '本周', '本月', '今年']);
+        for (final group in groups) {
+          expect(group.list, isNotEmpty);
+          for (final item in group.list) {
+            expect(item.hid, isNotEmpty);
+            expect(item.title, isNotEmpty);
+            expect(item.cover, startsWith('http'));
+          }
+        }
+      });
+    }
+
+    test('无人区按分区分组, 分组名不是时间维度', () {
+      final raw = File('test/fixtures/rank_zero.html').readAsStringSync();
+      final groups = RankHttp.parseRankHtml(raw);
+      expect(groups, isNotEmpty);
+      // 分组名不是今天/本周这类时间文案, period 统一记为 -1.
+      for (final group in groups) {
+        expect(group.period, -1, reason: '${group.title} 不应被当成时间维度');
+        expect(group.list, isNotEmpty);
+      }
+    });
+
+    test('热搜榜解析出关键词与搜索次数', () {
+      final raw = File('test/fixtures/rank_hot_search.html').readAsStringSync();
+      final list = RankHttp.parseHotSearchHtml(raw);
+      expect(list, isNotEmpty);
+      for (final item in list) {
+        expect(item.keyword, isNotEmpty);
+        expect(item.rank, greaterThan(0));
+        expect(item.count, greaterThan(0));
+      }
+      // 排名应当从 1 开始递增.
+      expect(list.first.rank, 1);
+    });
+  });
 }

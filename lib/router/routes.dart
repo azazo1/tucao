@@ -13,6 +13,8 @@ abstract final class Routes {
   static const login = '/login';
   static const history = '/history';
   static const bgmIndex = '/bgm';
+  static const hotSearch = '/hot-search';
+  static const article = '/article';
 }
 
 /// 路由过渡动画, 与站点轻量的观感一致.

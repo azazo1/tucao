@@ -8,6 +8,9 @@ import 'package:tucao/models/video.dart';
 /// 榜单页面一次返回全部时间维度, 切换维度优先用已经拿到的数据,
 /// 同时在后台按新的维度参数重新拉一次, 保证刷新到最新排名.
 class RankPageController extends GetxController {
+  /// 当前榜单类型.
+  final type = RankType.hot.obs;
+
   /// 当前分区, 为空表示全站.
   final typeId = RxnInt();
 
@@ -47,8 +50,36 @@ class RankPageController extends GetxController {
     SortOption(label: '今年', value: '3'),
   ];
 
+  /// 榜单类型选择条.
+  static final typeOptions = [
+    for (final item in RankType.values)
+      SortOption(label: item.label, value: item.name),
+  ];
+
+  /// 当前榜单是否按时间维度分组.
+  ///
+  /// 排行榜与几个按热度排的榜单用今天/本周/本月/今年, 无人区这类按分区分组,
+  /// 分组名不是时间维度, 此时改按分组下标切换.
+  bool get hasPeriod => groups.isNotEmpty && groups.every((e) => e.period >= 0);
+
+  /// 当前榜单类型是否支持分区筛选.
+  bool get hasChannel => type.value.supportsChannel;
+
+  /// 非时间维度榜单的分组选择条, 例如无人区按分区列出.
+  List<SortOption> get groupOptions => [
+    for (var i = 0; i < groups.length; i++)
+      SortOption(label: groups[i].title, value: i.toString()),
+  ];
+
+  /// 当前分组下标, 用于非时间维度榜单.
+  final groupIndex = 0.obs;
+
   /// 当前维度下的榜单, 没有对应维度时回落到页面返回的第一个榜单.
   List<VideoModel> get list {
+    if (!hasPeriod) {
+      final index = groupIndex.value.clamp(0, groups.length - 1);
+      return groups.isEmpty ? const [] : groups[index].list;
+    }
     for (final group in groups) {
       if (group.period == period.value) {
         return group.list;
@@ -74,6 +105,20 @@ class RankPageController extends GetxController {
   /// 方法名避开 GetxController 自带的 refresh 与 reload.
   Future<void> refreshList() => _fetch();
 
+  /// 切换榜单类型.
+  Future<void> changeRankType(RankType value) async {
+    if (type.value == value) {
+      return;
+    }
+    type.value = value;
+    // 非排行榜不支持分区筛选, 切回时重置为全站.
+    if (!value.supportsChannel) {
+      typeId.value = null;
+    }
+    groups.clear();
+    await load();
+  }
+
   /// 切换分区, 传 null 表示全站.
   Future<void> changeType(int? value) async {
     if (typeId.value == value) {
@@ -93,6 +138,13 @@ class RankPageController extends GetxController {
     await _fetch();
   }
 
+  /// 切换分组, 用于非时间维度榜单.
+  void changeGroup(int value) {
+    if (value >= 0 && value < groups.length) {
+      groupIndex.value = value;
+    }
+  }
+
   Future<void> _fetch() async {
     loading.value = true;
     error.value = null;
@@ -100,8 +152,10 @@ class RankPageController extends GetxController {
       final result = await RankHttp.fetch(
         typeId: typeId.value,
         period: period.value,
+        type: type.value,
       );
       groups.assignAll(result);
+      groupIndex.value = 0;
     } catch (e) {
       // 切换维度失败时保留上一次的榜单, 只有无内容可显示才提示错误.
       if (groups.isEmpty) {
