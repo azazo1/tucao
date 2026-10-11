@@ -46,6 +46,8 @@ enum RankType {
   zero('无人区', 'html/zero.html'),
   fav('追番榜', 'html/fav_hot.html'),
   online('在线', 'html/ol.html'),
+  todayUpdate('今天更新', 'html/new.html'),
+  todayRecommend('今天推荐', 'html/pos.html'),
   user('u榜', 'html/user_hot.html');
 
   const RankType(this.label, this.path, {this.supportsChannel = false});

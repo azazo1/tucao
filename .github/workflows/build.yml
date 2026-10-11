@@ -133,7 +133,9 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version-file: pubspec.yaml
+          # 显式指定版本: flutter-version-file 读的是 pubspec 的 environment.flutter,
+          # 那里写的是范围约束, 该 action 无法解析范围.
+          flutter-version: 3.47.7
           cache: true
 
       - name: 获取依赖
@@ -156,7 +158,9 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version-file: pubspec.yaml
+          # 显式指定版本: flutter-version-file 读的是 pubspec 的 environment.flutter,
+          # 那里写的是范围约束, 该 action 无法解析范围.
+          flutter-version: 3.47.7
           cache: true
 
       - name: 获取依赖
@@ -198,7 +202,6 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          build-root-directory: android
           cache-read-only: ${{ github.event_name == 'pull_request' }}
           gradle-home-cache-cleanup: true
           add-job-summary: on-failure
@@ -207,7 +210,9 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version-file: pubspec.yaml
+          # 显式指定版本: flutter-version-file 读的是 pubspec 的 environment.flutter,
+          # 那里写的是范围约束, 该 action 无法解析范围.
+          flutter-version: 3.47.7
           cache: true
 
       # media_kit 会在构建时从 GitHub Release 下载 libmpv 原生库到 build 目录,
