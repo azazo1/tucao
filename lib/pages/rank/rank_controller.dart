@@ -1,7 +1,6 @@
 import 'package:get/get.dart';
 import 'package:tucao/common/widgets/channel_bar.dart';
 import 'package:tucao/http/rank_http.dart';
-import 'package:tucao/models/channel.dart';
 import 'package:tucao/models/video.dart';
 
 /// 排行榜页控制器.
@@ -25,11 +24,20 @@ class RankPageController extends GetxController {
 
   final error = RxnString();
 
-  /// 可选分区, 取自首页分区树.
-  late final List<ChannelItem> channels = [
-    for (final channel in ChannelData.homeTabs)
-      ChannelItem(id: channel.id, name: channel.name),
+  /// 可选分区.
+  ///
+  /// 站点排行榜只接受这几个分区, 其余分区会返回空榜单, 因此不列出.
+  static const rankChannels = <ChannelItem>[
+    ChannelItem(id: 11, name: '连载新番'),
+    ChannelItem(id: 43, name: '天朝出品'),
+    ChannelItem(id: 26, name: '剧场版'),
+    ChannelItem(id: 10, name: '完结番组'),
+    ChannelItem(id: 39, name: '电视剧'),
+    ChannelItem(id: 38, name: '电影'),
   ];
+
+  /// 可选分区, 与站点排行榜页面保持一致.
+  late final List<ChannelItem> channels = rankChannels;
 
   /// 时间维度选择条.
   static const periodOptions = [

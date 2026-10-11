@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:tucao/pages/home/home_page.dart';
 import 'package:tucao/pages/mine/mine_page.dart';
 import 'package:tucao/pages/rank/rank_page.dart';
-import 'package:tucao/pages/search/search_page.dart';
 
 /// 应用主框架.
 ///
-/// 四个常驻页面保持状态, 切换时不重建.
+/// 三个常驻页面保持状态, 切换时不重建. 搜索从首页右上角进入, 不占底部 tab.
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
 
@@ -20,7 +19,6 @@ class _MainPageState extends State<MainPage> {
   static const _pages = [
     HomePage(),
     RankPage(embedded: true),
-    SearchPage(embedded: true),
     MinePage(),
   ];
 
@@ -48,11 +46,6 @@ class _MainPageState extends State<MainPage> {
               icon: Icon(Icons.leaderboard_outlined),
               selectedIcon: Icon(Icons.leaderboard),
               label: '排行',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.search_outlined),
-              selectedIcon: Icon(Icons.search),
-              label: '搜索',
             ),
             NavigationDestination(
               icon: Icon(Icons.person_outline),
