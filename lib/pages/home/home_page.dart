@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/common/style.dart';
 import 'package:tucao/common/widgets/channel_bar.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/common/widgets/video_card.dart';
@@ -252,21 +253,14 @@ class _ChannelTabViewState extends State<_ChannelTabView>
     );
   }
 
-  /// 两列等宽网格, 卡片高度按封面比例加上标题与信息行的高度.
+  /// 两列等宽网格, 卡片高度由 [Style.verticalCardExtent] 统一给出.
   SliverGridDelegate _gridDelegate(BuildContext context, double maxWidth) {
-    final theme = Theme.of(context);
-    final scaler = MediaQuery.textScalerOf(context);
     final itemWidth = (maxWidth - 24 - 10) / 2;
-    final titleSize = theme.textTheme.bodyMedium?.fontSize ?? 14;
-    final infoSize = theme.textTheme.labelSmall?.fontSize ?? 11;
-    // 标题两行加信息行, 加上两处间距并留少量余量.
-    final textHeight =
-        scaler.scale(titleSize) * 1.3 * 2 + scaler.scale(infoSize) * 1.45 + 14;
     return SliverGridDelegateWithFixedCrossAxisCount(
       crossAxisCount: 2,
       crossAxisSpacing: 10,
       mainAxisSpacing: 12,
-      mainAxisExtent: itemWidth * 233 / 362 + textHeight,
+      mainAxisExtent: Style.verticalCardExtent(context, itemWidth),
     );
   }
 }

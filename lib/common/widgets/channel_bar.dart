@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:tucao/common/style.dart';
 
 /// 分区列表项.
 class ChannelItem {
@@ -99,36 +98,29 @@ class SortBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: Style.pagePadding,
-      child: Row(
-        children: [
-          for (final option in options) ...[
-            InkWell(
-              onTap: () => onChanged(option.value),
-              borderRadius: BorderRadius.circular(4),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 6,
-                  vertical: 4,
-                ),
-                child: Text(
-                  option.label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: current == option.value
-                        ? scheme.primary
-                        : scheme.onSurfaceVariant,
-                    fontWeight: current == option.value
-                        ? FontWeight.w600
-                        : FontWeight.normal,
-                  ),
-                ),
+    return SizedBox(
+      height: 42,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        itemCount: options.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final option = options[index];
+          final selected = current == option.value;
+          return Center(
+            child: ChoiceChip(
+              label: Text(option.label),
+              selected: selected,
+              showCheckmark: false,
+              labelStyle: TextStyle(
+                fontSize: 13,
+                color: selected ? scheme.onSecondaryContainer : null,
               ),
+              onSelected: (_) => onChanged(option.value),
             ),
-            const SizedBox(width: 4),
-          ],
-        ],
+          );
+        },
       ),
     );
   }

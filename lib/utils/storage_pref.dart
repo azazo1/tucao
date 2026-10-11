@@ -18,6 +18,7 @@ abstract final class Pref {
   static const _kDanmakuHideTop = 'danmaku_hide_top';
   static const _kDanmakuHideBottom = 'danmaku_hide_bottom';
   static const _kPlayerSpeed = 'player_speed';
+  static const _kPlayerVolume = 'player_volume';
   static const _kPlayerAutoPlay = 'player_auto_play';
   static const _kPlayerContinueLast = 'player_continue_last';
   static const _kPlayerBackground = 'player_background';
@@ -75,6 +76,11 @@ abstract final class Pref {
   /// 默认播放倍速.
   static double get playerSpeed => GStorage.setting.get(_kPlayerSpeed, defaultValue: 1.0) as double;
   static set playerSpeed(double value) => GStorage.setting.put(_kPlayerSpeed, value);
+
+  /// 播放音量, 0-100, 跨视频沿用.
+  static double get playerVolume =>
+      GStorage.setting.get(_kPlayerVolume, defaultValue: 100.0) as double;
+  static set playerVolume(double value) => GStorage.setting.put(_kPlayerVolume, value);
 
   static bool get playerAutoPlay => GStorage.setting.get(_kPlayerAutoPlay, defaultValue: true) as bool;
   static set playerAutoPlay(bool value) => GStorage.setting.put(_kPlayerAutoPlay, value);

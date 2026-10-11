@@ -19,6 +19,25 @@ abstract final class Style {
   /// 封面宽高比, 站点缩略图是 362x233.
   static const coverAspectRatio = 362 / 233;
 
+  /// 两列网格里竖版卡片的固定高度.
+  ///
+  /// 卡片是封面加下方内容区, 内容区含标题两行, 统计行与作者行,
+  /// 因此这里按字号估算, 并跟随系统字体缩放.
+  static double verticalCardExtent(
+    BuildContext context,
+    double itemWidth,
+  ) {
+    final theme = Theme.of(context);
+    final scaler = MediaQuery.textScalerOf(context);
+    final titleSize = theme.textTheme.bodyMedium?.fontSize ?? 14;
+    final labelSize = theme.textTheme.labelSmall?.fontSize ?? 11;
+    final contentHeight =
+        scaler.scale(titleSize) * 1.35 * 2 +
+        scaler.scale(labelSize) * 1.45 * 2 +
+        22;
+    return itemWidth / coverAspectRatio + contentHeight;
+  }
+
   static ThemeData light(ColorScheme? dynamicScheme) => _build(
     dynamicScheme ?? ColorScheme.fromSeed(seedColor: seedColor),
   );

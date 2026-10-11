@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/common/style.dart';
 import 'package:tucao/common/widgets/channel_bar.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/common/widgets/video_card.dart';
@@ -226,50 +227,17 @@ class _BgmIndexPageState extends State<BgmIndexPage> {
     });
   }
 
-  /// 卡片主体, 下方补充集数状态与题材标签.
+  /// 卡片主体.
   ///
-  /// 这两项在解析时分别写进了 description 与 keywords.
+  /// 集数状态在解析时写进了 description, 这里作为封面角标展示.
   Widget _buildCard(VideoModel video) {
-    final scheme = Theme.of(context).colorScheme;
-    final state = video.description;
-    final tags = video.keywords;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 卡片默认点击即进入播放页, 这里不再覆盖.
-        VideoCardVertical(video: video),
-        if (state.isNotEmpty || tags.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Row(
-              children: [
-                if (state.isNotEmpty)
-                  Text(
-                    state,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-                if (state.isNotEmpty && tags.isNotEmpty)
-                  const SizedBox(width: 6),
-                if (tags.isNotEmpty)
-                  Flexible(
-                    child: Text(
-                      tags,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 11, color: scheme.primary),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-      ],
+    return VideoCardVertical(
+      video: video,
+      badge: video.description.isEmpty ? null : video.description,
     );
   }
 
-  /// 两列等宽网格, 高度按封面比例加上标题, 信息行与补充行估算.
+  /// 两列等宽网格, 卡片高度由 [Style.verticalCardExtent] 统一给出.
   SliverGridDelegate _gridDelegate(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
     final itemWidth = (width - 24 - 10) / 2;
@@ -277,7 +245,7 @@ class _BgmIndexPageState extends State<BgmIndexPage> {
       crossAxisCount: 2,
       crossAxisSpacing: 10,
       mainAxisSpacing: 12,
-      mainAxisExtent: itemWidth * 233 / 362 + 84,
+      mainAxisExtent: Style.verticalCardExtent(context, itemWidth),
     );
   }
 }

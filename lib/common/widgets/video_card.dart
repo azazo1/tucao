@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/common/style.dart';
 import 'package:tucao/pages/video/video_page.dart';
-import 'package:tucao/utils/date_utils.dart';
 import 'package:tucao/utils/utils.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -100,63 +99,121 @@ class CoverBadge extends StatelessWidget {
 }
 
 /// 首页等信息流使用的竖版视频卡片.
+///
+/// 结构参考 PiliPlus: 卡片自身有圆角与底色, 封面只圆上方两角,
+/// 下方是带内边距的内容区, 依次是标题, 统计行与作者行.
 class VideoCardVertical extends StatelessWidget {
-  const VideoCardVertical({super.key, required this.video, this.onTap});
+  const VideoCardVertical({
+    super.key,
+    required this.video,
+    this.onTap,
+    this.badge,
+  });
 
   final VideoModel video;
   final VoidCallback? onTap;
+
+  /// 封面左上角的附加标签, 例如集数状态.
+  final String? badge;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    return InkWell(
-      onTap: onTap ?? () => VideoPage.open(video),
-      borderRadius: BorderRadius.circular(Style.cardRadius),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          VideoCover(
-            url: video.cover,
-            overlay: CoverBadge(
-              text: Utils.formatCount(video.danmakuCount),
-              icon: Icons.subtitles_outlined,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            video.title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodyMedium?.copyWith(height: 1.3),
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Icon(
-                Icons.play_circle_outline,
-                size: 13,
-                color: scheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: 3),
-              Text(
-                Utils.formatCount(video.playCount),
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                ),
-              ),
-              const Spacer(),
-              if (video.createTime > 0)
-                Text(
-                  DateUtil.relative(video.createTime),
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap ?? () => VideoPage.open(video),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              children: [
+                AspectRatio(
+                  aspectRatio: Style.coverAspectRatio,
+                  child: VideoCover(
+                    url: video.cover,
+                    radius: 0,
+                    overlay: CoverBadge(
+                      text: Utils.formatCount(video.danmakuCount),
+                      icon: Icons.subtitles_outlined,
+                    ),
                   ),
                 ),
-            ],
-          ),
-        ],
+                if (badge != null && badge!.isNotEmpty)
+                  Positioned(left: 6, top: 6, child: CoverBadge(text: badge!)),
+              ],
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        video.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    _StatRow(video: video),
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.person_outline,
+                          size: 12,
+                          color: scheme.outline,
+                        ),
+                        const SizedBox(width: 3),
+                        Expanded(
+                          child: Text(
+                            video.userName.isEmpty ? '未知' : video.userName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: scheme.outline,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+}
+
+/// 卡片的统计行, 播放数与弹幕数.
+class _StatRow extends StatelessWidget {
+  const _StatRow({required this.video});
+
+  final VideoModel video;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final style = TextStyle(fontSize: 11, color: scheme.onSurfaceVariant);
+    return Row(
+      children: [
+        Icon(Icons.play_circle_outline, size: 12, color: scheme.outline),
+        const SizedBox(width: 2),
+        Text(Utils.formatCount(video.playCount), style: style),
+        const SizedBox(width: 8),
+        Icon(Icons.subtitles_outlined, size: 12, color: scheme.outline),
+        const SizedBox(width: 2),
+        Text(Utils.formatCount(video.danmakuCount), style: style),
+      ],
     );
   }
 }

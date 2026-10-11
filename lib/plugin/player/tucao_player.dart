@@ -84,12 +84,13 @@ class TucaoPlayer extends ChangeNotifier {
       ),
     );
     _speed = Pref.playerSpeed;
+    _volume = Pref.playerVolume;
     _subscribe();
     await _player!.setRate(_speed);
     await _player!.setVolume(_volume);
     Log.i(
       '播放器初始化完成, 硬件解码 ${Pref.hardwareDecode ? '开启' : '关闭'}, '
-      '倍速 ${_speed.toStringAsFixed(2)}',
+      '倍速 ${_speed.toStringAsFixed(2)}, 音量 ${_volume.toStringAsFixed(0)}',
     );
     _notify();
   }
@@ -181,6 +182,7 @@ class TucaoPlayer extends ChangeNotifier {
   /// 设置音量, 取值范围 0 - 100.
   Future<void> setVolume(double volume) async {
     _volume = volume.clamp(0, 100);
+    Pref.playerVolume = _volume;
     await _player?.setVolume(_volume);
     _notify();
   }

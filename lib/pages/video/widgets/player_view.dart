@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:tucao/models/danmaku.dart';
+import 'package:tucao/pages/video/widgets/player_gesture.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
 import 'package:tucao/utils/utils.dart';
 
@@ -103,11 +104,9 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
           option: _controller.danmakuOption,
         ),
         Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: _toggleControls,
-            onDoubleTap: _controller.togglePlay,
-            child: const SizedBox.expand(),
+          child: PlayerGestureDetector(
+            controller: _controller,
+            onToggleControls: _toggleControls,
           ),
         ),
         if (_showControls) _buildControls(context),

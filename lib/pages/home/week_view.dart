@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/common/style.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/common/widgets/video_card.dart';
 import 'package:tucao/http/week_http.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/pages/home/week_controller.dart';
-import 'package:tucao/pages/video/video_page.dart';
 
 /// 新番时间表.
 ///
@@ -74,13 +74,7 @@ class _WeekViewState extends State<WeekView>
                   : GridView.builder(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            mainAxisSpacing: 14,
-                            crossAxisSpacing: 10,
-                            childAspectRatio: 0.68,
-                          ),
+                      gridDelegate: _gridDelegate(context),
                       itemCount: current.list.length,
                       itemBuilder: (context, i) =>
                           _WeekCard(video: current.list[i]),
@@ -91,6 +85,18 @@ class _WeekViewState extends State<WeekView>
       );
     });
   }
+}
+
+/// 两列等宽网格, 卡片高度由 [Style.verticalCardExtent] 统一给出.
+SliverGridDelegate _gridDelegate(BuildContext context) {
+  final width = MediaQuery.sizeOf(context).width;
+  final itemWidth = (width - 24 - 10) / 2;
+  return SliverGridDelegateWithFixedCrossAxisCount(
+    crossAxisCount: 2,
+    crossAxisSpacing: 10,
+    mainAxisSpacing: 12,
+    mainAxisExtent: Style.verticalCardExtent(context, itemWidth),
+  );
 }
 
 /// 分组切换条, 当天用主色标出.
@@ -149,7 +155,9 @@ class _WeekTabBar extends StatelessWidget {
   }
 }
 
-/// 时间表卡片, 在通用竖版卡片基础上补上集数状态与题材.
+/// 时间表卡片.
+///
+/// 直接用共享的竖版卡片, 集数状态作为封面角标展示.
 class _WeekCard extends StatelessWidget {
   const _WeekCard({required this.video});
 
@@ -157,49 +165,9 @@ class _WeekCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return InkWell(
-      onTap: () => VideoPage.open(video),
-      borderRadius: BorderRadius.circular(8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          VideoCover(
-            url: video.cover,
-            aspectRatio: 320 / 428,
-            overlay: video.description.isEmpty
-                ? null
-                : CoverBadge(text: video.description),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            video.title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall?.copyWith(height: 1.3),
-          ),
-          const SizedBox(height: 3),
-          Row(
-            children: [
-              Text(
-                '${video.playCount}',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                ),
-              ),
-              const Spacer(),
-              if (video.keywords.isNotEmpty)
-                Text(
-                  video.keywords,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: scheme.primary,
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ),
+    return VideoCardVertical(
+      video: video,
+      badge: video.description.isEmpty ? null : video.description,
     );
   }
 }

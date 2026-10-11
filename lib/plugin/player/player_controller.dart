@@ -305,6 +305,11 @@ class PlayerPageController extends GetxController {
     await player.setSpeed(speed);
   }
 
+  /// 设置音量, 0-100.
+  Future<void> setVolume(double volume) async {
+    await player.setVolume(volume);
+  }
+
   /// 发送弹幕, 成功返回空, 失败返回提示文本.
   Future<String?> sendDanmaku(String text) async {
     final content = text.trim();
