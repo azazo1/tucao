@@ -194,6 +194,8 @@ class VideoPartBar extends StatelessWidget {
             index: index,
             title: parts[index].title,
             selected: index == current,
+            // 第三方源已不再提供播放地址, 提前标出来, 避免用户点进去才发现.
+            unavailable: parts[index].isThirdParty,
             onTap: () => controller.switchPart(index),
           ),
         ),
@@ -208,17 +210,27 @@ class _PartChip extends StatelessWidget {
     required this.title,
     required this.selected,
     required this.onTap,
+    this.unavailable = false,
   });
 
   final int index;
   final String title;
   final bool selected;
+
+  /// 该分P没有可用的播放地址.
+  final bool unavailable;
+
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final label = title.isEmpty ? 'P${index + 1}' : 'P${index + 1} $title';
+    final textColor = selected
+        ? scheme.onPrimaryContainer
+        : unavailable
+        ? scheme.outline
+        : scheme.onSurfaceVariant;
     return Center(
       child: Material(
         color: selected ? scheme.primaryContainer : scheme.surfaceContainerHigh,
@@ -228,14 +240,24 @@ class _PartChip extends StatelessWidget {
           borderRadius: BorderRadius.circular(6),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: selected
-                    ? scheme.onPrimaryContainer
-                    : scheme.onSurfaceVariant,
-              ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (unavailable) ...[
+                  Icon(Icons.link_off, size: 12, color: textColor),
+                  const SizedBox(width: 4),
+                ],
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: textColor,
+                    decoration: unavailable
+                        ? TextDecoration.lineThrough
+                        : TextDecoration.none,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
