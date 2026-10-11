@@ -50,14 +50,29 @@ abstract final class BgmHttp {
     '2027',
   ];
 
+  /// 星期筛选项, 与站点上的 "星期" 一栏一致.
+  ///
+  /// 站点用 1-6 表示周一到周六, 7 表示周日.
+  static const weekdayOptions = <String, int>{
+    '星期日': 7,
+    '星期一': 1,
+    '星期二': 2,
+    '星期三': 3,
+    '星期四': 4,
+    '星期五': 5,
+    '星期六': 6,
+  };
+
   /// 拉取一页番组.
   ///
-  /// [month] 为 1-12 的月份, [year] 为四位年份或站点给出的年代区间,
-  /// [types] 为题材关键词, 例如 恋爱. 均为空表示不限.
+  /// [month] 为季度对应的月份, 取值见 [seasonOptions],
+  /// [year] 为四位年份或站点给出的年代区间, [types] 为题材关键词,
+  /// [weekday] 为星期, 取值见 [weekdayOptions]. 均为空表示不限.
   static Future<List<VideoModel>> fetch({
     int? month,
     String? year,
     String? types,
+    int? weekday,
     int page = 1,
     CancelToken? cancelToken,
   }) async {
@@ -68,6 +83,7 @@ abstract final class BgmHttp {
         'month': ?month,
         'year': ?year,
         'types': ?types,
+        'week': ?weekday,
       },
       cancelToken: cancelToken,
       options: Options(headers: {'user-agent': Constants.desktopUserAgent}),
@@ -76,7 +92,7 @@ abstract final class BgmHttp {
     final list = parseBgmHtml(raw);
     Log.i(
       '番组索引 month=${month ?? '全部'} year=${year ?? '全部'} '
-      'types=${types ?? '全部'} 第 $page 页: '
+      'types=${types ?? '全部'} week=${weekday ?? '全部'} 第 $page 页: '
       '解析到 ${list.length} 条, 共 ${_parseTotal(raw)} 条',
     );
     return list;

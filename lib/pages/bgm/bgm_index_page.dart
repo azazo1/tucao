@@ -77,6 +77,13 @@ class _BgmIndexPageState extends State<BgmIndexPage> {
             showAll: true,
             allLabel: '全部年代',
           ),
+          ChannelBar(
+            channels: BgmIndexController.weekdays,
+            currentId: _controller.weekdayIndex,
+            onChanged: _controller.changeWeekday,
+            showAll: true,
+            allLabel: '全部星期',
+          ),
         ],
       ),
     );

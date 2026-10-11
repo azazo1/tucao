@@ -42,6 +42,11 @@ void main() {
       // 年代包含区间与逐年两项.
       expect(BgmHttp.yearOptions, contains('1906-1999'));
       expect(BgmHttp.yearOptions, contains('2026'));
+      // 星期用 1-6 表示周一到周六, 7 表示周日.
+      expect(BgmHttp.weekdayOptions['星期一'], 1);
+      expect(BgmHttp.weekdayOptions['星期六'], 6);
+      expect(BgmHttp.weekdayOptions['星期日'], 7);
+      expect(BgmHttp.weekdayOptions, hasLength(7));
     });
 
     test('空页面返回空列表而不是抛异常', () {

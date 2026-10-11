@@ -18,6 +18,9 @@ class BgmIndexController extends PagingController<VideoModel> {
   /// 题材, 对应站点的 types 参数, 为空表示不限.
   final types = RxnString();
 
+  /// 星期, 对应站点的 week 参数, 为空表示不限.
+  final weekday = RxnInt();
+
   /// 季度筛选项, "全部" 由 ChannelBar 的 showAll 提供.
   static final List<ChannelItem> seasons = [
     for (var i = 0; i < BgmHttp.seasonOptions.length; i++)
@@ -30,6 +33,12 @@ class BgmIndexController extends PagingController<VideoModel> {
       ChannelItem(id: i, name: BgmHttp.yearOptions[i]),
   ];
 
+  /// 星期筛选项, "全部" 由 ChannelBar 的 showAll 提供.
+  static final List<ChannelItem> weekdays = [
+    for (var i = 0; i < BgmHttp.weekdayOptions.length; i++)
+      ChannelItem(id: i, name: BgmHttp.weekdayOptions.keys.elementAt(i)),
+  ];
+
   @override
   int get pageSize => BgmHttp.pageSize;
 
@@ -39,6 +48,7 @@ class BgmIndexController extends PagingController<VideoModel> {
       month: month.value,
       year: year.value,
       types: types.value,
+      weekday: weekday.value,
       page: page,
     );
   }
@@ -63,6 +73,28 @@ class BgmIndexController extends PagingController<VideoModel> {
     }
     year.value = value;
     await _restart();
+  }
+
+  /// 切换星期, 传 null 表示不限.
+  Future<void> changeWeekday(int? index) async {
+    final value = index == null
+        ? null
+        : BgmHttp.weekdayOptions.values.elementAt(index);
+    if (weekday.value == value) {
+      return;
+    }
+    weekday.value = value;
+    await _restart();
+  }
+
+  /// 当前星期的下标, 供选择条高亮.
+  int? get weekdayIndex {
+    final value = weekday.value;
+    if (value == null) {
+      return null;
+    }
+    final index = BgmHttp.weekdayOptions.values.toList().indexOf(value);
+    return index < 0 ? null : index;
   }
 
   /// 按题材筛选, 传 null 表示不限.
