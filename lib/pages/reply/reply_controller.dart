@@ -153,6 +153,8 @@ class ReplyController extends PagingController<ReplyModel> {
         hid: hid,
         content: text,
         replyId: replyTo == null ? null : int.tryParse(replyTo.id),
+        // 回复时要告诉站点回复给谁, 缺失会被拒收.
+        replyUid: replyTo?.userId,
       );
       _checkResult(raw, '评论发送失败');
       if (replyTo == null) {

@@ -36,21 +36,27 @@ abstract final class ReplyHttp {
     return ReplyPage.fromJson(HttpUtil.decodeJson(raw));
   }
 
-  /// 发送评论.
+  /// 发送评论或回复.
+  ///
+  /// 参数位置与官方 sendReply 一致: commentid, id 与 replyuid 是查询参数,
+  /// 只有 content 是表单字段. [replyId] 为空表示发顶层评论,
+  /// 不为空时 [replyUid] 必须是被回复者的 uid, 否则站点会拒收.
   static Future<String> send({
     required int typeId,
     required String hid,
     required String content,
     int? replyId,
+    int? replyUid,
     CancelToken? cancelToken,
   }) async {
     final response = await HttpUtil.dio.post(
       '${Constants.baseUrl}${ApiPath.replySend}',
-      data: {
+      queryParameters: {
         'commentid': ApiPath.commentId(typeId, hid),
-        'content': content,
-        'replyid': replyId?.toString() ?? '',
+        'id': ?replyId,
+        'replyuid': ?replyUid,
       },
+      data: {'content': content},
       options: Options(contentType: Headers.formUrlEncodedContentType),
       cancelToken: cancelToken,
     );
