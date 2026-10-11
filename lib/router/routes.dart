@@ -19,6 +19,8 @@ abstract final class Routes {
   static const space = '/space';
   static const weekBgm = '/week-bgm';
   static const userRank = '/user-rank';
+  static const inbox = '/inbox';
+  static const message = '/message';
 }
 
 /// 路由过渡动画, 与站点轻量的观感一致.

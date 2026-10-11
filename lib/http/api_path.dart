@@ -35,6 +35,12 @@ abstract final class ApiPath {
   static const login = 'index.php?m=member&c=index&a=login';
   static const logout = 'index.php?m=member&c=index&a=logout&forward=&siteid=1';
 
+  /// 私信, 需要登录态.
+  static const messageList = 'index.php?m=message&c=index&a=inbox';
+  static const messageDetail = 'index.php?m=message&c=index&a=read';
+  static const messageSend = 'index.php?m=message&c=index&a=send';
+  static const messageReply = 'index.php?m=message&c=index&a=reply';
+
   /// 生成弹幕接口需要的播放器 id.
   static String playerId(String hid, int part) => '11-$hid-1-$part';
 

@@ -104,8 +104,12 @@ class _MinePageState extends State<MinePage> {
             child: _UserHeader(),
           ),
           const SizedBox(height: 16),
-          // TODO: 历史页 HistoryPage 由其他 agent 提供, 文件就位前只按路由跳转,
-          // 暂不 import lib/pages/history/history_page.dart.
+          ListTile(
+            leading: const Icon(Icons.mail_outline),
+            title: const Text('私信'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Get.toNamed(Routes.inbox),
+          ),
           ListTile(
             leading: const Icon(Icons.history),
             title: const Text('播放历史'),
