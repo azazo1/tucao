@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:html/parser.dart' as html_parser;
 import 'package:tucao/http/rank_http.dart';
 import 'package:tucao/http/user_rank_http.dart';
 import 'package:tucao/http/week_http.dart';
@@ -171,6 +172,20 @@ void main() {
       }
       // 排名应当从 1 开始递增.
       expect(list.first.rank, 1);
+      // 样本取自站点真实页面, 首条是 "112次1无修".
+      expect(list.first.count, 112);
+      expect(list.first.keyword, '无修');
+    });
+
+    test('热搜榜按时间维度分组, 每组各自从 1 排名', () {
+      final raw = File('test/fixtures/rank_hot_search.html').readAsStringSync();
+      final document = html_parser.parse(raw);
+      final groups = document.querySelectorAll('.time_item');
+      expect(groups, hasLength(4));
+      final titles = groups
+          .map((e) => e.querySelector('.time_title')?.text.trim())
+          .toList();
+      expect(titles, ['今天', '本周', '本月', '今年']);
     });
   });
 }
