@@ -22,7 +22,8 @@ abstract final class Style {
   /// 两列网格里竖版卡片的固定高度.
   ///
   /// 卡片是封面加下方内容区, 内容区含标题两行, 统计行与作者行,
-  /// 因此这里按字号估算, 并跟随系统字体缩放.
+  /// 因此这里按字号估算, 并跟随系统字体缩放. 常数项是内容区的内边距
+  /// 与三行之间的间距.
   static double verticalCardExtent(
     BuildContext context,
     double itemWidth,
@@ -34,7 +35,7 @@ abstract final class Style {
     final contentHeight =
         scaler.scale(titleSize) * 1.35 * 2 +
         scaler.scale(labelSize) * 1.45 * 2 +
-        22;
+        26;
     return itemWidth / coverAspectRatio + contentHeight;
   }
 
