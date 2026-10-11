@@ -30,8 +30,16 @@ import release_common as rc
 
 PROJECT_NAME = "tucao"
 
-# android 平台下按架构拆分的 apk 后缀.
+# android 平台下按架构拆分的 apk 后缀, 也是产物名里使用的架构段.
 ARCHES = ("arm64-v8a", "armeabi-v7a", "x86_64")
+
+# apk 后缀与 flutter --target-platform 取值的对应关系.
+# flutter 用的是自己的平台标识, 与 abi 名不同.
+TARGET_PLATFORMS = {
+    "arm64-v8a": "android-arm64",
+    "armeabi-v7a": "android-arm",
+    "x86_64": "android-x64",
+}
 
 APK_OUTPUT_DIR = os.path.join("build", "app", "outputs", "flutter-apk")
 
@@ -52,24 +60,27 @@ def package_version():
     return None
 
 
-def build_apk(build_version):
-    """调用 flutter build 生成按架构拆分的 release apk."""
+def build_apk(build_version, arch=None):
+    """调用 flutter build 生成 release apk.
+
+    指定 arch 时只构建该架构, 供 ci 矩阵并行使用, 避免每个矩阵任务都构建全部架构.
+    """
     env = os.environ.copy()
     # 版本号注入到应用内, 由 lib/build_config.dart 读取.
     env["PROJECT_BUILD_VERSION"] = build_version
 
-    rc.run(
-        [
-            "flutter",
-            "build",
-            "apk",
-            "--release",
-            "--split-per-abi",
-            "--dart-define=BUILD_VERSION=" + build_version,
-        ],
-        env=env,
-        capture=False,
-    )
+    argv = [
+        "flutter",
+        "build",
+        "apk",
+        "--release",
+        "--split-per-abi",
+        "--dart-define=BUILD_VERSION=" + build_version,
+    ]
+    if arch:
+        argv.append("--target-platform=" + TARGET_PLATFORMS[arch])
+
+    rc.run(argv, env=env, capture=False)
 
 
 def apk_path(arch):
@@ -123,12 +134,13 @@ def main():
     )
     print(f"构建版本: {display} (产物名使用 {archive_version})")
 
-    build_apk(display)
+    requested = os.environ.get("TARGET_ARCH")
+    if requested and requested not in ARCHES:
+        rc.die(f"不支持的架构 {requested}, 可选: {', '.join(ARCHES)}")
+    selected = (requested,) if requested else ARCHES
 
-    arches = os.environ.get("TARGET_ARCH")
-    selected = (arches,) if arches else ARCHES
-    if arches and arches not in ARCHES:
-        rc.die(f"不支持的架构 {arches}, 可选: {', '.join(ARCHES)}")
+    # 只构建需要的架构, ci 矩阵因此可以并行拆分.
+    build_apk(display, arch=requested)
 
     produced = []
     for arch in selected:
@@ -145,7 +157,6 @@ def main():
         produced.append(target)
 
     for path in produced:
-        # 校验放在改名前不安全 (源文件已移走), 因此这里对最终产物校验.
         check_apk(path, display)
 
     print(f"已生成 {len(produced)} 个 apk:")

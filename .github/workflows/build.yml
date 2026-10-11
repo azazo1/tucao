@@ -210,6 +210,17 @@ jobs:
           flutter-version-file: pubspec.yaml
           cache: true
 
+      # media_kit 会在构建时从 GitHub Release 下载 libmpv 原生库到 build 目录,
+      # 单次约 100MB, 而 build 目录不随仓库或 Gradle 缓存保留, 因此单独缓存.
+      # 缓存只是加速手段, 缺失时构建脚本会自行重新下载.
+      - name: 恢复 libmpv 原生库缓存
+        uses: actions/cache@v4
+        with:
+          path: build/media_kit_libs_android_video
+          key: ${{ runner.os }}-libmpv-${{ matrix.arch }}-v1.1.7
+          restore-keys: |
+            ${{ runner.os }}-libmpv-${{ matrix.arch }}-
+
       - name: 写入签名密钥
         shell: bash
         run: |

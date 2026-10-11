@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:tucao/common/style.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
+import 'package:tucao/router/routes.dart';
 import 'package:tucao/utils/date_utils.dart';
 import 'package:tucao/utils/utils.dart';
 
@@ -42,20 +43,40 @@ class VideoInfoPanel extends StatelessWidget {
           _buildMeta(context, video),
           if (video.userName.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 12,
-                  backgroundColor: scheme.secondaryContainer,
-                  child: Icon(
-                    Icons.person_outline,
-                    size: 14,
-                    color: scheme.onSecondaryContainer,
-                  ),
+            InkWell(
+              onTap: video.userId > 0
+                  ? () => Get.toNamed(
+                      Routes.space,
+                      parameters: {'uid': video.userId.toString()},
+                    )
+                  : null,
+              borderRadius: BorderRadius.circular(4),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 12,
+                      backgroundColor: scheme.secondaryContainer,
+                      child: Icon(
+                        Icons.person_outline,
+                        size: 14,
+                        color: scheme.onSecondaryContainer,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(video.userName, style: theme.textTheme.bodySmall),
+                    if (video.userId > 0) ...[
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.chevron_right,
+                        size: 14,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ],
+                  ],
                 ),
-                const SizedBox(width: 6),
-                Text(video.userName, style: theme.textTheme.bodySmall),
-              ],
+              ),
             ),
           ],
           if (video.description.isNotEmpty) ...[

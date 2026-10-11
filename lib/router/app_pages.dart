@@ -10,6 +10,7 @@ import 'package:tucao/pages/rank/hot_search_page.dart';
 import 'package:tucao/pages/rank/rank_page.dart';
 import 'package:tucao/pages/search/search_page.dart';
 import 'package:tucao/pages/setting/setting_page.dart';
+import 'package:tucao/pages/space/space_page.dart';
 import 'package:tucao/pages/video/video_page.dart';
 import 'package:tucao/router/routes.dart';
 
@@ -30,6 +31,12 @@ abstract final class AppPages {
     GetPage(
       name: Routes.article,
       page: () => ArticleDetailPage(hid: Get.parameters['hid'] ?? ''),
+    ),
+    GetPage(
+      name: Routes.space,
+      page: () => SpacePage(
+        userId: int.tryParse(Get.parameters['uid'] ?? '') ?? 0,
+      ),
     ),
   ];
 }

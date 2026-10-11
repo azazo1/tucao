@@ -16,6 +16,7 @@ abstract final class Routes {
   static const hotSearch = '/hot-search';
   static const data = '/data';
   static const article = '/article';
+  static const space = '/space';
 }
 
 /// 路由过渡动画, 与站点轻量的观感一致.

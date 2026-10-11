@@ -42,4 +42,7 @@ abstract final class ApiPath {
   static String commentId(String hid, int part) => 'content_11-$hid-1-$part';
 
   static String playUrl(String hid) => '${Constants.baseUrl}play/h$hid/';
+
+  /// 用户空间地址, 站点用 play/u{uid}/ 表示投稿人主页.
+  static String userUrl(int userId) => 'play/u$userId/';
 }
