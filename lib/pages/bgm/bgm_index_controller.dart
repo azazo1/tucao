@@ -7,8 +7,7 @@ import 'package:tucao/models/video.dart';
 /// 番组索引页控制器.
 ///
 /// 站点提供季度, 年代与类型三组筛选, 任意一项变化都从第一页重新拉取.
-/// 番组页没有可直接使用的总数, 每页固定 50 条, 返回不足一页即认为没有
-/// 下一页, 因此这里覆盖 [hasMore], 不依赖基类的 total.
+/// 番组页每页固定 50 条, 是否还有下一页由基类按本页条数判断.
 class BgmIndexController extends PagingController<VideoModel> {
   /// 季度, 对应站点的 month 参数, 为空表示不限.
   final month = RxnInt();
@@ -18,11 +17,6 @@ class BgmIndexController extends PagingController<VideoModel> {
 
   /// 题材, 对应站点的 types 参数, 为空表示不限.
   final types = RxnString();
-
-  bool _hasMore = true;
-
-  @override
-  bool get hasMore => _hasMore;
 
   /// 季度筛选项, "全部" 由 ChannelBar 的 showAll 提供.
   static final List<ChannelItem> seasons = [
@@ -41,14 +35,12 @@ class BgmIndexController extends PagingController<VideoModel> {
 
   @override
   Future<List<VideoModel>> fetchPage(int page) async {
-    final result = await BgmHttp.fetch(
+    return BgmHttp.fetch(
       month: month.value,
       year: year.value,
       types: types.value,
       page: page,
     );
-    _hasMore = result.length >= BgmHttp.pageSize;
-    return result;
   }
 
   /// 切换季度, 传 null 表示不限.
@@ -106,7 +98,6 @@ class BgmIndexController extends PagingController<VideoModel> {
   Future<void> _restart() async {
     // 先进入首屏加载, 避免清空列表时闪出空状态.
     firstLoading.value = true;
-    _hasMore = true;
     await reload();
   }
 }
