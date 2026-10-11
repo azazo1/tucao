@@ -1,8 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/router/routes.dart';
 import 'package:tucao/services/account_service.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// 登录页.
 ///
@@ -15,10 +15,6 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  /// 官网注册地址.
-  static const _registerUrl =
-      'https://www.tucao.my/index.php?m=member&c=index&a=register&siteid=1';
-
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -72,16 +68,6 @@ class _LoginPageState extends State<LoginPage> {
     }
     final message = error is Exception ? error.toString() : '$error';
     return message.replaceFirst('Exception: ', '');
-  }
-
-  Future<void> _openRegister() async {
-    final ok = await launchUrl(
-      Uri.parse(_registerUrl),
-      mode: LaunchMode.externalApplication,
-    );
-    if (!ok) {
-      Get.snackbar('无法打开链接', _registerUrl);
-    }
   }
 
   @override
@@ -159,8 +145,8 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                   TextButton(
-                    onPressed: _openRegister,
-                    child: const Text('去官网注册'),
+                    onPressed: () => Get.toNamed(Routes.register),
+                    child: const Text('注册账号'),
                   ),
                 ],
               ),

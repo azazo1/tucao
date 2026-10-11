@@ -11,6 +11,7 @@ abstract final class Routes {
   static const channel = '/channel';
   static const setting = '/setting';
   static const login = '/login';
+  static const register = '/register';
   static const history = '/history';
   static const bgmIndex = '/bgm';
   static const hotSearch = '/hot-search';

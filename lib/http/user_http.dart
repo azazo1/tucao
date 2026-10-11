@@ -70,4 +70,31 @@ abstract final class UserHttp {
       cancelToken: cancelToken,
     );
   }
+
+  /// 注册.
+  ///
+  /// 字段与站点注册表单一致, 成功时站点返回跳转脚本, 失败时返回带提示的页面.
+  static Future<String> register({
+    required String username,
+    required String nickname,
+    required String email,
+    required String password,
+    required String confirmPassword,
+    CancelToken? cancelToken,
+  }) async {
+    final response = await HttpUtil.dio.post(
+      '${Constants.baseUrl}${ApiPath.register}',
+      data: {
+        'username': username,
+        'nickname': nickname,
+        'email': email,
+        'password': password,
+        'pwdconfirm': confirmPassword,
+        'dosubmit': '1',
+      },
+      options: Options(contentType: Headers.formUrlEncodedContentType),
+      cancelToken: cancelToken,
+    );
+    return response.data.toString();
+  }
 }

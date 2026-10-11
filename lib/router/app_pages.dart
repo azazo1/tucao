@@ -6,6 +6,7 @@ import 'package:tucao/pages/bgm/week_bgm_page.dart';
 import 'package:tucao/pages/channel/channel_page.dart';
 import 'package:tucao/pages/history/history_page.dart';
 import 'package:tucao/pages/login/login_page.dart';
+import 'package:tucao/pages/login/register_page.dart';
 import 'package:tucao/pages/main/main_page.dart';
 import 'package:tucao/pages/message/inbox_page.dart';
 import 'package:tucao/pages/message/message_page.dart';
@@ -31,6 +32,7 @@ abstract final class AppPages {
     GetPage(name: Routes.history, page: () => const HistoryPage()),
     GetPage(name: Routes.setting, page: () => const SettingPage()),
     GetPage(name: Routes.login, page: () => const LoginPage()),
+    GetPage(name: Routes.register, page: () => const RegisterPage()),
     GetPage(name: Routes.hotSearch, page: () => const HotSearchPage()),
     GetPage(name: Routes.userRank, page: () => const UserRankPage()),
     GetPage(name: Routes.inbox, page: () => const InboxPage()),

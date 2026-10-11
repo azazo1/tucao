@@ -33,6 +33,7 @@ abstract final class ApiPath {
   static const userInfo = 'api.php?op=user';
   static const userSpace = 'index.php?m=member&c=space';
   static const login = 'index.php?m=member&c=index&a=login';
+  static const register = 'index.php?m=member&c=index&a=register&siteid=1';
   static const logout = 'index.php?m=member&c=index&a=logout&forward=&siteid=1';
 
   /// 私信, 需要登录态.

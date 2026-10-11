@@ -66,6 +66,60 @@ class AccountService extends GetxController {
     return raw;
   }
 
+  /// 注册.
+  ///
+  /// 站点注册失败时返回带提示的页面, 成功时通常是跳转脚本并直接登录.
+  Future<String> register({
+    required String username,
+    required String nickname,
+    required String email,
+    required String password,
+    required String confirmPassword,
+  }) async {
+    final raw = await UserHttp.register(
+      username: username,
+      nickname: nickname,
+      email: email,
+      password: password,
+      confirmPassword: confirmPassword,
+    );
+    final failure = registerFailure(raw);
+    if (failure != null) {
+      throw Exception(failure);
+    }
+    await refresh();
+    if (!isLogin) {
+      throw Exception('注册成功但自动登录失败, 请手动登录');
+    }
+    return raw;
+  }
+
+  /// 从注册响应里提取失败原因, 成功时返回 null.
+  ///
+  /// 站点成功时返回的页面正文是 "操作成功" 加一段跳转脚本,
+  /// 因此这里正向判断成功, 其余情况再尝试提取提示文案.
+  /// 是纯函数, 便于用固定响应做测试.
+  static String? registerFailure(String raw) {
+    final text = raw.replaceAll(RegExp(r'<[^>]*>'), ' ').trim();
+    if (text.contains('操作成功')) {
+      return null;
+    }
+    // 站点把提示放在脚本里, 形如 showmessage('...', ...).
+    final match = RegExp(r"showmessage\('([^']+)'").firstMatch(raw);
+    if (match != null) {
+      final message = match.group(1)!.trim();
+      if (message.isNotEmpty) {
+        return message;
+      }
+    }
+    for (final keyword in ['已存在', '已经被注册', '不正确', '不能为空', '失败']) {
+      if (text.contains(keyword)) {
+        return '注册失败, 请检查填写的信息';
+      }
+    }
+    return null;
+  }
+
   /// 退出登录.
   Future<void> logout() async {
     try {
