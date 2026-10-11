@@ -23,7 +23,7 @@ Flutter 重建的吐槽弹幕网 (`tucao.my`) 第三方安卓客户端.
 - 弹幕: 滚动 / 顶部 / 底部弹幕渲染, 样式可配置, 支持发送
 - 评论: 评论列表, 楼中楼, 点赞, 发送评论
 - 播放历史: 本地记录进度, 可续播
-- 登录与注册: 站点账号登录, 内置注册页, cookie 持久化
+- 登录与注册: 站点账号登录, 内置注册页与修改密码, cookie 持久化
 - 设置: 主题, 播放器, 弹幕参数
 
 ## 开发
@@ -84,6 +84,7 @@ just build android-debug    # 调试构建
 | 本周新番 | `html/week_bgm.html` (页面解析) |
 | 用户空间 | `play/u{uid}/` (页面解析) |
 | 注册 | `index.php?m=member&c=index&a=register` |
+| 修改密码 | `index.php?m=member&c=index&a=account_manage_password` |
 | 私信 | `index.php?m=message&c=index&a=inbox` (页面解析) |
 
 站点的排行榜 json 接口 `rank.php` 与播放地址接口 `api/playurl` 都已废弃,
