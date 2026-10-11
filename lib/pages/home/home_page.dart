@@ -6,12 +6,13 @@ import 'package:tucao/common/widgets/video_card.dart';
 import 'package:tucao/models/channel.dart';
 import 'package:tucao/pages/channel/channel_controller.dart';
 import 'package:tucao/pages/home/home_controller.dart';
+import 'package:tucao/pages/home/week_view.dart';
 import 'package:tucao/router/routes.dart';
 
 /// 首页.
 ///
-/// 顶部按站点顶级分区分页, 每页内部再用子分区筛选,
-/// 内容为两列竖版卡片的网格, 支持下拉刷新与触底加载.
+/// 顶部第一个标签是新番时间表, 之后按站点顶级分区分页,
+/// 每页内部再用子分区筛选, 内容为两列竖版卡片的网格.
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -31,7 +32,7 @@ class _HomePageState extends State<HomePage>
         ? Get.find<HomeController>()
         : Get.put(HomeController());
     _tabController = TabController(
-      length: ChannelData.list.length,
+      length: ChannelData.list.length + 1,
       vsync: this,
     );
   }
@@ -50,6 +51,11 @@ class _HomePageState extends State<HomePage>
         titleSpacing: 16,
         actions: [
           IconButton(
+            icon: const Icon(Icons.calendar_month_outlined),
+            tooltip: '新番索引',
+            onPressed: () => Get.toNamed(Routes.bgmIndex),
+          ),
+          IconButton(
             icon: const Icon(Icons.search),
             tooltip: '搜索',
             onPressed: () => Get.toNamed(Routes.search),
@@ -57,7 +63,10 @@ class _HomePageState extends State<HomePage>
         ],
         bottom: TabBar(
           controller: _tabController,
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
           tabs: [
+            const Tab(text: '时间表'),
             for (final channel in ChannelData.list) Tab(text: channel.name),
           ],
         ),
@@ -65,6 +74,7 @@ class _HomePageState extends State<HomePage>
       body: TabBarView(
         controller: _tabController,
         children: [
+          const WeekView(),
           for (final channel in ChannelData.list)
             _ChannelTabView(channel: channel, home: _home),
         ],
