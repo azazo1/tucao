@@ -68,25 +68,26 @@ class VideoInfoPanel extends StatelessWidget {
   }
 
   Widget _buildMeta(BuildContext context, VideoModel video) {
-    final style = Theme.of(
-      context,
-    ).textTheme.labelSmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
+    final theme = Theme.of(context);
+    final style = theme.textTheme.labelSmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
     return Wrap(
       spacing: 10,
       runSpacing: 4,
       children: [
-        _metaItem(Icons.play_circle_outline, Utils.formatCount(video.playCount), style),
+        _metaItem(
+          Icons.play_circle_outline,
+          Utils.formatCount(video.playCount),
+          style,
+        ),
         _metaItem(
           Icons.subtitles_outlined,
           '${Utils.formatCount(video.danmakuCount)} 弹幕',
           style,
         ),
         if (video.createTime > 0)
-          _metaItem(
-            Icons.schedule,
-            DateUtil.relative(video.createTime),
-            style,
-          ),
+          _metaItem(Icons.schedule, DateUtil.relative(video.createTime), style),
         if (video.typeName.isNotEmpty)
           _metaItem(Icons.local_offer_outlined, video.typeName, style),
       ],

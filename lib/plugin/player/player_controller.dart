@@ -46,6 +46,9 @@ class PlayerPageController extends GetxController {
   /// 当前分P的播放地址, 为空表示没有可用地址.
   final playUrl = ''.obs;
 
+  /// 播放器是否已经挂载画面, 界面据此决定何时显示视频.
+  final playerReady = false.obs;
+
   /// 视频源失效等提示.
   final sourceError = RxnString();
 
@@ -75,6 +78,9 @@ class PlayerPageController extends GetxController {
 
   bool _lastPlaying = false;
 
+  /// 上一次的播放状态, 用于识别暂停动作.
+  bool _wasPlaying = false;
+
   DanmakuController<DanmakuModel>? _danmakuController;
 
   Timer? _historyTimer;
@@ -93,17 +99,15 @@ class PlayerPageController extends GetxController {
     return list[index].isThirdParty;
   }
 
-  Duration get position => player.position;
-
-  Duration get duration => player.duration;
-
   @override
   void onInit() {
     super.onInit();
     video.value = _initial;
     part.value = _initialPart;
     player.addListener(_onPlayerChanged);
-    _historyTimer = Timer.periodic(_historyInterval, (_) => recordHistory());
+    // 播放到结尾时记一次完整进度, 下次进入从头开始.
+    player.onCompleted = () => unawaited(recordHistory());
+    _historyTimer = Timer.periodic(_historyInterval, (_) => _tickHistory());
     load();
   }
 
@@ -114,9 +118,17 @@ class PlayerPageController extends GetxController {
     // 退出前再记一次, 不等待写入完成.
     unawaited(recordHistory());
     player.removeListener(_onPlayerChanged);
+    player.onCompleted = null;
     player.dispose();
     _danmakuController = null;
     super.onClose();
+  }
+
+  /// 定时记录, 只在播放中写, 暂停时位置不会变.
+  void _tickHistory() {
+    if (player.playing) {
+      unawaited(recordHistory());
+    }
   }
 
   /// 拉取视频详情并加载当前分P.
@@ -154,6 +166,7 @@ class PlayerPageController extends GetxController {
     part.value = index;
     sourceError.value = null;
     playUrl.value = '';
+    playerReady.value = false;
     _resetDanmaku();
 
     final list = parts;
@@ -171,11 +184,10 @@ class PlayerPageController extends GetxController {
     final danmakuFuture = _loadDanmaku(index);
     final startAt = resume ? _resumePosition(index) : null;
     try {
-      await player.setUrl(
-        url,
-        autoPlay: Pref.playerAutoPlay,
-        startAt: startAt,
-      );
+      // 先建好播放器, 界面据此挂载画面, 避免地址还没加载就显示黑屏.
+      await player.init();
+      playerReady.value = true;
+      await player.setUrl(url, autoPlay: Pref.playerAutoPlay, startAt: startAt);
       if (startAt != null) {
         Log.i('续播上次进度 ${startAt.inSeconds}s');
       }
@@ -184,6 +196,8 @@ class PlayerPageController extends GetxController {
       sourceError.value = '播放失败, 请切换分P或稍后重试';
     }
     await danmakuFuture;
+    // 弹幕到位后按当前进度对齐一次, 避免等到下一次位置事件才显示.
+    _syncDanmaku(player.playing);
   }
 
   /// 查询上次播放位置, 不满足续播条件时返回空.
@@ -207,15 +221,22 @@ class PlayerPageController extends GetxController {
   }
 
   Future<void> _loadDanmaku(int index) async {
+    List<DanmakuModel> list;
     try {
-      final list = await DanmakuHttp.fetch(hid: hid, part: index);
+      list = await DanmakuHttp.fetch(hid: hid, part: index);
       list.sort((a, b) => a.time.compareTo(b.time));
-      _danmaku = list;
       Log.i('分P ${index + 1} 加载弹幕 ${list.length} 条');
     } catch (e, stackTrace) {
       Log.e('弹幕加载失败', error: e, stackTrace: stackTrace);
-      _danmaku = const [];
+      list = const [];
     }
+    // 切换分P时旧请求可能后到, 只接受当前分P的结果.
+    if (part.value != index) {
+      return;
+    }
+    _danmaku = list;
+    // 弹幕到位后重新定位, 避免把已经播过的弹幕一次性丢进渲染器.
+    _lastPosition = -1;
   }
 
   /// 挂载弹幕渲染器, 页面创建 [DanmakuScreen] 后调用.
@@ -247,11 +268,6 @@ class PlayerPageController extends GetxController {
     hideBottom: Pref.danmakuHideBottom,
   );
 
-  /// 把偏好同步给渲染器, 用于设置变更后立即生效.
-  void applyDanmakuOption() {
-    _danmakuController?.updateOption(danmakuOption);
-  }
-
   void toggleDanmaku() {
     final enabled = !danmakuEnabled.value;
     danmakuEnabled.value = enabled;
@@ -272,9 +288,10 @@ class PlayerPageController extends GetxController {
 
   Future<void> togglePlay() async {
     if (player.completed) {
+      // 从头重播, 弹幕游标归零但保留已拉取的弹幕.
       await player.seek(Duration.zero);
       await player.play();
-      _resetDanmaku();
+      _rewindDanmaku();
       return;
     }
     await player.toggle();
@@ -371,16 +388,22 @@ class PlayerPageController extends GetxController {
   }
 
   void _onPlayerChanged() {
-    _syncDanmaku();
+    final playing = player.playing;
+    final paused = _wasPlaying && !playing;
+    _wasPlaying = playing;
+    if (paused) {
+      // 暂停时补记一次, 避免定时器还没走到就退出的情况.
+      unawaited(recordHistory());
+    }
+    _syncDanmaku(playing);
   }
 
   /// 按播放位置投递弹幕, 而不是一次性全部交给渲染器.
-  void _syncDanmaku() {
+  void _syncDanmaku(bool playing) {
     final controller = _danmakuController;
     if (controller == null) {
       return;
     }
-    final playing = player.playing;
     if (playing != _lastPlaying) {
       _lastPlaying = playing;
       if (playing) {
@@ -395,8 +418,10 @@ class PlayerPageController extends GetxController {
       return;
     }
     final current = player.position.inMilliseconds / 1000;
-    if (_lastPosition >= 0 &&
-        (current - _lastPosition).abs() > _seekTolerance) {
+    if (_lastPosition < 0) {
+      // 刚加载完弹幕或刚开始播放, 跳过已经播过的部分.
+      _nextDanmaku = _lowerBound(current);
+    } else if ((current - _lastPosition).abs() > _seekTolerance) {
       // 拖动进度后重新定位, 已经飘过的弹幕不再补投.
       controller.clear();
       _nextDanmaku = _lowerBound(current);
@@ -411,6 +436,11 @@ class PlayerPageController extends GetxController {
 
   void _resetDanmaku() {
     _danmaku = const [];
+    _rewindDanmaku();
+  }
+
+  /// 弹幕游标归零, 保留已拉取的列表.
+  void _rewindDanmaku() {
     _nextDanmaku = 0;
     _lastPosition = -1;
     _danmakuController?.clear();

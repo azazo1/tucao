@@ -45,7 +45,9 @@ abstract final class DanmakuHttp {
 
   /// 发送弹幕.
   ///
-  /// 站点要求登录态, 未登录时会返回错误提示文本.
+  /// 表单字段与官方客户端一致, 见官方 apk 的 RawApiService.sendDanmu:
+  /// playerID 为查询参数, cid / stime / message / user / size / mode / color 为表单字段.
+  /// 接口要求登录态, 未登录时返回错误提示.
   static Future<String> send({
     required String hid,
     required int part,
@@ -54,19 +56,26 @@ abstract final class DanmakuHttp {
     int color = 0xFFFFFF,
     int mode = 1,
     int fontSize = 25,
+    String user = '',
     CancelToken? cancelToken,
   }) async {
     final response = await HttpUtil.dio.post(
       '${Constants.baseUrl}${ApiPath.danmakuSend}',
+      queryParameters: {'playerID': ApiPath.playerId(hid, part)},
       data: {
-        'playerID': ApiPath.playerId(hid, part),
-        'mukio': text,
-        'color': '#${color.toRadixString(16).padLeft(6, '0')}',
+        'cid': hid,
+        'stime': time.toStringAsFixed(1),
+        'message': text,
+        'user': user,
         'size': fontSize,
-        'type': mode,
-        'time': time.toStringAsFixed(1),
+        'mode': mode,
+        // 官方按十进制整数提交颜色.
+        'color': color,
       },
-      options: Options(contentType: Headers.formUrlEncodedContentType),
+      options: Options(
+        contentType: Headers.formUrlEncodedContentType,
+        headers: {'cookie': 'tucao_verify=ok'},
+      ),
       cancelToken: cancelToken,
     );
     return response.data.toString();

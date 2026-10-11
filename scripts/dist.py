@@ -79,8 +79,9 @@ def apk_path(arch):
 def check_apk(path, expected_version):
     """apk 无法在构建机上启动, 改为校验 zip 结构与版本号.
 
-    apk 是 zip 容器, 断言清单与 dex 存在, 并检查注入的版本号确实出现在
-    字节流里, 避免 --dart-define 没生效却静默发布.
+    apk 是 zip 容器, 断言清单, dex 与 Dart AOT 快照存在, 并检查注入的版本号
+    确实出现在 libapp.so 里, 避免 --dart-define 没生效却静默发布.
+    Dart 的常量字符串进的是 libapp.so, 不是 dex, 因此只在 so 里查找.
     """
     if not os.path.isfile(path):
         rc.die(f"apk 不存在: {path}")
@@ -90,14 +91,19 @@ def check_apk(path, expected_version):
         for required in ("AndroidManifest.xml", "classes.dex"):
             if required not in names:
                 rc.die(f"{path} 缺少 {required}, 不是有效的 apk")
-        if not any(name.startswith("lib/") for name in names):
+
+        libs = [name for name in names if name.startswith("lib/")]
+        if not libs:
             rc.die(f"{path} 里没有任何 lib/, 架构拆分产物异常")
 
-        # 版本号字符串会进 dex 常量池, 逐个 dex 查找.
-        found = False
-        for name in names:
-            if name.endswith(".dex") and not found:
-                found = expected_version.encode("utf-8") in archive.read(name)
+        snapshots = [name for name in libs if name.endswith("libapp.so")]
+        if not snapshots:
+            rc.die(f"{path} 里没有 libapp.so, 不是有效的 release 产物")
+
+        found = any(
+            expected_version.encode("utf-8") in archive.read(name)
+            for name in snapshots
+        )
         if not found:
             rc.die(f"{path} 里找不到注入的版本号 {expected_version}, dart-define 未生效")
 

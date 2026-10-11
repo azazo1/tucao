@@ -111,10 +111,7 @@ class TucaoPlayer extends ChangeNotifier {
     _duration = Duration.zero;
     _buffered = Duration.zero;
     _notify();
-    await _player!.open(
-      Media(url, httpHeaders: _headers, start: startAt),
-      play: autoPlay,
-    );
+    await _player!.open(Media(url, httpHeaders: _headers), play: autoPlay);
     // open 会重置部分播放属性, 这里重新应用倍速与音量.
     await _player!.setRate(_speed);
     await _player!.setVolume(_volume);
@@ -259,6 +256,9 @@ class TucaoPlayer extends ChangeNotifier {
 
   @override
   void dispose() {
+    if (_disposed) {
+      return;
+    }
     _disposed = true;
     for (final subscription in _subscriptions) {
       subscription.cancel();

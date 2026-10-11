@@ -68,26 +68,29 @@ class _VideoActionBarState extends State<VideoActionBar> {
       child: Row(
         children: [
           Expanded(
-            child: Obx(() {
-              final position = widget.controller.player.position;
-              return TextField(
-                controller: _textController,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => _send(),
-                maxLength: 60,
-                style: const TextStyle(fontSize: 13),
-                decoration: InputDecoration(
-                  isDense: true,
-                  counterText: '',
-                  hintText: '发个弹幕见证当下 ${Utils.formatDuration(position)}',
-                  hintStyle: const TextStyle(fontSize: 13),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
+            child: ListenableBuilder(
+              listenable: widget.controller.player,
+              builder: (context, child) {
+                final position = widget.controller.player.position;
+                return TextField(
+                  controller: _textController,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => _send(),
+                  maxLength: 60,
+                  style: const TextStyle(fontSize: 13),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    counterText: '',
+                    hintText: '发个弹幕见证当下 ${Utils.formatDuration(position)}',
+                    hintStyle: const TextStyle(fontSize: 13),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
                   ),
-                ),
-              );
-            }),
+                );
+              },
+            ),
           ),
           const SizedBox(width: 8),
           Obx(

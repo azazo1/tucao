@@ -8,6 +8,7 @@ import 'package:tucao/models/danmaku.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
 import 'package:tucao/utils/utils.dart';
 
+
 /// 播放器区域: 视频画面, 弹幕层与控制条.
 ///
 /// 控制条与进度条直接读 [PlayerPageController.player] 的状态,
@@ -97,6 +98,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
         const ColoredBox(color: Colors.black),
         _buildVideo(),
         DanmakuScreen<DanmakuModel>(
+          key: const ValueKey('danmaku'),
           createdController: _controller.attachDanmaku,
           option: _controller.danmakuOption,
         ),
@@ -109,19 +111,32 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
           ),
         ),
         if (_showControls) _buildControls(context),
+        if (widget.fullscreen) _buildFullscreenBack(),
         _buildBuffering(),
         _buildSourceTip(),
       ],
     );
   }
 
+  /// 全屏下控制条会自动隐藏, 单独留一个返回按钮, 避免只能靠系统返回键.
+  Widget _buildFullscreenBack() {
+    return Positioned(
+      left: 0,
+      top: 0,
+      child: SafeArea(
+        child: IconButton(
+          onPressed: widget.onToggleFullscreen,
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          tooltip: '退出全屏',
+        ),
+      ),
+    );
+  }
+
   Widget _buildVideo() {
     return Obx(() {
-      final ready = _controller.playUrl.value.isNotEmpty;
-      if (!_controller.player.initialized) {
-        return ready
-            ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-            : const SizedBox.shrink();
+      if (!_controller.playerReady.value) {
+        return const SizedBox.shrink();
       }
       return Video(
         controller: _controller.player.videoController,
@@ -160,8 +175,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
     return ListenableBuilder(
       listenable: player,
       builder: (context, child) {
-        final visible =
-            player.buffering && player.position > Duration.zero && !player.completed;
+        final visible = player.buffering && !player.completed;
         return IgnorePointer(
           child: Center(
             child: visible

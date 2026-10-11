@@ -17,11 +17,12 @@ import 'package:tucao/utils/storage_pref.dart';
 class VideoPage extends StatefulWidget {
   const VideoPage({super.key});
 
-  /// 从列表页进入, 视频信息由播放页重新拉取.
+  /// 从列表页进入, 带上已有的视频信息可以少一次白屏.
   static void open(VideoModel video, {int part = 0}) {
     Get.toNamed(
       Routes.video,
       parameters: {'hid': video.hid, 'part': part.toString()},
+      arguments: video,
     );
   }
 
@@ -38,6 +39,9 @@ class VideoPage extends StatefulWidget {
 }
 
 class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
+  /// 同一视频可能被重复打开, 用实例标识区分控制器.
+  late final String _tag = 'video_${identityHashCode(this)}';
+
   late final PlayerPageController _controller;
 
   /// 是否处于横屏全屏.
@@ -50,14 +54,25 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
     final parameters = Get.parameters;
     final hid = parameters['hid'] ?? '';
     final part = int.tryParse(parameters['part'] ?? '') ?? 0;
-    _controller = Get.put(PlayerPageController(hid: hid, part: part), tag: hid);
+    final argument = Get.arguments;
+    _controller = Get.put(
+      PlayerPageController(
+        hid: hid,
+        part: part,
+        // 列表页带了数据时先用着, 详情返回后再覆盖.
+        initial: argument is VideoModel ? argument : null,
+      ),
+      tag: _tag,
+    );
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _controller.detachDanmaku();
-    Get.delete<PlayerPageController>(tag: _controller.hid);
+    if (Get.isRegistered<PlayerPageController>(tag: _tag)) {
+      Get.delete<PlayerPageController>(tag: _tag);
+    }
     if (_fullscreen) {
       _restorePortrait();
     }
@@ -105,51 +120,59 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
           _exitFullscreen();
         }
       },
-      child: _fullscreen ? _buildFullscreen() : _buildPortrait(),
-    );
-  }
-
-  Widget _buildFullscreen() {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          Positioned.fill(child: _buildPlayerView()),
-          SafeArea(
-            child: IconButton(
-              onPressed: _exitFullscreen,
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPortrait() {
-    return Scaffold(
-      appBar: AppBar(
-        title: Obx(
-          () => Text(
-            _controller.video.value?.title ?? '视频',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 15),
-          ),
+      child: Scaffold(
+        backgroundColor: _fullscreen
+            ? Colors.black
+            : Theme.of(context).colorScheme.surface,
+        // 全屏时用零高度的占位替代标题栏, 保持 body 的 element 不被重建,
+        // 否则切换全屏会重新挂载播放器与弹幕层.
+        appBar: _fullscreen ? _emptyAppBar : _buildAppBar(),
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            // 竖屏下播放器固定为 16:9, 全屏下铺满.
+            final playerHeight = _fullscreen
+                ? constraints.maxHeight
+                : constraints.maxWidth * 9 / 16;
+            return Stack(
+              children: [
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  right: 0,
+                  height: playerHeight,
+                  child: _buildPlayerView(),
+                ),
+                if (!_fullscreen)
+                  Positioned(
+                    left: 0,
+                    top: playerHeight,
+                    right: 0,
+                    bottom: 0,
+                    child: _buildContentArea(),
+                  ),
+              ],
+            );
+          },
         ),
       ),
-      body: Obx(() {
-        final error = _controller.error.value;
-        if (error != null && _controller.video.value == null) {
-          return ErrorWidgetView(message: error, onRetry: _controller.load);
-        }
-        return Column(
-          children: [
-            AspectRatio(aspectRatio: 16 / 9, child: _buildPlayerView()),
-            Expanded(child: _buildContent()),
-          ],
-        );
-      }),
+    );
+  }
+
+  static final _emptyAppBar = PreferredSize(
+    preferredSize: Size.zero,
+    child: SizedBox.shrink(),
+  );
+
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      title: Obx(
+        () => Text(
+          _controller.video.value?.title ?? '视频',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 15),
+        ),
+      ),
     );
   }
 
@@ -159,6 +182,16 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
       fullscreen: _fullscreen,
       onToggleFullscreen: _fullscreen ? _exitFullscreen : _enterFullscreen,
     );
+  }
+
+  Widget _buildContentArea() {
+    return Obx(() {
+      final error = _controller.error.value;
+      if (error != null && _controller.video.value == null) {
+        return ErrorWidgetView(message: error, onRetry: _controller.load);
+      }
+      return _buildContent();
+    });
   }
 
   Widget _buildContent() {
