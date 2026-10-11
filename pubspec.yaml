@@ -1,0 +1,49 @@
+name: tucao
+description: 吐槽弹幕网第三方客户端
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.9.0"
+  flutter: ">=3.38.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  cached_network_image: ^4.0.4
+  canvas_danmaku: ^0.3.3
+  collection: ^1.19.1
+  cookie_jar: ^4.0.9
+  device_info_plus: ^13.3.0
+  dio: ^5.11.1
+  dio_cookie_manager: ^3.5.0
+  dynamic_color: ^2.1.0
+  get: ^4.7.3
+  hive_ce: ^2.20.2
+  hive_ce_flutter: ^2.4.0
+  html: ^0.15.7
+  intl: ^0.20.3
+  logger: ^2.8.0
+  media_kit: ^1.2.6
+  media_kit_libs_video: ^1.0.7
+  media_kit_video: ^2.0.1
+  package_info_plus: ^10.2.2
+  path: ^1.9.1
+  path_provider: ^2.1.6
+  url_launcher: ^6.3.3
+  wakelock_plus: ^1.8.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
