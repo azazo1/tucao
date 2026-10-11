@@ -50,12 +50,6 @@ class RankPageController extends GetxController {
     SortOption(label: '今年', value: '3'),
   ];
 
-  /// 榜单类型选择条.
-  static final typeOptions = [
-    for (final item in RankType.values)
-      SortOption(label: item.label, value: item.name),
-  ];
-
   /// 当前榜单是否按时间维度分组.
   ///
   /// 排行榜与几个按热度排的榜单用今天/本周/本月/今年, 无人区这类按分区分组,

@@ -44,7 +44,25 @@ class _RankPageState extends State<RankPage> {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: !widget.embedded,
-        title: const Text('排行榜'),
+        // 榜单类型有八项, 放在标题栏作为下拉选择, 避免顶部叠加三层横向滚动条.
+        title: Obx(
+          () => PopupMenuButton<RankType>(
+            tooltip: '切换榜单',
+            initialValue: _controller.type.value,
+            onSelected: _controller.changeRankType,
+            itemBuilder: (context) => [
+              for (final item in RankType.values)
+                PopupMenuItem(value: item, child: Text(item.label)),
+            ],
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(_controller.type.value.label),
+                const Icon(Icons.arrow_drop_down),
+              ],
+            ),
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.group_outlined),
@@ -60,20 +78,6 @@ class _RankPageState extends State<RankPage> {
       ),
       body: Column(
         children: [
-          Obx(
-            () => SortBar(
-              options: RankPageController.typeOptions,
-              current: _controller.type.value.name,
-              onChanged: (value) {
-                for (final item in RankType.values) {
-                  if (item.name == value) {
-                    _controller.changeRankType(item);
-                    break;
-                  }
-                }
-              },
-            ),
-          ),
           Obx(
             () => _controller.hasChannel
                 ? ChannelBar(
