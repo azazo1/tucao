@@ -70,9 +70,14 @@ class RankPageController extends GetxController {
 
   /// 当前维度下的榜单, 没有对应维度时回落到页面返回的第一个榜单.
   List<VideoModel> get list {
+    if (groups.isEmpty) {
+      // 分组为空时不能走 clamp, Dart 的 clamp 要求下界不大于上界,
+      // clamp(0, -1) 会直接抛异常.
+      return const [];
+    }
     if (!hasPeriod) {
       final index = groupIndex.value.clamp(0, groups.length - 1);
-      return groups.isEmpty ? const [] : groups[index].list;
+      return groups[index].list;
     }
     for (final group in groups) {
       if (group.period == period.value) {

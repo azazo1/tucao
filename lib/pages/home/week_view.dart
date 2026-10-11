@@ -50,6 +50,10 @@ class _WeekViewState extends State<WeekView>
         return ErrorWidgetView(message: error, onRetry: _controller.load);
       }
       final groups = _controller.groups;
+      if (groups.isEmpty) {
+        // 分组为空时不能走 clamp, Dart 的 clamp 要求下界不大于上界.
+        return const EmptyWidget(message: '时间表暂时没有内容');
+      }
       final index = _controller.index.value.clamp(0, groups.length - 1);
       final current = groups[index];
 
