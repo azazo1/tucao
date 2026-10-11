@@ -52,6 +52,9 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
 
   double? _volumeTarget;
 
+  /// 手势开始时的音量, 用作累加基准.
+  double _startVolume = 100;
+
   /// 是否处于长按加速中, 用来在结束时恢复.
   bool _longPressing = false;
 
@@ -100,6 +103,7 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
     _startX = details.globalPosition.dx;
     _startY = details.globalPosition.dy;
     _startPosition = widget.controller.player.position;
+    _startVolume = widget.controller.player.volume;
   }
 
   void _onHorizontalDragUpdate(DragUpdateDetails details) {
@@ -140,9 +144,8 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
       return;
     }
     final height = context.size?.height ?? 1;
-    final start = _volumeTarget ?? widget.controller.player.volume;
     final ratio = -dy / (height * _volumeScreenRatio);
-    final value = (start + ratio * 100).clamp(0.0, 100.0);
+    final value = (_startVolume + ratio * 100).clamp(0.0, 100.0);
     setState(() => _volumeTarget = value);
   }
 
