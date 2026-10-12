@@ -24,6 +24,7 @@ class _Settings implements Box {
     if (value is Map) writes.add(Map.of(value));
     changes.add(BoxEvent(key, value, false));
   }
+
   @override
   Stream<BoxEvent> watch({dynamic key}) => changes.stream;
   @override
@@ -35,10 +36,17 @@ void main() {
 
   test('实际数据边界和类型校验避免无效选项', () {
     final p = DanmakuPreferences.fromMap({
-      'opacity': double.nan, 'fontSize': double.infinity,
-      'fontWeight': 99, 'area': -10, 'duration': 0,
-      'staticDuration': '5', 'strokeWidth': 999, 'lineHeight': -1,
-      'safeArea': 'false', 'enabled': 0, 'hideTop': true,
+      'opacity': double.nan,
+      'fontSize': double.infinity,
+      'fontWeight': 99,
+      'area': -10,
+      'duration': 0,
+      'staticDuration': '5',
+      'strokeWidth': 999,
+      'lineHeight': -1,
+      'safeArea': 'false',
+      'enabled': 0,
+      'hideTop': true,
       'fontFamily': 'unavailable-font',
     });
     expect(p.opacity, 1);
@@ -64,11 +72,16 @@ void main() {
     final box = _Settings();
     GStorage.setting = box;
     box.data.addAll({
-      'danmaku_enable': false, 'danmaku_opacity': 0.35,
-      'danmaku_font_size': 22, 'danmaku_area': 0.7,
-      'danmaku_speed': 12, 'danmaku_stroke': 2,
-      'danmaku_hide_scroll': true, 'danmaku_hide_top': false,
-      'danmaku_hide_bottom': true, 'theme_mode': 2,
+      'danmaku_enable': false,
+      'danmaku_opacity': 0.35,
+      'danmaku_font_size': 22,
+      'danmaku_area': 0.7,
+      'danmaku_speed': 12,
+      'danmaku_stroke': 2,
+      'danmaku_hide_scroll': true,
+      'danmaku_hide_top': false,
+      'danmaku_hide_bottom': true,
+      'theme_mode': 2,
     });
     final old = DanmakuPreferencesStore.read();
     expect(old.duration, 12);
@@ -78,7 +91,11 @@ void main() {
     expect(old.hideBottom, isTrue);
     Pref.danmakuEnable = true;
     Pref.danmakuFontSize = 25;
-    final finalValue = old.copyWith(enabled: true, fontSize: 25, staticDuration: 9);
+    final finalValue = old.copyWith(
+      enabled: true,
+      fontSize: 25,
+      staticDuration: 9,
+    );
     await DanmakuPreferencesStore.save(finalValue);
     final restored = DanmakuPreferencesStore.read();
     expect(restored.toMap(), finalValue.toMap());
@@ -98,11 +115,19 @@ void main() {
     box.data[DanmakuPreferencesStore.key] = unknown;
     expect(DanmakuPreferencesStore.hasUnsupportedVersion, isTrue);
     expect(DanmakuPreferencesStore.read().fontSize, 16);
-    await expectLater(DanmakuPreferencesStore.save(DanmakuPreferences.defaults), throwsStateError);
+    await expectLater(
+      DanmakuPreferencesStore.save(DanmakuPreferences.defaults),
+      throwsStateError,
+    );
     expect(box.data[DanmakuPreferencesStore.key], same(unknown));
-    box.data[DanmakuPreferencesStore.key] = const DanmakuPreferences(fontSize: 19).toMap();
+    box.data[DanmakuPreferencesStore.key] = const DanmakuPreferences(
+      fontSize: 19,
+    ).toMap();
     box.fail = true;
-    await expectLater(DanmakuPreferencesStore.save(const DanmakuPreferences(fontSize: 28)), throwsStateError);
+    await expectLater(
+      DanmakuPreferencesStore.save(const DanmakuPreferences(fontSize: 28)),
+      throwsStateError,
+    );
     expect(DanmakuPreferencesStore.read().fontSize, 19);
     box.fail = false;
     final event = DanmakuPreferencesStore.watch().first;

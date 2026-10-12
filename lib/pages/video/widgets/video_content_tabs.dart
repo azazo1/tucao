@@ -20,7 +20,7 @@ class VideoContentTabs extends StatefulWidget {
   final String hid;
   final int part;
   final ReplyController Function(int typeId, String hid, int part)?
-      replyControllerFactory;
+  replyControllerFactory;
 
   @override
   State<VideoContentTabs> createState() => _VideoContentTabsState();
@@ -68,8 +68,12 @@ class _VideoContentTabsState extends State<VideoContentTabs> {
           controller: widget.controller,
           dividerHeight: 0.5,
           tabs: const [
-            Tab(child: Text('简介', maxLines: 1, overflow: TextOverflow.ellipsis)),
-            Tab(child: Text('评论', maxLines: 1, overflow: TextOverflow.ellipsis)),
+            Tab(
+              child: Text('简介', maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+            Tab(
+              child: Text('评论', maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
           ],
         ),
         Expanded(

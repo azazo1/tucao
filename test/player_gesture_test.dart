@@ -50,24 +50,26 @@ Future<Offset> _mount(
   _Controller controller, {
   VoidCallback? onToggleControls,
 }) async {
-  await tester.pumpWidget(MaterialApp(
-    home: Scaffold(
-      body: Stack(
-        children: [
-          Positioned(
-            left: 200,
-            top: 120,
-            width: 400,
-            height: 240,
-            child: PlayerGestureDetector(
-              controller: controller,
-              onToggleControls: onToggleControls ?? () {},
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Scaffold(
+        body: Stack(
+          children: [
+            Positioned(
+              left: 200,
+              top: 120,
+              width: 400,
+              height: 240,
+              child: PlayerGestureDetector(
+                controller: controller,
+                onToggleControls: onToggleControls ?? () {},
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     ),
-  ));
+  );
   return tester.getTopLeft(find.byType(PlayerGestureDetector));
 }
 
@@ -78,7 +80,9 @@ void main() {
     testWidgets('横向 seek 后移入 $corner 显示取消, 松手不 seek', (tester) async {
       final controller = _Controller();
       final origin = await _mount(tester, controller);
-      final gesture = await tester.startGesture(origin + const Offset(200, 130));
+      final gesture = await tester.startGesture(
+        origin + const Offset(200, 130),
+      );
       await gesture.moveBy(const Offset(40, 0));
       await tester.pump();
       expect(find.byKey(cancelled), findsNothing);
@@ -89,16 +93,17 @@ void main() {
       await tester.pump();
       expect(controller.seeks, isEmpty);
       expect(find.byKey(cancelled), findsNothing);
-      await tester.dragFrom(origin + const Offset(180, 130), const Offset(80, 0));
+      await tester.dragFrom(
+        origin + const Offset(180, 130),
+        const Offset(80, 0),
+      );
       await tester.pump();
       expect(controller.seeks, hasLength(1));
       await tester.pump(const Duration(milliseconds: 400));
     });
   }
 
-  testWidgets('取消区移回正常区域恢复 seek, pointer cancel 清理下一次拖动', (
-    tester,
-  ) async {
+  testWidgets('取消区移回正常区域恢复 seek, pointer cancel 清理下一次拖动', (tester) async {
     final controller = _Controller();
     final origin = await _mount(tester, controller);
     final gesture = await tester.startGesture(origin + const Offset(200, 130));
@@ -113,7 +118,9 @@ void main() {
     await tester.pump();
     expect(controller.seeks, [const Duration(seconds: 55)]);
 
-    final abandoned = await tester.startGesture(origin + const Offset(200, 130));
+    final abandoned = await tester.startGesture(
+      origin + const Offset(200, 130),
+    );
     await abandoned.moveBy(const Offset(40, 0));
     await abandoned.moveTo(origin + const Offset(20, 20));
     await tester.pump();
@@ -162,7 +169,10 @@ void main() {
     await tester.pump();
     expect(controller.volumes, hasLength(1));
     expect(controller.volumes.single, closeTo(50 - 80 / 240 * 100, 0.01));
-    await tester.dragFrom(origin + const Offset(300, 130), const Offset(0, -80));
+    await tester.dragFrom(
+      origin + const Offset(300, 130),
+      const Offset(0, -80),
+    );
     await tester.pump();
     expect(controller.volumes, hasLength(1));
     expect(controller.seeks, isEmpty);

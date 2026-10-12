@@ -131,7 +131,8 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
     final localY = details.localPosition.dy.clamp(0.0, size.height);
     final cornerWidth = math.min(width * 0.25, 120.0);
     final cornerHeight = math.min(size.height / 3, 72.0);
-    final cancelling = localY <= cornerHeight &&
+    final cancelling =
+        localY <= cornerHeight &&
         (localX <= cornerWidth || localX >= width - cornerWidth);
     // 以屏幕宽度的 1.2 倍代表整段时长, 便于在小屏上快速定位.
     final ratio = dx / (width * _seekScreenRatio);

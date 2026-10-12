@@ -3,9 +3,15 @@ import 'package:tucao/models/danmaku_preferences.dart';
 /// 只读取旧键, 迁移成功后也保留旧数据供回退使用.
 abstract final class DanmakuPreferencesMigration {
   static const legacyKeys = <String>[
-    'danmaku_enable', 'danmaku_opacity', 'danmaku_font_size',
-    'danmaku_area', 'danmaku_speed', 'danmaku_stroke',
-    'danmaku_hide_scroll', 'danmaku_hide_top', 'danmaku_hide_bottom',
+    'danmaku_enable',
+    'danmaku_opacity',
+    'danmaku_font_size',
+    'danmaku_area',
+    'danmaku_speed',
+    'danmaku_stroke',
+    'danmaku_hide_scroll',
+    'danmaku_hide_top',
+    'danmaku_hide_bottom',
   ];
 
   static DanmakuPreferences fromLegacy(Object? Function(String) read) =>

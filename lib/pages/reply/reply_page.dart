@@ -48,7 +48,7 @@ class ReplyPanel extends StatefulWidget {
 
   /// 允许测试注入无网络控制器, 所有权仍属于面板.
   final ReplyController Function(int typeId, String hid, int part)?
-      controllerFactory;
+  controllerFactory;
 
   @override
   State<ReplyPanel> createState() => _ReplyPanelState();
@@ -68,8 +68,11 @@ class _ReplyPanelState extends State<ReplyPanel>
   }
 
   void _createController() {
-    controller = widget.controllerFactory?.call(
-          widget.typeId, widget.hid, widget.part,
+    controller =
+        widget.controllerFactory?.call(
+          widget.typeId,
+          widget.hid,
+          widget.part,
         ) ??
         ReplyController(
           typeId: widget.typeId,

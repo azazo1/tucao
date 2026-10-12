@@ -69,17 +69,26 @@ void main() {
     final previews = <DanmakuPreferences>[];
     final saving = Completer<void>();
     var saves = 0;
-    await tester.pumpWidget(MaterialApp(
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.8)),
-        child: child!,
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: const TextScaler.linear(1.8)),
+          child: child!,
+        ),
+        home: Scaffold(
+          body: DanmakuSettingsPanel(
+            initial: const DanmakuPreferences(opacity: 0.8),
+            onChanged: previews.add,
+            save: (_) {
+              saves++;
+              return saving.future;
+            },
+          ),
+        ),
       ),
-      home: Scaffold(body: DanmakuSettingsPanel(
-        initial: const DanmakuPreferences(opacity: 0.8),
-        onChanged: previews.add,
-        save: (_) { saves++; return saving.future; },
-      )),
-    ));
+    );
     final slider = find.byType(Slider).first;
     await tester.ensureVisible(slider);
     await tester.pump();
@@ -111,21 +120,27 @@ void main() {
     final previews = <DanmakuPreferences>[];
     final saving = Completer<void>();
     final navigator = GlobalKey<NavigatorState>();
-    await tester.pumpWidget(MaterialApp(
-      navigatorKey: navigator,
-      home: Scaffold(body: DanmakuSettingsPanel(
-        initial: DanmakuPreferences.defaults,
-        onChanged: previews.add,
-        save: (_) => saving.future,
-      )),
-    ));
-    final switchTile = tester.widget<SwitchListTile>(find.byType(SwitchListTile).first);
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: navigator,
+        home: Scaffold(
+          body: DanmakuSettingsPanel(
+            initial: DanmakuPreferences.defaults,
+            onChanged: previews.add,
+            save: (_) => saving.future,
+          ),
+        ),
+      ),
+    );
+    final switchTile = tester.widget<SwitchListTile>(
+      find.byType(SwitchListTile).first,
+    );
     switchTile.onChanged!(false);
     await tester.pump();
     expect(previews.single.enabled, isFalse);
-    navigator.currentState!.push(MaterialPageRoute<void>(
-      builder: (_) => const Scaffold(body: SizedBox()),
-    ));
+    navigator.currentState!.push(
+      MaterialPageRoute<void>(builder: (_) => const Scaffold(body: SizedBox())),
+    );
     await tester.pump(const Duration(milliseconds: 400));
     saving.completeError(StateError('write failed'));
     await tester.pump();
@@ -137,14 +152,16 @@ void main() {
   testWidgets('全屏返回和控制条共同计时隐藏, 单击恢复, 非全屏不显示', (tester) async {
     final controller = _Controller();
     var exits = 0;
-    Widget mount(bool fullscreen) => MaterialApp(home: Scaffold(
-      body: VideoPlayerView(
-        controller: controller,
-        fullscreen: fullscreen,
-        onToggleFullscreen: () => exits++,
-        onOpenWebsite: () {},
+    Widget mount(bool fullscreen) => MaterialApp(
+      home: Scaffold(
+        body: VideoPlayerView(
+          controller: controller,
+          fullscreen: fullscreen,
+          onToggleFullscreen: () => exits++,
+          onOpenWebsite: () {},
+        ),
       ),
-    ));
+    );
     await tester.pumpWidget(mount(true));
     final back = find.widgetWithIcon(IconButton, Icons.arrow_back);
     expect(back, findsOneWidget);

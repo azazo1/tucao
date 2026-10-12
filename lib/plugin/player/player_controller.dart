@@ -51,7 +51,8 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
   final Future<List<DanmakuModel>> Function(int, String, int) _fetchDanmaku;
   final _requests = PlayerRequestGate();
   bool _closed = false;
-  AppLifecycleState? _appLifecycleState = WidgetsBinding.instance.lifecycleState;
+  AppLifecycleState? _appLifecycleState =
+      WidgetsBinding.instance.lifecycleState;
 
   bool get _playbackAllowed =>
       Pref.playerBackground ||
@@ -175,15 +176,19 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
       return;
     }
     // 等待在途 open, 执行前重查代次和前台状态, 不暂停后来的请求.
-    unawaited(_requests.run(_requests.current, () async {
-      if (!_playbackAllowed) {
-        await player.pause();
-      }
-    }).catchError((Object error, StackTrace stackTrace) {
-      if (!_closed) {
-        Log.e('后台暂停播放器失败', error: error, stackTrace: stackTrace);
-      }
-    }));
+    unawaited(
+      _requests
+          .run(_requests.current, () async {
+            if (!_playbackAllowed) {
+              await player.pause();
+            }
+          })
+          .catchError((Object error, StackTrace stackTrace) {
+            if (!_closed) {
+              Log.e('后台暂停播放器失败', error: error, stackTrace: stackTrace);
+            }
+          }),
+    );
   }
 
   /// 定时记录, 只在播放中写, 暂停时位置不会变.

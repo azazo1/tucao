@@ -38,7 +38,12 @@ class DanmakuPreferences {
   final bool hideBottom;
   final bool massiveMode;
 
-  static double _number(Object? value, double fallback, double min, double max) {
+  static double _number(
+    Object? value,
+    double fallback,
+    double min,
+    double max,
+  ) {
     if (value is! num || !value.isFinite) return fallback;
     return value.toDouble().clamp(min, max).toDouble();
   }
@@ -89,11 +94,22 @@ class DanmakuPreferences {
   DanmakuPreferences get normalized => DanmakuPreferences.fromMap(toMap());
 
   DanmakuPreferences copyWith({
-    bool? enabled, double? opacity, double? fontSize, int? fontWeight,
-    String? fontFamily, bool clearFontFamily = false, double? area,
-    double? duration, double? staticDuration, double? strokeWidth,
-    double? lineHeight, bool? safeArea, bool? hideScroll, bool? hideTop,
-    bool? hideBottom, bool? massiveMode,
+    bool? enabled,
+    double? opacity,
+    double? fontSize,
+    int? fontWeight,
+    String? fontFamily,
+    bool clearFontFamily = false,
+    double? area,
+    double? duration,
+    double? staticDuration,
+    double? strokeWidth,
+    double? lineHeight,
+    bool? safeArea,
+    bool? hideScroll,
+    bool? hideTop,
+    bool? hideBottom,
+    bool? massiveMode,
   }) => DanmakuPreferences(
     enabled: enabled ?? this.enabled,
     opacity: opacity ?? this.opacity,

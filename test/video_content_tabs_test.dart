@@ -6,13 +6,14 @@ import 'package:tucao/pages/reply/reply_page.dart';
 import 'package:tucao/pages/video/widgets/video_content_tabs.dart';
 
 void main() {
-  testWidgets('点击与滑动只切下方, 评论延迟加载并保留滚动和分 P 状态',
-      (tester) async {
+  testWidgets('点击与滑动只切下方, 评论延迟加载并保留滚动和分 P 状态', (tester) async {
     final host = GlobalKey<_TabsHostState>();
     final created = <_FakeReplies>[];
-    await tester.pumpWidget(MaterialApp(
-      home: _TabsHost(key: host, created: created),
-    ));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: _TabsHost(key: host, created: created),
+      ),
+    );
     await tester.pumpAndSettle();
     final player = tester.state(find.byType(_PlayerProbe));
     expect(created, isEmpty);
@@ -28,10 +29,9 @@ void main() {
     );
     await tester.drag(list, const Offset(0, -350));
     await tester.pumpAndSettle();
-    final scrollable = tester.state<ScrollableState>(find.descendant(
-      of: list,
-      matching: find.byType(Scrollable),
-    ).first);
+    final scrollable = tester.state<ScrollableState>(
+      find.descendant(of: list, matching: find.byType(Scrollable)).first,
+    );
     final position = scrollable.position.pixels;
     expect(position, greaterThan(0));
     controller.expanded.add(controller.list.first.id);
@@ -62,35 +62,45 @@ void main() {
     var typeId = 11;
     var hid = '123';
     late StateSetter update;
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: StatefulBuilder(builder: (context, setState) {
-          update = setState;
-          return Row(children: [
-            Expanded(child: ReplyPanel(
-              key: const ValueKey('first'),
-              typeId: typeId,
-              hid: hid,
-              controllerFactory: (typeId, hid, part) {
-                final controller = _FakeReplies(typeId, hid, part);
-                created.add(controller);
-                return controller;
-              },
-            )),
-            Expanded(child: ReplyPanel(
-              key: const ValueKey('second'),
-              typeId: 11,
-              hid: '123',
-              controllerFactory: (typeId, hid, part) {
-                final controller = _FakeReplies(typeId, hid, part);
-                created.add(controller);
-                return controller;
-              },
-            )),
-          ]);
-        }),
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) {
+              update = setState;
+              return Row(
+                children: [
+                  Expanded(
+                    child: ReplyPanel(
+                      key: const ValueKey('first'),
+                      typeId: typeId,
+                      hid: hid,
+                      controllerFactory: (typeId, hid, part) {
+                        final controller = _FakeReplies(typeId, hid, part);
+                        created.add(controller);
+                        return controller;
+                      },
+                    ),
+                  ),
+                  Expanded(
+                    child: ReplyPanel(
+                      key: const ValueKey('second'),
+                      typeId: 11,
+                      hid: '123',
+                      controllerFactory: (typeId, hid, part) {
+                        final controller = _FakeReplies(typeId, hid, part);
+                        created.add(controller);
+                        return controller;
+                      },
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
     expect(created, hasLength(2));
     expect(identical(created[0], created[1]), isFalse);
@@ -115,9 +125,11 @@ void main() {
   testWidgets('详情未就绪时选择评论不请求 typeId 0', (tester) async {
     final host = GlobalKey<_TabsHostState>();
     final created = <_FakeReplies>[];
-    await tester.pumpWidget(MaterialApp(
-      home: _TabsHost(key: host, created: created, initialTypeId: 0),
-    ));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: _TabsHost(key: host, created: created, initialTypeId: 0),
+      ),
+    );
     await tester.tap(find.byType(Tab).at(1));
     await tester.pumpAndSettle();
     expect(created, isEmpty);
@@ -128,22 +140,23 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('窄屏大字和低高度评论区域可滚动, 键盘不挤播放器',
-      (tester) async {
+  testWidgets('窄屏大字和低高度评论区域可滚动, 键盘不挤播放器', (tester) async {
     await tester.binding.setSurfaceSize(const Size(320, 300));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final host = GlobalKey<_TabsHostState>();
     final created = <_FakeReplies>[];
-    await tester.pumpWidget(MaterialApp(
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(
-          textScaler: TextScaler.linear(2),
-          viewInsets: const EdgeInsets.only(bottom: 240),
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.linear(2),
+            viewInsets: const EdgeInsets.only(bottom: 240),
+          ),
+          child: child!,
         ),
-        child: child!,
+        home: _TabsHost(key: host, created: created),
       ),
-      home: _TabsHost(key: host, created: created),
-    ));
+    );
     await tester.tap(find.byType(Tab).at(1));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
@@ -158,7 +171,7 @@ void main() {
 
 class _FakeReplies extends ReplyController {
   _FakeReplies(int typeId, String hid, int part)
-      : super(typeId: typeId, hid: hid, part: part);
+    : super(typeId: typeId, hid: hid, part: part);
 
   int firstLoads = 0;
 
@@ -186,11 +199,7 @@ class _FakeReplies extends ReplyController {
 }
 
 class _TabsHost extends StatefulWidget {
-  const _TabsHost({
-    super.key,
-    required this.created,
-    this.initialTypeId = 11,
-  });
+  const _TabsHost({super.key, required this.created, this.initialTypeId = 11});
 
   final List<_FakeReplies> created;
   final int initialTypeId;
@@ -218,24 +227,33 @@ class _TabsHostState extends State<_TabsHost>
   Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      body: Column(children: [
-        const SizedBox(width: double.infinity, height: 90, child: _PlayerProbe()),
-        Expanded(child: VideoContentTabs(
-          controller: tabs,
-          typeId: typeId,
-          hid: '123',
-          part: part,
-          introduction: ListView.builder(
-            itemCount: 40,
-            itemBuilder: (context, index) => SizedBox(height: 50, key: ValueKey(index)),
+      body: Column(
+        children: [
+          const SizedBox(
+            width: double.infinity,
+            height: 90,
+            child: _PlayerProbe(),
           ),
-          replyControllerFactory: (typeId, hid, part) {
-            final controller = _FakeReplies(typeId, hid, part);
-            widget.created.add(controller);
-            return controller;
-          },
-        )),
-      ]),
+          Expanded(
+            child: VideoContentTabs(
+              controller: tabs,
+              typeId: typeId,
+              hid: '123',
+              part: part,
+              introduction: ListView.builder(
+                itemCount: 40,
+                itemBuilder: (context, index) =>
+                    SizedBox(height: 50, key: ValueKey(index)),
+              ),
+              replyControllerFactory: (typeId, hid, part) {
+                final controller = _FakeReplies(typeId, hid, part);
+                widget.created.add(controller);
+                return controller;
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

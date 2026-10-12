@@ -17,7 +17,8 @@ abstract final class Pref {
   static const _kHardwareDecode = 'player_hardware_decode';
   static const _kSearchHistoryLimit = 'search_history_limit';
 
-  static int get _themeMode => GStorage.setting.get(_kThemeMode, defaultValue: 0) as int;
+  static int get _themeMode =>
+      GStorage.setting.get(_kThemeMode, defaultValue: 0) as int;
   static set _themeMode(int value) => GStorage.setting.put(_kThemeMode, value);
 
   /// 主题模式, 0 跟随系统, 1 浅色, 2 深色.
@@ -35,8 +36,10 @@ abstract final class Pref {
   }
 
   /// 是否使用系统取色.
-  static bool get dynamicColor => GStorage.setting.get(_kDynamicColor, defaultValue: true) as bool;
-  static set dynamicColor(bool value) => GStorage.setting.put(_kDynamicColor, value);
+  static bool get dynamicColor =>
+      GStorage.setting.get(_kDynamicColor, defaultValue: true) as bool;
+  static set dynamicColor(bool value) =>
+      GStorage.setting.put(_kDynamicColor, value);
 
   static bool get danmakuEnable => DanmakuPreferencesStore.read().enabled;
   static set danmakuEnable(bool value) =>
@@ -60,48 +63,66 @@ abstract final class Pref {
 
   static double get danmakuStroke => DanmakuPreferencesStore.read().strokeWidth;
   static set danmakuStroke(double value) =>
-      DanmakuPreferencesStore.updateLegacy((p) => p.copyWith(strokeWidth: value));
+      DanmakuPreferencesStore.updateLegacy(
+        (p) => p.copyWith(strokeWidth: value),
+      );
 
-  static bool get danmakuHideScroll => DanmakuPreferencesStore.read().hideScroll;
+  static bool get danmakuHideScroll =>
+      DanmakuPreferencesStore.read().hideScroll;
   static set danmakuHideScroll(bool value) =>
-      DanmakuPreferencesStore.updateLegacy((p) => p.copyWith(hideScroll: value));
+      DanmakuPreferencesStore.updateLegacy(
+        (p) => p.copyWith(hideScroll: value),
+      );
 
   static bool get danmakuHideTop => DanmakuPreferencesStore.read().hideTop;
   static set danmakuHideTop(bool value) =>
       DanmakuPreferencesStore.updateLegacy((p) => p.copyWith(hideTop: value));
 
-  static bool get danmakuHideBottom => DanmakuPreferencesStore.read().hideBottom;
+  static bool get danmakuHideBottom =>
+      DanmakuPreferencesStore.read().hideBottom;
   static set danmakuHideBottom(bool value) =>
-      DanmakuPreferencesStore.updateLegacy((p) => p.copyWith(hideBottom: value));
+      DanmakuPreferencesStore.updateLegacy(
+        (p) => p.copyWith(hideBottom: value),
+      );
 
   /// 默认播放倍速.
-  static double get playerSpeed => GStorage.setting.get(_kPlayerSpeed, defaultValue: 1.0) as double;
-  static set playerSpeed(double value) => GStorage.setting.put(_kPlayerSpeed, value);
+  static double get playerSpeed =>
+      GStorage.setting.get(_kPlayerSpeed, defaultValue: 1.0) as double;
+  static set playerSpeed(double value) =>
+      GStorage.setting.put(_kPlayerSpeed, value);
 
   /// 播放音量, 0-100, 跨视频沿用.
   static double get playerVolume =>
       GStorage.setting.get(_kPlayerVolume, defaultValue: 100.0) as double;
-  static set playerVolume(double value) => GStorage.setting.put(_kPlayerVolume, value);
+  static set playerVolume(double value) =>
+      GStorage.setting.put(_kPlayerVolume, value);
 
-  static bool get playerAutoPlay => GStorage.setting.get(_kPlayerAutoPlay, defaultValue: true) as bool;
-  static set playerAutoPlay(bool value) => GStorage.setting.put(_kPlayerAutoPlay, value);
+  static bool get playerAutoPlay =>
+      GStorage.setting.get(_kPlayerAutoPlay, defaultValue: true) as bool;
+  static set playerAutoPlay(bool value) =>
+      GStorage.setting.put(_kPlayerAutoPlay, value);
 
   /// 进入播放页是否续播上次进度.
   static bool get playerContinueLast =>
       GStorage.setting.get(_kPlayerContinueLast, defaultValue: true) as bool;
-  static set playerContinueLast(bool value) => GStorage.setting.put(_kPlayerContinueLast, value);
+  static set playerContinueLast(bool value) =>
+      GStorage.setting.put(_kPlayerContinueLast, value);
 
   /// 是否允许后台继续播放音频.
   static bool get playerBackground =>
       GStorage.setting.get(_kPlayerBackground, defaultValue: true) as bool;
-  static set playerBackground(bool value) => GStorage.setting.put(_kPlayerBackground, value);
+  static set playerBackground(bool value) =>
+      GStorage.setting.put(_kPlayerBackground, value);
 
-  static bool get hardwareDecode => GStorage.setting.get(_kHardwareDecode, defaultValue: true) as bool;
-  static set hardwareDecode(bool value) => GStorage.setting.put(_kHardwareDecode, value);
+  static bool get hardwareDecode =>
+      GStorage.setting.get(_kHardwareDecode, defaultValue: true) as bool;
+  static set hardwareDecode(bool value) =>
+      GStorage.setting.put(_kHardwareDecode, value);
 
   static int get searchHistoryLimit =>
       GStorage.setting.get(_kSearchHistoryLimit, defaultValue: 20) as int;
-  static set searchHistoryLimit(int value) => GStorage.setting.put(_kSearchHistoryLimit, value);
+  static set searchHistoryLimit(int value) =>
+      GStorage.setting.put(_kSearchHistoryLimit, value);
 
   /// 请求使用的站点地址.
   static String get baseUrl => Constants.baseUrl;

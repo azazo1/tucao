@@ -327,11 +327,14 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
     _settingsOpen = true;
     _hideTimer?.cancel();
     try {
-      await showDanmakuSettingsSheet(context, onChanged: (preferences) {
-        if (mounted && identical(controller, _controller) && _settingsOpen) {
-          controller.applyDanmakuPreferences(preferences);
-        }
-      });
+      await showDanmakuSettingsSheet(
+        context,
+        onChanged: (preferences) {
+          if (mounted && identical(controller, _controller) && _settingsOpen) {
+            controller.applyDanmakuPreferences(preferences);
+          }
+        },
+      );
     } finally {
       if (mounted && identical(controller, _controller)) {
         // 只恢复当前 View 自己的 controller 数据, 不向被覆盖的路由发送界面反馈.

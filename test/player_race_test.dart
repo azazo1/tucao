@@ -153,20 +153,24 @@ class _Danmaku implements DanmakuController<DanmakuModel> {
   int cleared = 0;
 
   @override
-  ValueChanged<DanmakuOption> get updateOption => (option) => appliedOption = option;
+  ValueChanged<DanmakuOption> get updateOption =>
+      (option) => appliedOption = option;
 
   @override
   ValueChanged<DanmakuContentItem<DanmakuModel>> get addDanmaku =>
       (item) => delivered.add(item.extra!.text);
 
   @override
-  VoidCallback get clear => () => cleared++;
+  VoidCallback get clear =>
+      () => cleared++;
 
   @override
-  VoidCallback get pause => () => paused++;
+  VoidCallback get pause =>
+      () => paused++;
 
   @override
-  VoidCallback get resume => () => resumed++;
+  VoidCallback get resume =>
+      () => resumed++;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -490,9 +494,7 @@ void main() {
   });
 
   for (final state in [AppLifecycleState.paused, AppLifecycleState.hidden]) {
-    testWidgets('$state 后详情或 init 和弹幕迟到不自动播放, resumed 只允许主动播放', (
-      tester,
-    ) async {
+    testWidgets('$state 后详情或 init 和弹幕迟到不自动播放, resumed 只允许主动播放', (tester) async {
       (GStorage.setting as _Settings).data['player_background'] = false;
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       final detail = Completer<ApiResponse<VideoModel>>();
@@ -527,7 +529,9 @@ void main() {
         await tester.pump();
         expect(controller.firstLoading.value, isFalse);
         expect(player.playing, isFalse);
-        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
         await tester.pump();
         expect(player.playing, isFalse);
         expect(player.plays, 0);
@@ -536,14 +540,14 @@ void main() {
         expect(player.plays, 1);
       } finally {
         controller.onClose();
-        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
       }
     });
   }
 
-  testWidgets('open 期间退后台并换代只暂停旧实际媒体, 不暂停 resumed 后的新媒体', (
-    tester,
-  ) async {
+  testWidgets('open 期间退后台并换代只暂停旧实际媒体, 不暂停 resumed 后的新媒体', (tester) async {
     (GStorage.setting as _Settings).data['player_background'] = false;
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     final firstOpened = Completer<void>();
@@ -585,9 +589,7 @@ void main() {
     }
   });
 
-  testWidgets('允许后台播放时迟到详情和 open 保留自动播放策略, 仍尊重 autoPlay 偏好', (
-    tester,
-  ) async {
+  testWidgets('允许后台播放时迟到详情和 open 保留自动播放策略, 仍尊重 autoPlay 偏好', (tester) async {
     (GStorage.setting as _Settings).data['player_background'] = true;
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     final detail = Completer<ApiResponse<VideoModel>>();

@@ -46,6 +46,7 @@ class VideoPage extends StatefulWidget {
 class _VideoPageState extends State<VideoPage>
     with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   late final TabController _contentTabs = TabController(length: 2, vsync: this);
+
   /// 同一视频可能被重复打开, 用实例标识区分控制器.
   late final String _tag = 'video_${identityHashCode(this)}';
 
@@ -141,8 +142,10 @@ class _VideoPageState extends State<VideoPage>
         body: LayoutBuilder(
           builder: (context, constraints) {
             // 高度有限时为下方内容留下空间, 全屏仍铺满播放器.
-            final inlinePlayerHeight = (constraints.maxWidth * 9 / 16)
-                .clamp(0.0, constraints.maxHeight / 2);
+            final inlinePlayerHeight = (constraints.maxWidth * 9 / 16).clamp(
+              0.0,
+              constraints.maxHeight / 2,
+            );
             final playerHeight = _fullscreen
                 ? constraints.maxHeight
                 : inlinePlayerHeight;
