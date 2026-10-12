@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
@@ -11,6 +14,7 @@ import 'package:tucao/pages/video/widgets/video_link_menu.dart';
 import 'package:tucao/pages/video/widgets/download_sheet.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
 import 'package:tucao/router/routes.dart';
+import 'package:tucao/services/pip_service.dart';
 import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/site_links.dart';
 import 'package:tucao/utils/storage_pref.dart';
@@ -54,6 +58,19 @@ class _VideoPageState extends State<VideoPage>
 
   /// 是否处于横屏全屏.
   bool _fullscreen = false;
+
+  /// 设备是否支持画中画, 支持时播放器才显示入口.
+  bool _pipSupported = false;
+
+  /// 是否已经进入画中画小窗.
+  bool _pipMode = false;
+
+  /// 播放器区域的位置, 进入小窗时作为动画起点.
+  final _playerKey = GlobalKey();
+
+  /// 上一次同步给系统的自动进入条件, 避免每个进度回调都过一次通道.
+  (bool, int, int)? _autoEnterState;
+
   bool _openingWebsite = false;
 
   @override
@@ -73,11 +90,18 @@ class _VideoPageState extends State<VideoPage>
       ),
       tag: _tag,
     );
+    _controller.player.addListener(_syncPipAutoEnter);
+    PipService.instance.inPipMode.addListener(_onPipModeChanged);
+    unawaited(_loadPipSupport());
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _controller.player.removeListener(_syncPipAutoEnter);
+    PipService.instance.inPipMode.removeListener(_onPipModeChanged);
+    // 离开播放页后不再自动进入小窗.
+    unawaited(PipService.instance.setAutoEnter(enabled: false));
     _contentTabs.dispose();
     _controller.detachDanmaku();
     if (Get.isRegistered<PlayerPageController>(tag: _tag)) {
@@ -95,6 +119,92 @@ class _VideoPageState extends State<VideoPage>
     if (state == AppLifecycleState.paused && !Pref.playerBackground) {
       _controller.player.pause();
     }
+  }
+
+  /// 查询画中画支持情况, 支持时才接入自动进入.
+  Future<void> _loadPipSupport() async {
+    final supported = await PipService.instance.isSupported();
+    if (!mounted || !supported) {
+      return;
+    }
+    setState(() => _pipSupported = true);
+    _syncPipAutoEnter();
+  }
+
+  /// 小窗状态变化: 切换页面布局, 并重新判断自动进入的条件.
+  void _onPipModeChanged() {
+    final inPip = PipService.instance.inPipMode.value;
+    if (!mounted || inPip == _pipMode) {
+      return;
+    }
+    setState(() => _pipMode = inPip);
+    _syncPipAutoEnter();
+  }
+
+  /// 把自动进入小窗的条件交给系统.
+  ///
+  /// 只有开关打开, 正在播放, 且播放页就在最前面时才自动进入, 条件没变就不走通道.
+  /// 暂停播放或已经在页面之上压了别的页面都会关掉它: 小窗显示的是当前界面,
+  /// 上层还压着一个页面时进小窗会露出那个页面.
+  void _syncPipAutoEnter() {
+    if (!_pipSupported || !mounted) {
+      return;
+    }
+    final player = _controller.player;
+    final onTop = ModalRoute.of(context)?.isCurrent ?? false;
+    final enabled = Pref.playerPipAuto && player.playing && !_pipMode && onTop;
+    final width = player.videoWidth ?? 0;
+    final height = player.videoHeight ?? 0;
+    final state = (enabled, width, height);
+    if (state == _autoEnterState) {
+      return;
+    }
+    _autoEnterState = state;
+    unawaited(
+      PipService.instance.setAutoEnter(
+        enabled: enabled,
+        width: width,
+        height: height,
+      ),
+    );
+  }
+
+  /// 进入小窗: 宽高比取当前画面, 动画起点取播放器区域.
+  Future<void> _enterPip() async {
+    if (!_pipSupported || _pipMode) {
+      return;
+    }
+    final player = _controller.player;
+    final entered = await PipService.instance.enter(
+      width: player.videoWidth,
+      height: player.videoHeight,
+      sourceRect: _playerRectInPixels(),
+    );
+    if (entered) {
+      Log.i('进入画中画');
+      return;
+    }
+    if (mounted && (ModalRoute.of(context)?.isCurrent ?? false)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('当前设备无法进入画中画')));
+    }
+  }
+
+  /// 播放器区域在屏幕上的位置, 单位是设备像素.
+  Rect? _playerRectInPixels() {
+    final box = _playerKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) {
+      return null;
+    }
+    final ratio = MediaQuery.devicePixelRatioOf(context);
+    final offset = box.localToGlobal(Offset.zero);
+    return Rect.fromLTWH(
+      offset.dx * ratio,
+      offset.dy * ratio,
+      box.size.width * ratio,
+      box.size.height * ratio,
+    );
   }
 
   /// 进入全屏: 横屏并隐藏系统栏.
@@ -123,6 +233,8 @@ class _VideoPageState extends State<VideoPage>
 
   @override
   Widget build(BuildContext context) {
+    // 全屏与画中画都只留播放器, 两者共用同一套布局切换.
+    final playerFill = _fullscreen || _pipMode;
     return PopScope(
       canPop: !_fullscreen,
       onPopInvokedWithResult: (didPop, result) {
@@ -133,12 +245,12 @@ class _VideoPageState extends State<VideoPage>
       child: Scaffold(
         // 输入弹层自行避让键盘, 不压缩播放器和下方分页的高度.
         resizeToAvoidBottomInset: false,
-        backgroundColor: _fullscreen
+        backgroundColor: playerFill
             ? Colors.black
             : Theme.of(context).colorScheme.surface,
         // 全屏时用零高度的占位替代标题栏, 保持 body 的 element 不被重建,
         // 否则切换全屏会重新挂载播放器与弹幕层.
-        appBar: _fullscreen ? _emptyAppBar : _buildAppBar(),
+        appBar: playerFill ? _emptyAppBar : _buildAppBar(),
         body: LayoutBuilder(
           builder: (context, constraints) {
             // 高度有限时为下方内容留下空间, 全屏仍铺满播放器.
@@ -146,7 +258,7 @@ class _VideoPageState extends State<VideoPage>
               0.0,
               constraints.maxHeight / 2,
             );
-            final playerHeight = _fullscreen
+            final playerHeight = playerFill
                 ? constraints.maxHeight
                 : inlinePlayerHeight;
             return Stack(
@@ -164,9 +276,9 @@ class _VideoPageState extends State<VideoPage>
                   right: 0,
                   bottom: 0,
                   child: Offstage(
-                    offstage: _fullscreen,
+                    offstage: playerFill,
                     child: TickerMode(
-                      enabled: !_fullscreen,
+                      enabled: !playerFill,
                       child: _buildContentArea(),
                     ),
                   ),
@@ -211,8 +323,12 @@ class _VideoPageState extends State<VideoPage>
 
   Widget _buildPlayerView() {
     return VideoPlayerView(
+      key: _playerKey,
       controller: _controller,
       fullscreen: _fullscreen,
+      pipMode: _pipMode,
+      // 不支持时不给回调, 播放器就不显示入口.
+      onEnterPip: _pipSupported ? _enterPip : null,
       onToggleFullscreen: _fullscreen ? _exitFullscreen : _enterFullscreen,
       onOpenWebsite: _openWebsite,
     );
@@ -278,6 +394,8 @@ class _VideoPageState extends State<VideoPage>
     try {
       // 即使用户允许后台播放, 外部浏览器打开前也暂停, 避免两个播放器同时出声.
       await _controller.player.pause();
+      // 暂停触发的画中画同步可能晚于跳转, 这里直接关一次, 免得切到浏览器时进了小窗.
+      await PipService.instance.setAutoEnter(enabled: false);
       if (!mounted || !(ModalRoute.of(context)?.isCurrent ?? false)) {
         return;
       }

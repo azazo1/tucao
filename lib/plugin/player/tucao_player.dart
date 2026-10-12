@@ -102,6 +102,18 @@ class TucaoPlayer extends ChangeNotifier {
 
   String? get error => _error;
 
+  /// 当前视频画面宽度, 还没解析出视频轨时为空.
+  int? get videoWidth {
+    final width = _player?.state.width;
+    return width != null && width > 0 ? width : null;
+  }
+
+  /// 当前视频画面高度, 为空时调用方按 16:9 处理.
+  int? get videoHeight {
+    final height = _player?.state.height;
+    return height != null && height > 0 ? height : null;
+  }
+
   /// 创建播放器, 重复调用无副作用.
   ///
   /// 倍速取自 [Pref.playerSpeed], 硬件解码取自 [Pref.hardwareDecode].

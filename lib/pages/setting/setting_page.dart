@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/common/style.dart';
 import 'package:tucao/pages/video/widgets/danmaku_settings_sheet.dart';
 import 'package:tucao/services/account_service.dart';
 import 'package:tucao/services/history_service.dart';
+import 'package:tucao/services/pip_service.dart';
 import 'package:tucao/services/theme_service.dart';
 import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/storage_pref.dart';
@@ -38,6 +41,10 @@ class _SettingPageState extends State<SettingPage> {
   late bool _continueLast;
   late bool _hardwareDecode;
   late bool _background;
+  late bool _pipAuto;
+
+  /// 设备是否支持画中画, 支持时才显示相关开关.
+  bool _pipSupported = false;
 
   late int _searchHistoryLimit;
 
@@ -54,11 +61,23 @@ class _SettingPageState extends State<SettingPage> {
     _continueLast = Pref.playerContinueLast;
     _hardwareDecode = Pref.hardwareDecode;
     _background = Pref.playerBackground;
+    _pipAuto = Pref.playerPipAuto;
 
     // 旧版本可能存有不在预设里的值, 回落到默认档位.
     _searchHistoryLimit = _historyLimits.contains(Pref.searchHistoryLimit)
         ? Pref.searchHistoryLimit
         : 20;
+
+    unawaited(_loadPipSupport());
+  }
+
+  /// 画中画入口只在支持的设备上出现.
+  Future<void> _loadPipSupport() async {
+    final supported = await PipService.instance.isSupported();
+    if (!mounted || !supported) {
+      return;
+    }
+    setState(() => _pipSupported = true);
   }
 
   /// 二次确认, 用户点取消时返回 false.
@@ -229,6 +248,16 @@ class _SettingPageState extends State<SettingPage> {
               Pref.playerBackground = value;
             },
           ),
+          if (_pipSupported)
+            SwitchListTile(
+              title: const Text('自动画中画'),
+              subtitle: const Text('回到桌面或切到其他应用时继续小窗播放'),
+              value: _pipAuto,
+              onChanged: (value) {
+                setState(() => _pipAuto = value);
+                Pref.playerPipAuto = value;
+              },
+            ),
 
           const _SectionTitle('弹幕'),
           ListTile(

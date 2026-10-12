@@ -14,6 +14,7 @@ abstract final class Pref {
   static const _kPlayerAutoPlay = 'player_auto_play';
   static const _kPlayerContinueLast = 'player_continue_last';
   static const _kPlayerBackground = 'player_background';
+  static const _kPlayerPipAuto = 'player_pip_auto';
   static const _kHardwareDecode = 'player_hardware_decode';
   static const _kSearchHistoryLimit = 'search_history_limit';
   static const _kPlayerSeekStep = 'player_seek_step';
@@ -123,6 +124,12 @@ abstract final class Pref {
       GStorage.setting.get(_kPlayerBackground, defaultValue: true) as bool;
   static set playerBackground(bool value) =>
       GStorage.setting.put(_kPlayerBackground, value);
+
+  /// 回到桌面或切到其他应用时是否自动进入画中画.
+  static bool get playerPipAuto =>
+      GStorage.setting.get(_kPlayerPipAuto, defaultValue: true) as bool;
+  static set playerPipAuto(bool value) =>
+      GStorage.setting.put(_kPlayerPipAuto, value);
 
   static bool get hardwareDecode =>
       GStorage.setting.get(_kHardwareDecode, defaultValue: true) as bool;

@@ -24,12 +24,20 @@ class VideoPlayerView extends StatefulWidget {
     required this.fullscreen,
     required this.onToggleFullscreen,
     required this.onOpenWebsite,
+    this.pipMode = false,
+    this.onEnterPip,
   });
 
   final PlayerPageController controller;
 
   /// 是否处于全屏, 布局由外层决定.
   final bool fullscreen;
+
+  /// 是否已经进入画中画小窗, 小窗里只保留画面.
+  final bool pipMode;
+
+  /// 进入画中画, 为空表示当前设备不支持, 不显示入口.
+  final VoidCallback? onEnterPip;
 
   final VoidCallback onToggleFullscreen;
   final VoidCallback onOpenWebsite;
@@ -66,7 +74,8 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
   @override
   void didUpdateWidget(covariant VideoPlayerView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.fullscreen != widget.fullscreen) {
+    if (oldWidget.fullscreen != widget.fullscreen ||
+        oldWidget.pipMode != widget.pipMode) {
       _restartHideTimer();
     }
   }
@@ -79,7 +88,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
 
   void _restartHideTimer() {
     _hideTimer?.cancel();
-    if (!widget.fullscreen || _settingsOpen) {
+    if (widget.pipMode || !widget.fullscreen || _settingsOpen) {
       return;
     }
     _hideTimer = Timer(_hideDelay, () {
@@ -124,15 +133,21 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
 
   @override
   Widget build(BuildContext context) {
+    // 小窗里系统只给一小块画面, 控制条与弹幕都收起来.
+    final inPip = widget.pipMode;
     return Stack(
       fit: StackFit.expand,
       children: [
         const ColoredBox(color: Colors.black),
         _buildVideo(),
-        DanmakuScreen<DanmakuModel>(
-          key: const ValueKey('danmaku'),
-          createdController: _controller.attachDanmaku,
-          option: _controller.danmakuOption,
+        // 小窗里只留画面. 弹幕层保持挂载, 免得退出小窗后重新投递一遍弹幕.
+        Offstage(
+          offstage: inPip,
+          child: DanmakuScreen<DanmakuModel>(
+            key: const ValueKey('danmaku'),
+            createdController: _controller.attachDanmaku,
+            option: _controller.danmakuOption,
+          ),
         ),
         Positioned.fill(
           child: PlayerGestureDetector(
@@ -141,8 +156,8 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
             onSeekPreview: _onSeekPreview,
           ),
         ),
-        if (_showControls) _buildControls(context),
-        if (widget.fullscreen && _showControls) _buildFullscreenBack(),
+        if (_showControls && !inPip) _buildControls(context),
+        if (widget.fullscreen && _showControls && !inPip) _buildFullscreenBack(),
         _buildBuffering(),
         _buildSourceTip(),
       ],
@@ -342,6 +357,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
 
   Widget _buildButtonRow() {
     final player = _controller.player;
+    final onEnterPip = widget.onEnterPip;
     return Row(
       children: [
         ListenableBuilder(
@@ -369,6 +385,11 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
           child: _iconButton(Icons.tune, _openDanmakuSettings),
         ),
         _buildSpeedButton(),
+        if (onEnterPip != null)
+          Tooltip(
+            message: '画中画',
+            child: _iconButton(Icons.picture_in_picture_alt, onEnterPip),
+          ),
         _iconButton(
           widget.fullscreen ? Icons.fullscreen_exit : Icons.fullscreen,
           widget.onToggleFullscreen,
