@@ -136,7 +136,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
 
   Widget _buildVideo() {
     return Obx(() {
-      if (!_controller.playerReady.value) {
+      if (!_controller.playerReady.value || !_controller.player.initialized) {
         return const SizedBox.shrink();
       }
       return Video(
@@ -151,44 +151,55 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
     });
   }
 
-  /// 没有可用地址时给出提示, 覆盖在画面上.
+  /// 源失效和真实播放错误复用覆盖层与浏览器备用按钮.
   Widget _buildSourceTip() {
-    return Obx(() {
-      final tip = _controller.sourceError.value;
-      if (tip == null) {
-        return const SizedBox.shrink();
-      }
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.link_off, color: Colors.white70, size: 32),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                tip,
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
-                textAlign: TextAlign.center,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
+    return ListenableBuilder(
+      listenable: _controller.player,
+      builder: (context, child) => Obx(() {
+        final nativeError = _controller.playerReady.value
+            ? _controller.player.error
+            : null;
+        final tip = _controller.sourceError.value ??
+            (nativeError == null ? null : '播放失败: $nativeError');
+        if (tip == null) {
+          return const SizedBox.shrink();
+        }
+        return Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                nativeError == null ? Icons.link_off : Icons.error_outline,
+                color: Colors.white70,
+                size: 32,
               ),
-            ),
-            if (SiteLinks.video(
-                  _controller.hid,
-                  part: _controller.part.value,
-                ) !=
-                null)
-              TextButton.icon(
-                onPressed: widget.onOpenWebsite,
-                style: TextButton.styleFrom(foregroundColor: Colors.white),
-                icon: const Icon(Icons.open_in_browser, size: 18),
-                label: const Text('浏览器查看'),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  tip,
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  textAlign: TextAlign.center,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-          ],
-        ),
-      );
-    });
+              if (SiteLinks.video(
+                    _controller.hid,
+                    part: _controller.part.value,
+                  ) !=
+                  null)
+                TextButton.icon(
+                  onPressed: widget.onOpenWebsite,
+                  style: TextButton.styleFrom(foregroundColor: Colors.white),
+                  icon: const Icon(Icons.open_in_browser, size: 18),
+                  label: const Text('浏览器查看'),
+                ),
+            ],
+          ),
+        );
+      }),
+    );
   }
 
   Widget _buildBuffering() {
@@ -196,7 +207,8 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
     return ListenableBuilder(
       listenable: player,
       builder: (context, child) {
-        final visible = player.buffering && !player.completed;
+        final visible =
+            player.buffering && !player.completed && player.error == null;
         return IgnorePointer(
           child: Center(
             child: visible

@@ -8,6 +8,37 @@ import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/storage_pref.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+/// 请求代次同时约束回调提交和串行操作, 关闭后不再接受任务.
+class PlayerRequestGate {
+  int _generation = 0;
+  bool _closed = false;
+  Future<void> _tail = Future<void>.value();
+
+  int get current => _generation;
+
+  int begin() => ++_generation;
+
+  bool isCurrent(int generation) => !_closed && generation == _generation;
+
+  Future<void> run(int generation, Future<void> Function() operation) {
+    final result = _tail.then((_) async {
+      if (isCurrent(generation)) {
+        await operation();
+      }
+    });
+    // 单个任务失败不能阻塞后续新请求, 错误仍交给任务调用方.
+    _tail = result.then<void>((_) {}, onError: (Object _, StackTrace _) {});
+    return result;
+  }
+
+  void close() {
+    _closed = true;
+    ++_generation;
+  }
+
+  Future<void> get idle => _tail;
+}
+
 /// 基于 media_kit 的播放器封装.
 ///
 /// 只负责播放本身: 加载地址, 播放控制与状态上报.
@@ -28,6 +59,8 @@ class TucaoPlayer extends ChangeNotifier {
 
   Player? _player;
   VideoController? _videoController;
+  Future<void>? _initializing;
+  final _requests = PlayerRequestGate();
 
   final _subscriptions = <StreamSubscription<dynamic>>[];
 
@@ -72,13 +105,21 @@ class TucaoPlayer extends ChangeNotifier {
   /// 创建播放器, 重复调用无副作用.
   ///
   /// 倍速取自 [Pref.playerSpeed], 硬件解码取自 [Pref.hardwareDecode].
-  Future<void> init() async {
-    if (_player != null) {
-      return;
+  Future<void> init() {
+    if (_disposed) {
+      return Future<void>.value();
     }
-    _player = Player(configuration: const PlayerConfiguration(title: 'tucao'));
+    // 多个调用必须等待同一份完整初始化, 不能仅判断 _player 非空.
+    return _initializing ??= _init();
+  }
+
+  Future<void> _init() async {
+    final player = Player(
+      configuration: const PlayerConfiguration(title: 'tucao'),
+    );
+    _player = player;
     _videoController = VideoController(
-      _player!,
+      player,
       configuration: VideoControllerConfiguration(
         enableHardwareAcceleration: Pref.hardwareDecode,
       ),
@@ -86,8 +127,14 @@ class TucaoPlayer extends ChangeNotifier {
     _speed = Pref.playerSpeed;
     _volume = Pref.playerVolume;
     _subscribe();
-    await _player!.setRate(_speed);
-    await _player!.setVolume(_volume);
+    await player.setRate(_speed);
+    if (_disposed) {
+      return;
+    }
+    await player.setVolume(_volume);
+    if (_disposed) {
+      return;
+    }
     Log.i(
       '播放器初始化完成, 硬件解码 ${Pref.hardwareDecode ? '开启' : '关闭'}, '
       '倍速 ${_speed.toStringAsFixed(2)}, 音量 ${_volume.toStringAsFixed(0)}',
@@ -103,38 +150,64 @@ class TucaoPlayer extends ChangeNotifier {
     bool autoPlay = true,
     Duration? startAt,
   }) async {
-    await init();
-    Log.i('加载播放地址: $url');
-    _completed = false;
-    _error = null;
-    _position = Duration.zero;
-    _notifiedPosition = Duration.zero;
-    _duration = Duration.zero;
-    _buffered = Duration.zero;
-    _notify();
-    await _player!.open(Media(url, httpHeaders: _headers), play: autoPlay);
-    // open 会重置部分播放属性, 这里重新应用倍速与音量.
-    await _player!.setRate(_speed);
-    await _player!.setVolume(_volume);
-    if (startAt != null && startAt > Duration.zero) {
-      await _player!.seek(startAt);
+    if (_disposed) {
+      return;
     }
+    final request = _requests.begin();
+    await _requests.run(request, () async {
+      await init();
+      if (!_requests.isCurrent(request)) {
+        return;
+      }
+      final player = _player!;
+      Log.i('加载播放地址: $url');
+      _completed = false;
+      _error = null;
+      _playing = false;
+      _buffering = false;
+      _position = Duration.zero;
+      _notifiedPosition = Duration.zero;
+      _duration = Duration.zero;
+      _buffered = Duration.zero;
+      _notify();
+      await player.open(Media(url, httpHeaders: _headers), play: autoPlay);
+      if (!_requests.isCurrent(request)) {
+        return;
+      }
+      // open 会重置部分播放属性, 重新应用倍速和音量.
+      await player.setRate(_speed);
+      if (!_requests.isCurrent(request)) {
+        return;
+      }
+      await player.setVolume(_volume);
+      if (!_requests.isCurrent(request)) {
+        return;
+      }
+      if (startAt != null && startAt > Duration.zero) {
+        await player.seek(startAt);
+      }
+    });
+  }
+
+  Future<void> _control(Future<void> Function(Player) operation) {
+    final request = _requests.current;
+    return _requests.run(request, () async {
+      await _initializing;
+      final player = _player;
+      if (_requests.isCurrent(request) && player != null) {
+        await operation(player);
+      }
+    });
   }
 
   Future<void> play() async {
-    if (_player == null) {
-      return;
-    }
     Log.d('播放');
-    await _player!.play();
+    await _control((player) => player.play());
   }
 
   Future<void> pause() async {
-    if (_player == null) {
-      return;
-    }
     Log.d('暂停');
-    await _player!.pause();
+    await _control((player) => player.pause());
   }
 
   Future<void> toggle() async {
@@ -146,44 +219,57 @@ class TucaoPlayer extends ChangeNotifier {
   }
 
   Future<void> seek(Duration position) async {
-    if (_player == null) {
-      return;
-    }
     Log.d('跳转到 ${position.inMilliseconds}ms');
-    await _player!.seek(position);
+    await _control((player) => player.seek(position));
   }
 
   /// 卸载当前地址, 播放器本身仍可继续使用.
   Future<void> stop() async {
-    if (_player == null) {
+    if (_disposed) {
       return;
     }
-    await _player!.stop();
-    _position = Duration.zero;
-    _notifiedPosition = Duration.zero;
-    _duration = Duration.zero;
-    _buffered = Duration.zero;
-    _completed = false;
-    _notify();
+    final request = _requests.begin();
+    await _requests.run(request, () async {
+      await _initializing;
+      if (!_requests.isCurrent(request)) {
+        return;
+      }
+      await _player?.stop();
+      if (!_requests.isCurrent(request)) {
+        return;
+      }
+      _playing = false;
+      _buffering = false;
+      _error = null;
+      _position = Duration.zero;
+      _notifiedPosition = Duration.zero;
+      _duration = Duration.zero;
+      _buffered = Duration.zero;
+      _completed = false;
+      _notify();
+    });
   }
 
   /// 设置倍速, 同时写回用户偏好.
   Future<void> setSpeed(double speed) async {
-    if (speed <= 0) {
+    if (_disposed || speed <= 0) {
       return;
     }
     _speed = speed;
     Pref.playerSpeed = speed;
     Log.i('倍速调整为 ${speed.toStringAsFixed(2)}');
-    await _player?.setRate(speed);
+    await _control((player) => player.setRate(speed));
     _notify();
   }
 
   /// 设置音量, 取值范围 0 - 100.
   Future<void> setVolume(double volume) async {
+    if (_disposed) {
+      return;
+    }
     _volume = volume.clamp(0, 100);
     Pref.playerVolume = _volume;
-    await _player?.setVolume(_volume);
+    await _control((player) => player.setVolume(_volume));
     _notify();
   }
 
@@ -191,11 +277,17 @@ class TucaoPlayer extends ChangeNotifier {
     final player = _player!;
     _subscriptions.addAll([
       player.stream.playing.listen((value) {
+        if (_disposed) {
+          return;
+        }
         _playing = value;
         _updateWakelock();
         _notify();
       }),
       player.stream.completed.listen((value) {
+        if (_disposed) {
+          return;
+        }
         if (_completed == value) {
           return;
         }
@@ -207,6 +299,9 @@ class TucaoPlayer extends ChangeNotifier {
         _notify();
       }),
       player.stream.position.listen((value) {
+        if (_disposed) {
+          return;
+        }
         _position = value;
         // 跳转时位置变化很大, 需要立即上报.
         if ((value - _notifiedPosition).abs() >= _positionStep) {
@@ -215,24 +310,42 @@ class TucaoPlayer extends ChangeNotifier {
         }
       }),
       player.stream.duration.listen((value) {
+        if (_disposed) {
+          return;
+        }
         _duration = value;
         _notify();
       }),
       player.stream.buffer.listen((value) {
+        if (_disposed) {
+          return;
+        }
         _buffered = value;
         _notify();
       }),
       player.stream.buffering.listen((value) {
+        if (_disposed) {
+          return;
+        }
         _buffering = value;
         _notify();
       }),
       player.stream.rate.listen((value) {
+        if (_disposed) {
+          return;
+        }
         _speed = value;
         _notify();
       }),
       player.stream.error.listen((value) {
-        _error = value;
-        Log.e('播放出错: $value');
+        if (_disposed) {
+          return;
+        }
+        _error = value.trim().isEmpty ? null : value;
+        if (_error != null) {
+          _buffering = false;
+          Log.e('播放出错: $value');
+        }
         _notify();
       }),
     ]);
@@ -262,15 +375,32 @@ class TucaoPlayer extends ChangeNotifier {
       return;
     }
     _disposed = true;
+    _requests.close();
     for (final subscription in _subscriptions) {
-      subscription.cancel();
+      unawaited(subscription.cancel());
     }
     _subscriptions.clear();
     unawaited(WakelockPlus.disable().catchError((Object error) {}));
-    _player?.dispose();
-    _player = null;
-    _videoController = null;
+    // 在途原生调用结束后再释放, 不与 open/init 竞争.
+    unawaited(_release());
     Log.i('播放器已释放');
     super.dispose();
+  }
+
+  Future<void> _release() async {
+    try {
+      await _requests.idle;
+      await _initializing;
+    } catch (e, stackTrace) {
+      Log.e('播放器初始化未完成', error: e, stackTrace: stackTrace);
+    }
+    final player = _player;
+    _player = null;
+    _videoController = null;
+    try {
+      await player?.dispose();
+    } catch (e, stackTrace) {
+      Log.e('释放播放器失败', error: e, stackTrace: stackTrace);
+    }
   }
 }

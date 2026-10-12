@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/http/danmaku_http.dart';
 import 'package:tucao/http/video_http.dart';
+import 'package:tucao/models/api_response.dart';
 import 'package:tucao/models/danmaku.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/plugin/player/tucao_player.dart';
@@ -19,9 +20,21 @@ import 'package:tucao/utils/storage_pref.dart';
 /// 负责视频详情, 分P选择, 弹幕拉取与投递, 播放历史.
 /// 播放本身交给 [TucaoPlayer].
 class PlayerPageController extends GetxController {
-  PlayerPageController({required this.hid, int part = 0, VideoModel? initial})
-    : _initialPart = part,
-      _initial = initial;
+  PlayerPageController({
+    required this.hid,
+    int part = 0,
+    VideoModel? initial,
+    TucaoPlayer? player,
+    Future<ApiResponse<VideoModel>> Function(String)? loadVideo,
+    Future<List<DanmakuModel>> Function(int, String, int)? loadDanmaku,
+  }) : _initialPart = part,
+       _initial = initial,
+       player = player ?? TucaoPlayer(),
+       _loadVideo = loadVideo ?? ((hid) => VideoHttp.view(hid: hid)),
+       _fetchDanmaku = loadDanmaku ??
+           ((typeId, hid, part) => DanmakuHttp.fetch(
+             typeId: typeId, hid: hid, part: part,
+           ));
 
   /// 视频 id.
   final String hid;
@@ -31,7 +44,14 @@ class PlayerPageController extends GetxController {
   /// 从列表页带过来的数据, 用于首屏立即展示标题.
   final VideoModel? _initial;
 
-  final player = TucaoPlayer();
+  final TucaoPlayer player;
+  final Future<ApiResponse<VideoModel>> Function(String) _loadVideo;
+  final Future<List<DanmakuModel>> Function(int, String, int) _fetchDanmaku;
+  final _requests = PlayerRequestGate();
+  bool _closed = false;
+
+  // 原生播放器实际打开的分P, 不把旧播放进度记入新选择.
+  int? _playingPart;
 
   /// 视频详情, 加载完成前可能只有列表页带过来的简要信息.
   final video = Rxn<VideoModel>();
@@ -116,6 +136,8 @@ class PlayerPageController extends GetxController {
 
   @override
   void onClose() {
+    _closed = true;
+    _requests.close();
     _historyTimer?.cancel();
     _historyTimer = null;
     // 退出前再记一次, 不等待写入完成.
@@ -136,36 +158,61 @@ class PlayerPageController extends GetxController {
 
   /// 拉取视频详情并加载当前分P.
   Future<void> load() async {
+    if (_closed) {
+      return;
+    }
+    final request = _requests.begin();
     firstLoading.value = true;
     error.value = null;
     try {
-      final response = await VideoHttp.view(hid: hid);
+      final response = await _loadVideo(hid);
+      if (!_requests.isCurrent(request)) {
+        return;
+      }
       if (!response.success || response.result == null) {
         error.value = response.message ?? '视频加载失败';
         return;
       }
       video.value = response.result;
       final index = part.value.clamp(0, partCount - 1);
-      await _loadPart(index, resume: true);
+      await _loadPart(index, resume: true, request: request);
     } catch (e, stackTrace) {
-      Log.e('加载视频详情失败', error: e, stackTrace: stackTrace);
-      error.value = '视频加载失败, 请稍后重试';
+      if (_requests.isCurrent(request)) {
+        Log.e('加载视频详情失败', error: e, stackTrace: stackTrace);
+        error.value = '视频加载失败, 请稍后重试';
+      }
     } finally {
-      firstLoading.value = false;
+      if (_requests.isCurrent(request)) {
+        firstLoading.value = false;
+      }
     }
   }
 
   /// 切换分P.
   Future<void> switchPart(int index) async {
-    if (index < 0 || index >= partCount || index == part.value) {
+    if (_closed || index < 0 || index >= partCount || index == part.value) {
       return;
     }
-    // 先记下当前分P的进度, 避免切走后丢失.
-    await recordHistory();
-    await _loadPart(index, resume: false);
+    final request = _requests.begin();
+    // 历史写入先捕获旧进度, 新选择立刻生效, 不等待磁盘写入.
+    final history = recordHistory();
+    part.value = index;
+    firstLoading.value = false;
+    error.value = null;
+    await history;
+    if (_requests.isCurrent(request)) {
+      await _loadPart(index, resume: false, request: request);
+    }
   }
 
-  Future<void> _loadPart(int index, {required bool resume}) async {
+  Future<void> _loadPart(
+    int index, {
+    required bool resume,
+    required int request,
+  }) async {
+    if (!_requests.isCurrent(request)) {
+      return;
+    }
     part.value = index;
     sourceError.value = null;
     playUrl.value = '';
@@ -176,31 +223,46 @@ class PlayerPageController extends GetxController {
     final target = index >= 0 && index < list.length ? list[index] : null;
     final url = target?.file ?? '';
     if (target == null || url.isEmpty) {
-      // 第三方源已经不再提供播放地址, 这里只给出提示.
       sourceError.value = '该视频源已失效';
       Log.w('分P ${index + 1} 没有可播放地址, vid=${target?.vid}');
-      await player.stop();
+      await _requests.run(request, () async {
+        _playingPart = null;
+        await player.stop();
+      });
       return;
     }
-    playUrl.value = url;
 
-    final danmakuFuture = _loadDanmaku(index);
+    final danmakuFuture = _loadDanmaku(index, request);
     final startAt = resume ? _resumePosition(index) : null;
     try {
-      // 先建好播放器, 界面据此挂载画面, 避免地址还没加载就显示黑屏.
-      await player.init();
-      playerReady.value = true;
-      await player.setUrl(url, autoPlay: Pref.playerAutoPlay, startAt: startAt);
-      if (startAt != null) {
-        Log.i('续播上次进度 ${startAt.inSeconds}s');
-      }
+      // 整段原生加载串行执行, 排队中的过期请求直接跳过.
+      await _requests.run(request, () async {
+        _playingPart = null;
+        await player.init();
+        if (!_requests.isCurrent(request)) {
+          return;
+        }
+        playUrl.value = url;
+        playerReady.value = true;
+        await player.setUrl(url, autoPlay: Pref.playerAutoPlay, startAt: startAt);
+        if (!_requests.isCurrent(request)) {
+          return;
+        }
+        _playingPart = index;
+        if (startAt != null) {
+          Log.i('续播上次进度 ${startAt.inSeconds}s');
+        }
+      });
     } catch (e, stackTrace) {
-      Log.e('播放地址加载失败', error: e, stackTrace: stackTrace);
-      sourceError.value = '播放失败, 请切换分P或稍后重试';
+      if (_requests.isCurrent(request)) {
+        Log.e('播放地址加载失败', error: e, stackTrace: stackTrace);
+        sourceError.value = '播放失败, 请切换分P或稍后重试';
+      }
     }
     await danmakuFuture;
-    // 弹幕到位后按当前进度对齐一次, 避免等到下一次位置事件才显示.
-    _syncDanmaku(player.playing);
+    if (_requests.isCurrent(request)) {
+      _syncDanmaku(player.playing);
+    }
   }
 
   /// 查询上次播放位置, 不满足续播条件时返回空.
@@ -223,22 +285,25 @@ class PlayerPageController extends GetxController {
     return Duration(milliseconds: (progress * 1000).round());
   }
 
-  Future<void> _loadDanmaku(int index) async {
+  Future<void> _loadDanmaku(int index, int request) async {
     List<DanmakuModel> list;
     try {
-      list = await DanmakuHttp.fetch(
-        typeId: typeId,
-        hid: hid,
-        part: index,
-      );
-      list.sort((a, b) => a.time.compareTo(b.time));
+      list = await _fetchDanmaku(typeId, hid, index);
+      if (!_requests.isCurrent(request)) {
+        return;
+      }
+      list = List<DanmakuModel>.of(list)
+        ..sort((a, b) => a.time.compareTo(b.time));
       Log.i('分P ${index + 1} 加载弹幕 ${list.length} 条');
     } catch (e, stackTrace) {
+      if (!_requests.isCurrent(request)) {
+        return;
+      }
       Log.e('弹幕加载失败', error: e, stackTrace: stackTrace);
       list = const [];
     }
-    // 切换分P时旧请求可能后到, 只接受当前分P的结果.
-    if (part.value != index) {
+    // 分P相同也可能来自不同请求, 必须检查代次, 关闭后也丢弃.
+    if (!_requests.isCurrent(request)) {
       return;
     }
     _danmaku = list;
@@ -330,6 +395,7 @@ class PlayerPageController extends GetxController {
     if (current == null) {
       return '视频信息还没加载好';
     }
+    final request = _requests.current;
     final time = player.position.inMilliseconds / 1000;
     sending.value = true;
     try {
@@ -341,7 +407,7 @@ class PlayerPageController extends GetxController {
         time: time,
       );
       final result = _parseSendResult(raw);
-      if (result != null) {
+      if (result != null || !_requests.isCurrent(request)) {
         return result;
       }
       // 站点不返回弹幕内容, 本地先按默认样式显示一条.
@@ -360,7 +426,9 @@ class PlayerPageController extends GetxController {
       Log.e('弹幕发送失败', error: e, stackTrace: stackTrace);
       return '弹幕发送失败, 请稍后重试';
     } finally {
-      sending.value = false;
+      if (!_closed) {
+        sending.value = false;
+      }
     }
   }
 
@@ -380,7 +448,8 @@ class PlayerPageController extends GetxController {
   /// 写入播放历史.
   Future<void> recordHistory() async {
     final current = video.value;
-    if (current == null) {
+    final currentPart = _playingPart;
+    if (current == null || currentPart == null) {
       return;
     }
     final total = player.duration.inMilliseconds / 1000;
@@ -391,7 +460,7 @@ class PlayerPageController extends GetxController {
     try {
       await HistoryService.instance.record(
         video: current,
-        part: part.value,
+        part: currentPart,
         progress: progress,
         duration: total,
       );
@@ -413,6 +482,9 @@ class PlayerPageController extends GetxController {
 
   /// 按播放位置投递弹幕, 而不是一次性全部交给渲染器.
   void _syncDanmaku(bool playing) {
+    if (_closed || !playerReady.value) {
+      return;
+    }
     final controller = _danmakuController;
     if (controller == null) {
       return;

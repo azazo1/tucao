@@ -46,8 +46,8 @@ class _CachedVideoPageState extends State<CachedVideoPage>
       }
       if (mounted && (ModalRoute.of(context)?.isCurrent ?? false)) {
         // 在后台或被另一页覆盖期间加载完成时不自动开始播放.
-        if (WidgetsBinding.instance.lifecycleState !=
-            AppLifecycleState.paused) {
+        final lifecycle = WidgetsBinding.instance.lifecycleState;
+        if (lifecycle == null || lifecycle == AppLifecycleState.resumed) {
           await _player.play();
         }
       }
