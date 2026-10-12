@@ -79,8 +79,6 @@ just build android-debug    # 调试构建
 ## 持续集成
 
 [CI 工作流](<.github/workflows/build.yml>) 在推送与合并请求时执行静态检查, 单元测试与安卓构建.
-模拟器复用 x86_64 Release APK, 检查安装启动以及首页, 我的, 缓存和收藏页面;
-缺少 UI 语义时明确失败, 并保留截图和有限诊断输出. `just test-smoke` 可离线验证检查脚本.
 手动触发工作流并填写 tag 时会构建全部 ABI, 全部检查通过后发布 GitHub Release.
 
 ## 接口

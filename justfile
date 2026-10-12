@@ -16,10 +16,6 @@ info:
 dist:
     uv run --no-project python scripts/dist.py
 
-# 离线验证 Android 冒烟脚本, 不构建或安装 APK.
-test-smoke:
-    uv run --no-project python -m unittest discover -s test -p android_smoke_test.py -v
-
 # 观察当前提交的 ci 运行, 等到出结果再退出.
 # 认领运行是按本地短 hash 匹配, 因此必须在 push 之后执行.
 ci-watch:
