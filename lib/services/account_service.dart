@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import 'package:tucao/models/form_response.dart';
 import 'package:tucao/models/user.dart';
 import 'package:tucao/http/init.dart';
 import 'package:tucao/http/user_http.dart';
@@ -15,6 +16,7 @@ class AccountService extends GetxController {
   static const _kUser = 'user';
 
   final user = Rxn<UserModel>();
+  int _sessionVersion = 0;
 
   bool get isLogin => user.value != null;
 
@@ -36,8 +38,12 @@ class AccountService extends GetxController {
   /// 向服务端确认登录状态.
   @override
   Future<void> refresh() async {
+    final sessionVersion = _sessionVersion;
     try {
       final info = await UserHttp.info();
+      if (sessionVersion != _sessionVersion) {
+        return;
+      }
       if (info == null) {
         await _clear();
         return;
@@ -52,6 +58,7 @@ class AccountService extends GetxController {
 
   /// 登录.
   Future<String> login(String username, String password) async {
+    final sessionVersion = ++_sessionVersion;
     final raw = await UserHttp.login(username: username, password: password);
     // discuz 登录失败时返回带提示的页面, 成功时通常是跳转脚本.
     if (raw.contains('密码错误') ||
@@ -59,10 +66,10 @@ class AccountService extends GetxController {
         raw.contains('不存在')) {
       throw Exception('用户名或密码错误');
     }
-    await refresh();
-    if (!isLogin) {
-      throw Exception('登录失败, 请检查用户名与密码');
-    }
+    await _confirmLogin(
+      failure: '登录失败, 请检查用户名与密码',
+      sessionVersion: sessionVersion,
+    );
     return raw;
   }
 
@@ -76,6 +83,7 @@ class AccountService extends GetxController {
     required String password,
     required String confirmPassword,
   }) async {
+    final sessionVersion = ++_sessionVersion;
     final raw = await UserHttp.register(
       username: username,
       nickname: nickname,
@@ -87,11 +95,26 @@ class AccountService extends GetxController {
     if (failure != null) {
       throw Exception(failure);
     }
-    await refresh();
-    if (!isLogin) {
-      throw Exception('注册成功但自动登录失败, 请手动登录');
-    }
+    await _confirmLogin(
+      failure: '注册成功但自动登录失败, 请手动登录',
+      sessionVersion: sessionVersion,
+    );
     return raw;
+  }
+
+  /// 登录操作必须用本次服务端查询确认, 不能沿用刷新失败后保留的缓存.
+  Future<void> _confirmLogin({required String failure, required int sessionVersion}) async {
+    final info = await UserHttp.info();
+    if (sessionVersion != _sessionVersion) {
+      throw Exception('账号状态已变化, 请重新操作');
+    }
+    if (info == null || info.userId <= 0 || info.userName.isEmpty) {
+      await _clear();
+      throw Exception(failure);
+    }
+    user.value = info;
+    await GStorage.account.put(_kUser, info.toJson());
+    Log.i('登录状态确认成功: ${info.displayName}');
   }
 
   /// 修改密码.
@@ -109,32 +132,28 @@ class AccountService extends GetxController {
     if (failure != null) {
       throw Exception(failure);
     }
+    // 与官方客户端一致, 密码修改后本地用户失效, 不假定服务器撤销了会话.
+    _sessionVersion++;
+    await _clear();
+    await HttpInit.clearCookie();
   }
 
-  /// 从表单类接口的响应里提取失败原因, 成功时返回 null.
-  ///
-  /// 站点成功时返回的页面正文是 "操作成功" 加一段跳转脚本,
-  /// 因此这里正向判断成功, 其余情况再尝试提取提示文案.
-  /// 是纯函数, 便于用固定响应做测试.
+  /// 从表单提示页提取失败原因, 仅明确成功时返回 null.
   static String? formFailure(String raw, {required String fallback}) {
-    final text = raw.replaceAll(RegExp(r'<[^>]*>'), ' ').trim();
-    if (text.contains('操作成功')) {
+    // 脚本里的 showmessage 只作为错误提示, 不能作为成功凭据.
+    final match = RegExp(r"showmessage\('([^']+)'").firstMatch(raw);
+    final message = match?.group(1)?.trim();
+    if (message != null && message.isNotEmpty) {
+      return message;
+    }
+    final response = FormResponse.parse(raw);
+    if (response.isSuccess) {
       return null;
     }
-    // 站点把提示放在脚本里, 形如 showmessage('...', ...).
-    final match = RegExp(r"showmessage\('([^']+)'").firstMatch(raw);
-    if (match != null) {
-      final message = match.group(1)!.trim();
-      if (message.isNotEmpty) {
-        return message;
-      }
+    if (response.status == FormResponseStatus.rejected) {
+      return response.message;
     }
-    for (final keyword in ['已存在', '已经被注册', '不正确', '不能为空', '失败', '过期']) {
-      if (text.contains(keyword)) {
-        return fallback;
-      }
-    }
-    return null;
+    return fallback;
   }
 
   /// 注册响应的失败原因, 保留旧名字以便测试与调用方使用.
@@ -143,6 +162,7 @@ class AccountService extends GetxController {
 
   /// 退出登录.
   Future<void> logout() async {
+    _sessionVersion++;
     try {
       await UserHttp.logout();
     } catch (e, stackTrace) {

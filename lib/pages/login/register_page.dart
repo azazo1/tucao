@@ -48,15 +48,25 @@ class _RegisterPageState extends State<RegisterPage> {
         password: _passwordController.text,
         confirmPassword: _confirmController.text,
       );
+      if (!_finishSubmission()) {
+        return;
+      }
       Get.back();
       Get.snackbar('注册成功', '已自动登录');
     } catch (e) {
-      if (!mounted) {
+      if (!_finishSubmission()) {
         return;
       }
-      setState(() => _submitting = false);
       Get.snackbar('注册失败', _errorText(e));
     }
+  }
+
+  bool _finishSubmission() {
+    if (!mounted) {
+      return false;
+    }
+    setState(() => _submitting = false);
+    return ModalRoute.of(context)?.isCurrent ?? false;
   }
 
   String _errorText(Object error) {

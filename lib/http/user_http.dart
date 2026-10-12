@@ -7,12 +7,15 @@ import 'package:tucao/utils/http_util.dart';
 
 /// 用户相关接口.
 abstract final class UserHttp {
+  static bool _isSuccessStatus(int? status) =>
+      status != null && status >= 200 && status < 300;
   /// 查询当前登录状态.
   ///
   /// 未登录时接口返回 `{"islogin":false}`.
   static Future<UserModel?> info({CancelToken? cancelToken}) async {
     final response = await HttpUtil.dio.get(
       '${Constants.baseUrl}${ApiPath.userInfo}',
+      options: Options(validateStatus: _isSuccessStatus),
       cancelToken: cancelToken,
     );
     final raw = response.data.toString().replaceFirst('\ufeff', '').trim();
@@ -59,7 +62,10 @@ abstract final class UserHttp {
         'answer': ?answer,
         'cookietime': '2592000',
       },
-      options: Options(contentType: Headers.formUrlEncodedContentType),
+      options: Options(
+        contentType: Headers.formUrlEncodedContentType,
+        validateStatus: _isSuccessStatus,
+      ),
       cancelToken: cancelToken,
     );
     return response.data.toString();
@@ -94,7 +100,10 @@ abstract final class UserHttp {
         'pwdconfirm': confirmPassword,
         'dosubmit': '1',
       },
-      options: Options(contentType: Headers.formUrlEncodedContentType),
+      options: Options(
+        contentType: Headers.formUrlEncodedContentType,
+        validateStatus: _isSuccessStatus,
+      ),
       cancelToken: cancelToken,
     );
     return response.data.toString();
@@ -115,9 +124,12 @@ abstract final class UserHttp {
         'info[password]': oldPassword,
         'info[newpassword]': newPassword,
         'info[renewpassword]': confirmPassword,
-        'dosubmit': '1',
+        'dosubmit': '提交',
       },
-      options: Options(contentType: Headers.formUrlEncodedContentType),
+      options: Options(
+        contentType: Headers.formUrlEncodedContentType,
+        validateStatus: _isSuccessStatus,
+      ),
       cancelToken: cancelToken,
     );
     return response.data.toString();

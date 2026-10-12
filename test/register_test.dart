@@ -24,8 +24,16 @@ void main() {
       expect(AccountService.registerFailure(raw), '注册失败, 请检查填写的信息');
     });
 
-    test('空响应不误报为失败', () {
-      expect(AccountService.registerFailure(''), isNull);
+    test('空响应与未知页面不能作为注册成功依据', () {
+      for (final raw in [
+        '',
+        '<body>服务暂不可用</body>',
+        '<body><form><input name="username"></form>操作成功</body>',
+        '<script>var message = "操作成功";</script>',
+        '<style>.操作成功 { color: red; }</style>',
+      ]) {
+        expect(AccountService.registerFailure(raw), isNotNull);
+      }
     });
   });
 
@@ -50,6 +58,15 @@ void main() {
         AccountService.formFailure(raw, fallback: '修改密码失败'),
         isNull,
       );
+    });
+
+    test('成功标记与拒绝提示同时出现时不能判为成功', () {
+      for (final raw in [
+        '<body>操作成功失败</body>',
+        '<body>操作成功<script>showmessage(\'原密码不正确\', \'back\');</script></body>',
+      ]) {
+        expect(AccountService.formFailure(raw, fallback: 'rejected'), isNotNull);
+      }
     });
 
     test('旧密码错误时提取站点文案', () {

@@ -42,18 +42,28 @@ class _LoginPageState extends State<LoginPage> {
         _usernameController.text.trim(),
         _passwordController.text,
       );
+      if (!_finishSubmission()) {
+        return;
+      }
       Get.back();
       Get.snackbar(
         '登录成功',
         '欢迎回来, ${AccountService.instance.user.value?.displayName ?? ''}',
       );
     } catch (e) {
-      if (!mounted) {
+      if (!_finishSubmission()) {
         return;
       }
-      setState(() => _submitting = false);
       Get.snackbar('登录失败', _errorText(e));
     }
+  }
+
+  bool _finishSubmission() {
+    if (!mounted) {
+      return false;
+    }
+    setState(() => _submitting = false);
+    return ModalRoute.of(context)?.isCurrent ?? false;
   }
 
   /// 网络异常与业务异常分开提示, 保证任何情况下都有可读的错误信息.
@@ -157,7 +167,7 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                   TextButton(
-                    onPressed: () => Get.toNamed(Routes.register),
+                    onPressed: _submitting ? null : () => Get.toNamed(Routes.register),
                     child: const Text('注册账号'),
                   ),
                 ],

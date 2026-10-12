@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/router/routes.dart';
 import 'package:tucao/services/account_service.dart';
 
 /// 修改密码页.
@@ -42,15 +43,25 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         newPassword: _newController.text,
         confirmPassword: _confirmController.text,
       );
-      Get.back();
-      Get.snackbar('修改成功', '下次登录请使用新密码');
-    } catch (e) {
-      if (!mounted) {
+      if (!_finishSubmission()) {
         return;
       }
-      setState(() => _submitting = false);
+      Get.offNamed(Routes.login);
+      Get.snackbar('修改成功', '请使用新密码重新登录');
+    } catch (e) {
+      if (!_finishSubmission()) {
+        return;
+      }
       Get.snackbar('修改失败', _errorText(e));
     }
+  }
+
+  bool _finishSubmission() {
+    if (!mounted) {
+      return false;
+    }
+    setState(() => _submitting = false);
+    return ModalRoute.of(context)?.isCurrent ?? false;
   }
 
   String _errorText(Object error) {
@@ -151,7 +162,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
               ),
               const SizedBox(height: 16),
               Text(
-                '修改成功后站点会让当前会话失效, 需要重新登录.',
+                '修改成功后应用会清除保存的登录态, 请使用新密码重新登录.',
                 style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
               ),
             ],
