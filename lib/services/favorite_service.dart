@@ -31,7 +31,8 @@ class FavoriteService extends GetxController {
       final raw = _box.get(storageKey);
       final entries = <FavoriteItem>[];
       if (raw != null) {
-        if (raw is! Map || raw['version'] != storageVersion ||
+        if (raw is! Map ||
+            raw['version'] != storageVersion ||
             raw['items'] is! List) {
           throw const FormatException('本地收藏版本或格式不受支持');
         }
@@ -73,7 +74,10 @@ class FavoriteService extends GetxController {
       return result;
     });
     // 失败不能阻塞后续重试, 错误仍由当前调用方收到.
-    _pending = operation.then<void>((_) {}, onError: (Object _, StackTrace _) {});
+    _pending = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
     return operation;
   }
 
@@ -82,10 +86,13 @@ class FavoriteService extends GetxController {
       throw ArgumentError('本地收藏需要有效的视频 id');
     }
     next.removeWhere((item) => item.video.hid == video.hid);
-    next.insert(0, FavoriteItem(
-      video: video,
-      savedAt: DateTime.now().millisecondsSinceEpoch,
-    ));
+    next.insert(
+      0,
+      FavoriteItem(
+        video: video,
+        savedAt: DateTime.now().millisecondsSinceEpoch,
+      ),
+    );
   });
 
   Future<void> remove(String hid) => _change((next) {
@@ -100,10 +107,13 @@ class FavoriteService extends GetxController {
       next.removeWhere((item) => item.video.hid == video.hid);
       return false;
     }
-    next.insert(0, FavoriteItem(
-      video: video,
-      savedAt: DateTime.now().millisecondsSinceEpoch,
-    ));
+    next.insert(
+      0,
+      FavoriteItem(
+        video: video,
+        savedAt: DateTime.now().millisecondsSinceEpoch,
+      ),
+    );
     return true;
   });
 }

@@ -57,9 +57,9 @@ class _FavoriteButtonState extends State<FavoriteButton> {
       }
     } catch (error) {
       if (mounted && _current) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('本地收藏保存失败: $error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('本地收藏保存失败: $error')));
       }
     } finally {
       if (mounted) {
@@ -82,11 +82,16 @@ class _FavoriteButtonState extends State<FavoriteButton> {
         tooltip: selected ? '已本地收藏' : '本地收藏',
         iconSize: 18,
         visualDensity: VisualDensity.compact,
-        onPressed: _busy || widget.video.hid.isEmpty ||
-            service.loadError.value != null ? null : _toggle,
+        onPressed:
+            _busy || widget.video.hid.isEmpty || service.loadError.value != null
+            ? null
+            : _toggle,
         icon: _saving
-            ? const SizedBox(width: 18, height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2))
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
             : Icon(selected ? Icons.favorite : Icons.favorite_border),
       );
     });

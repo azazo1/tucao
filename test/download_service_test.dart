@@ -87,15 +87,20 @@ class _DelayedRenameFile implements File {
     await beforeDelete?.call();
     return file.delete(recursive: recursive);
   }
+
   @override
-  Future<File> writeAsBytes(List<int> bytes, {FileMode mode = FileMode.write, bool flush = false}) =>
-      file.writeAsBytes(bytes, mode: mode, flush: flush);
+  Future<File> writeAsBytes(
+    List<int> bytes, {
+    FileMode mode = FileMode.write,
+    bool flush = false,
+  }) => file.writeAsBytes(bytes, mode: mode, flush: flush);
   @override
   Future<File> rename(String newPath) async {
     final result = await file.rename(newPath);
     await hook();
     return result;
   }
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -380,7 +385,10 @@ void main() {
     await service.waitForIdle();
     expect(transport.calls.length, 2);
     expect(service.find('123-0')?.status, DownloadStatus.completed);
-    expect((await service.store.load()).single.status, DownloadStatus.completed);
+    expect(
+      (await service.store.load()).single.status,
+      DownloadStatus.completed,
+    );
   });
 
   test('取消发生在最终文件移动期间, 不得覆盖暂停状态或留下已完成文件', () async {
@@ -419,11 +427,17 @@ void main() {
     final failAdmission = Completer<void>();
     store.beforeSave = (tasks) async {
       if (!completedSaving.isCompleted &&
-          tasks.any((task) => task.id == '123-0' && task.status == DownloadStatus.completed)) {
+          tasks.any(
+            (task) =>
+                task.id == '123-0' && task.status == DownloadStatus.completed,
+          )) {
         completedSaving.complete();
         await finishSaving.future;
       } else if (!admissionSaving.isCompleted &&
-          tasks.any((task) => task.id == '123-1' && task.status == DownloadStatus.queued)) {
+          tasks.any(
+            (task) =>
+                task.id == '123-1' && task.status == DownloadStatus.queued,
+          )) {
         admissionSaving.complete();
         await failAdmission.future;
         throw const FileSystemException('模拟清单写入失败');
@@ -493,7 +507,9 @@ void main() {
       expect(await service.localFile(task.id), isNull);
       final stopping = action == 'pause'
           ? service.pause(task.id)
-          : action == 'remove' ? service.remove(task.id) : Future<void>.value();
+          : action == 'remove'
+          ? service.remove(task.id)
+          : Future<void>.value();
       release.complete();
       await stopping;
       await service.waitForIdle();
@@ -501,8 +517,10 @@ void main() {
         expect(service.find(task.id)?.status, DownloadStatus.completed);
         expect(await service.localFile(task.id), isNotNull);
       } else {
-        expect(service.find(task.id)?.status,
-            action == 'pause' ? DownloadStatus.paused : isNull);
+        expect(
+          service.find(task.id)?.status,
+          action == 'pause' ? DownloadStatus.paused : isNull,
+        );
         expect(await store.media(task).exists(), isFalse);
         expect(await service.localFile(task.id), isNull);
       }
@@ -519,7 +537,8 @@ void main() {
     final saving = Completer<void>();
     final release = Completer<void>();
     store.beforeSave = (tasks) async {
-      if (!failed && tasks.any((task) => task.status == DownloadStatus.completed)) {
+      if (!failed &&
+          tasks.any((task) => task.status == DownloadStatus.completed)) {
         failed = true;
         saving.complete();
         await release.future;
@@ -555,7 +574,10 @@ void main() {
     store.beforeSave = (_) async {
       throw const FileSystemException('模拟清单写入失败');
     };
-    await expectLater(service.remove(task.id), throwsA(isA<FileSystemException>()));
+    await expectLater(
+      service.remove(task.id),
+      throwsA(isA<FileSystemException>()),
+    );
     expect(service.find(task.id)?.status, DownloadStatus.completed);
     expect(await store.media(task).exists(), isTrue);
     store.beforeSave = null;
@@ -579,7 +601,10 @@ void main() {
     store.beforeDelete = () async {
       throw const FileSystemException('模拟文件删除失败');
     };
-    await expectLater(service.remove(task.id), throwsA(isA<FileSystemException>()));
+    await expectLater(
+      service.remove(task.id),
+      throwsA(isA<FileSystemException>()),
+    );
     expect(service.find(task.id)?.status, DownloadStatus.completed);
     expect(await store.media(task).exists(), isTrue);
     expect((await store.load()).single.status, DownloadStatus.completed);

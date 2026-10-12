@@ -40,8 +40,11 @@ class _Adapter implements HttpClientAdapter {
   final requests = <RequestOptions>[];
 
   @override
-  Future<ResponseBody> fetch(RequestOptions options,
-      Stream<Uint8List>? stream, Future<void>? cancelFuture) async {
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? stream,
+    Future<void>? cancelFuture,
+  ) async {
     requests.add(options);
     return ResponseBody.fromString(response, status);
   }
@@ -55,8 +58,14 @@ void main() {
   late _Box box;
   late FavoriteService service;
   const video = VideoModel(
-    hid: '123', title: '第一条', typeId: 11, typeName: '连载新番',
-    userId: 42, userName: '作者', description: '简介', partCount: 3,
+    hid: '123',
+    title: '第一条',
+    typeId: 11,
+    typeName: '连载新番',
+    userId: 42,
+    userName: '作者',
+    description: '简介',
+    partCount: 3,
   );
   const other = VideoModel(hid: '456', title: '第二条', typeId: 11);
 
@@ -133,7 +142,12 @@ void main() {
   test('未知版本和损坏记录不覆盖原数据', () async {
     for (final raw in [
       {'version': 2, 'items': []},
-      {'version': 1, 'items': [{'savedAt': 1, 'video': {}}]},
+      {
+        'version': 1,
+        'items': [
+          {'savedAt': 1, 'video': {}},
+        ],
+      },
     ]) {
       box.data[FavoriteService.storageKey] = raw;
       service.reload();
@@ -147,9 +161,11 @@ void main() {
   testWidgets('详情按钮无需登录, 取消需确认, 保存等待期间禁止重复操作', (tester) async {
     service = FavoriteService(box: box)..reload();
     Get.put(service);
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(body: FavoriteButton(video: video)),
-    ));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: FavoriteButton(video: video)),
+      ),
+    );
     final toggle = find.byKey(const ValueKey('favorite-toggle'));
     expect(tester.getSize(toggle).width, lessThanOrEqualTo(48));
     expect(tester.widget<IconButton>(toggle).isSelected, isFalse);
@@ -207,19 +223,25 @@ void main() {
       Get.put(service);
       await service.add(video);
       final navigator = GlobalKey<NavigatorState>();
-      await tester.pumpWidget(MaterialApp(
-        navigatorKey: navigator,
-        home: page ? const FavoritePage() : Scaffold(body: FavoriteButton(video: video)),
-      ));
-      await tester.tap(find.byKey(ValueKey(
-        page ? 'favorite-remove-123' : 'favorite-toggle',
-      )));
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorKey: navigator,
+          home: page
+              ? const FavoritePage()
+              : Scaffold(body: FavoriteButton(video: video)),
+        ),
+      );
+      await tester.tap(
+        find.byKey(ValueKey(page ? 'favorite-remove-123' : 'favorite-toggle')),
+      );
       await tester.pumpAndSettle();
       final writes = box.writes;
       navigator.currentState!.pop(true);
-      navigator.currentState!.push(MaterialPageRoute<void>(
-        builder: (_) => const Scaffold(body: SizedBox.expand()),
-      ));
+      navigator.currentState!.push(
+        MaterialPageRoute<void>(
+          builder: (_) => const Scaffold(body: SizedBox.expand()),
+        ),
+      );
       await tester.pumpAndSettle();
       expect(service.contains('123'), isTrue);
       expect(box.writes, writes);
@@ -240,21 +262,27 @@ void main() {
       });
       box.beforeWrite = () => pending.future;
       final navigator = GlobalKey<NavigatorState>();
-      await tester.pumpWidget(MaterialApp(
-        navigatorKey: navigator,
-        home: page ? const FavoritePage() : Scaffold(body: FavoriteButton(video: video)),
-      ));
-      await tester.tap(find.byKey(ValueKey(
-        page ? 'favorite-remove-123' : 'favorite-toggle',
-      )));
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorKey: navigator,
+          home: page
+              ? const FavoritePage()
+              : Scaffold(body: FavoriteButton(video: video)),
+        ),
+      );
+      await tester.tap(
+        find.byKey(ValueKey(page ? 'favorite-remove-123' : 'favorite-toggle')),
+      );
       if (page) {
         await tester.pumpAndSettle();
         await tester.tap(find.byKey(const ValueKey('favorite-confirm')));
       }
       await tester.pump(const Duration(milliseconds: 350));
-      navigator.currentState!.push(MaterialPageRoute<void>(
-        builder: (_) => const Scaffold(body: SizedBox.expand()),
-      ));
+      navigator.currentState!.push(
+        MaterialPageRoute<void>(
+          builder: (_) => const Scaffold(body: SizedBox.expand()),
+        ),
+      );
       await tester.pump(const Duration(milliseconds: 350));
       pending.completeError(StateError('disk unavailable'));
       await tester.pumpAndSettle();
@@ -266,7 +294,10 @@ void main() {
 
   group('独立官网新增收藏契约, 不接本地 UI', () {
     const onlineVideo = VideoModel(
-      hid: '123', title: 'HTTP fixture', typeId: 24, userId: 42,
+      hid: '123',
+      title: 'HTTP fixture',
+      typeId: 24,
+      userId: 42,
     );
     late _Adapter adapter;
     setUpAll(() {
@@ -293,11 +324,17 @@ void main() {
     test('空响应, HTML, 负状态和 HTTP 错误不能当成成功', () async {
       for (final raw in ['', '<body>success</body>', '{"status":-1}', '{}']) {
         adapter.response = raw;
-        await expectLater(FavoriteHttp.add(video: onlineVideo), throwsStateError);
+        await expectLater(
+          FavoriteHttp.add(video: onlineVideo),
+          throwsStateError,
+        );
       }
       adapter.response = '{"status":1}';
       adapter.status = 403;
-      await expectLater(FavoriteHttp.add(video: onlineVideo), throwsA(isA<DioException>()));
+      await expectLater(
+        FavoriteHttp.add(video: onlineVideo),
+        throwsA(isA<DioException>()),
+      );
       expect(FavoriteHttp.isSuccess('({"status":1})'), isTrue);
     });
   });

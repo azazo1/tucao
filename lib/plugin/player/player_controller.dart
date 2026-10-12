@@ -31,10 +31,10 @@ class PlayerPageController extends GetxController {
        _initial = initial,
        player = player ?? TucaoPlayer(),
        _loadVideo = loadVideo ?? ((hid) => VideoHttp.view(hid: hid)),
-       _fetchDanmaku = loadDanmaku ??
-           ((typeId, hid, part) => DanmakuHttp.fetch(
-             typeId: typeId, hid: hid, part: part,
-           ));
+       _fetchDanmaku =
+           loadDanmaku ??
+           ((typeId, hid, part) =>
+               DanmakuHttp.fetch(typeId: typeId, hid: hid, part: part));
 
   /// 视频 id.
   final String hid;
@@ -244,7 +244,11 @@ class PlayerPageController extends GetxController {
         }
         playUrl.value = url;
         playerReady.value = true;
-        await player.setUrl(url, autoPlay: Pref.playerAutoPlay, startAt: startAt);
+        await player.setUrl(
+          url,
+          autoPlay: Pref.playerAutoPlay,
+          startAt: startAt,
+        );
         if (!_requests.isCurrent(request)) {
           return;
         }

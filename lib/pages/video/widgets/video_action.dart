@@ -117,7 +117,9 @@ class _VideoActionBarState extends State<VideoActionBar> {
           ),
           Obx(() {
             final video = widget.controller.video.value;
-            return video == null ? const SizedBox.shrink() : FavoriteButton(video: video);
+            return video == null
+                ? const SizedBox.shrink()
+                : FavoriteButton(video: video);
           }),
         ],
       ),

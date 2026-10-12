@@ -146,8 +146,9 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
   }
 
   Future<void> _persist({DownloadTask? completed}) {
-    final snapshot = items.map((task) =>
-        task.id == completed?.id ? completed! : task).toList();
+    final snapshot = items
+        .map((task) => task.id == completed?.id ? completed! : task)
+        .toList();
     // 写入串行化, 较早的进度快照不能覆盖较晚的任务删除或完成状态.
     _saving = _saving
         .catchError((Object _) {})
@@ -204,7 +205,10 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
     } catch (error) {
       if (identical(find(task.id), task)) {
         _replace(
-          task.update(status: DownloadStatus.failed, error: '无法保存缓存任务, 请检查剩余空间'),
+          task.update(
+            status: DownloadStatus.failed,
+            error: '无法保存缓存任务, 请检查剩余空间',
+          ),
         );
       }
       rethrow;
@@ -238,7 +242,11 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
         throw StateError('请返回应用后再开始缓存');
       }
     }
-    final queued = task.update(status: DownloadStatus.queued, received: 0, total: -1);
+    final queued = task.update(
+      status: DownloadStatus.queued,
+      received: 0,
+      total: -1,
+    );
     _pending.add(id);
     _replace(queued);
     try {
@@ -309,7 +317,9 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
     try {
       if (task.status == DownloadStatus.downloading ||
           task.status == DownloadStatus.queued) {
-        _replace(task.update(status: DownloadStatus.paused, received: 0, total: -1));
+        _replace(
+          task.update(status: DownloadStatus.paused, received: 0, total: -1),
+        );
       }
       final finished = _activeId == id ? _activeFinished?.future : null;
       if (_activeId == id) {
@@ -326,7 +336,11 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
         items.add(
           task.status == DownloadStatus.completed
               ? task
-              : task.update(status: DownloadStatus.paused, received: 0, total: -1),
+              : task.update(
+                  status: DownloadStatus.paused,
+                  received: 0,
+                  total: -1,
+                ),
         );
         rethrow;
       }
@@ -372,7 +386,8 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
     final file = store.media(task);
     var valid = false;
     try {
-      valid = await file.exists() &&
+      valid =
+          await file.exists() &&
           await file.length() == task.received &&
           task.received > 0;
     } on FileSystemException {
@@ -409,8 +424,11 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
         })
         .whenComplete(() {
           _runner = null;
-          if (items.any((task) =>
-              task.status == DownloadStatus.queued && !_pending.contains(task.id))) {
+          if (items.any(
+            (task) =>
+                task.status == DownloadStatus.queued &&
+                !_pending.contains(task.id),
+          )) {
             _schedule();
           }
         });
@@ -420,7 +438,8 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
     while (!_closed && _foreground) {
       DownloadTask? next;
       for (final task in items) {
-        if (task.status == DownloadStatus.queued && !_pending.contains(task.id)) {
+        if (task.status == DownloadStatus.queued &&
+            !_pending.contains(task.id)) {
           next = task;
           break;
         }
@@ -444,6 +463,7 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
           throw token.cancelError ?? StateError('缓存任务已停止');
         }
       }
+
       try {
         await _persist();
         checkActive();
@@ -521,12 +541,14 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
           } catch (_) {
             final current = find(task.id);
             if (current?.status == DownloadStatus.completed) {
-              _replace(current!.update(
-                status: DownloadStatus.failed,
-                received: 0,
-                total: -1,
-                error: '无法保存缓存任务, 请检查剩余空间',
-              ));
+              _replace(
+                current!.update(
+                  status: DownloadStatus.failed,
+                  received: 0,
+                  total: -1,
+                  error: '无法保存缓存任务, 请检查剩余空间',
+                ),
+              );
               await store.discard(task);
             }
             rethrow;

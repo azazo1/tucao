@@ -12,7 +12,8 @@ abstract final class FavoriteHttp {
     required VideoModel video,
     CancelToken? cancelToken,
   }) async {
-    if (!RegExp(r'^[0-9]+$').hasMatch(video.hid) || video.typeId <= 0 ||
+    if (!RegExp(r'^[0-9]+$').hasMatch(video.hid) ||
+        video.typeId <= 0 ||
         video.title.trim().isEmpty) {
       throw ArgumentError('收藏需要有效的视频 id, 分区和标题');
     }
@@ -32,8 +33,10 @@ abstract final class FavoriteHttp {
         'cuserid': video.userId,
         'thumb': video.cover,
       },
-      options: Options(validateStatus: (status) =>
-          status != null && status >= 200 && status < 300),
+      options: Options(
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 300,
+      ),
       cancelToken: cancelToken,
     );
     if (!isSuccess(response.data?.toString() ?? '')) {
@@ -49,8 +52,7 @@ abstract final class FavoriteHttp {
     }
     try {
       final value = jsonDecode(text);
-      return value is Map &&
-          (value['status'] == 1 || value['status'] == '1');
+      return value is Map && (value['status'] == 1 || value['status'] == '1');
     } on FormatException {
       return false;
     }

@@ -159,7 +159,8 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
         final nativeError = _controller.playerReady.value
             ? _controller.player.error
             : null;
-        final tip = _controller.sourceError.value ??
+        final tip =
+            _controller.sourceError.value ??
             (nativeError == null ? null : '播放失败: $nativeError');
         if (tip == null) {
           return const SizedBox.shrink();

@@ -50,9 +50,9 @@ class _FavoritePageState extends State<FavoritePage> {
       }
     } catch (error) {
       if (mounted && _current) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('取消本地收藏失败: $error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('取消本地收藏失败: $error')));
       }
     } finally {
       if (mounted) {
@@ -75,46 +75,56 @@ class _FavoritePageState extends State<FavoritePage> {
             padding: EdgeInsets.all(12),
             child: Text('仅保存在此设备, 无需登录, 不与站点账号同步'),
           ),
-          Expanded(child: Obx(() {
-            if (service.loadError.value != null) {
-              return ErrorWidgetView(
-                message: service.loadError.value!,
-                onRetry: service.reload,
-              );
-            }
-            if (service.list.isEmpty) {
-              return const EmptyWidget(
-                message: '还没有本地收藏', icon: Icons.favorite_border,
-              );
-            }
-            return ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              itemCount: service.list.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final item = service.list[index];
-                final busy = _removing.contains(item.video.hid);
-                return Row(
-                  key: ValueKey('favorite-${item.video.hid}'),
-                  children: [
-                    Expanded(child: VideoCardHorizontal(
-                      video: item.video,
-                      onTap: () => VideoPage.open(item.video),
-                    )),
-                    IconButton(
-                      key: ValueKey('favorite-remove-${item.video.hid}'),
-                      tooltip: '取消本地收藏',
-                      onPressed: busy ? null : () => _remove(item),
-                      icon: _saving.contains(item.video.hid)
-                          ? const SizedBox(width: 18, height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Icon(Icons.favorite),
-                    ),
-                  ],
+          Expanded(
+            child: Obx(() {
+              if (service.loadError.value != null) {
+                return ErrorWidgetView(
+                  message: service.loadError.value!,
+                  onRetry: service.reload,
                 );
-              },
-            );
-          })),
+              }
+              if (service.list.isEmpty) {
+                return const EmptyWidget(
+                  message: '还没有本地收藏',
+                  icon: Icons.favorite_border,
+                );
+              }
+              return ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                itemCount: service.list.length,
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final item = service.list[index];
+                  final busy = _removing.contains(item.video.hid);
+                  return Row(
+                    key: ValueKey('favorite-${item.video.hid}'),
+                    children: [
+                      Expanded(
+                        child: VideoCardHorizontal(
+                          video: item.video,
+                          onTap: () => VideoPage.open(item.video),
+                        ),
+                      ),
+                      IconButton(
+                        key: ValueKey('favorite-remove-${item.video.hid}'),
+                        tooltip: '取消本地收藏',
+                        onPressed: busy ? null : () => _remove(item),
+                        icon: _saving.contains(item.video.hid)
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.favorite),
+                      ),
+                    ],
+                  );
+                },
+              );
+            }),
+          ),
         ],
       ),
     );

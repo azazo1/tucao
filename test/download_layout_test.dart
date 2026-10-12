@@ -14,11 +14,15 @@ class _LayoutDownloads extends GetxController implements DownloadService {
   final initializationError = RxnString();
   @override
   final items = <DownloadTask>[
-    const DownloadTask(hid: '123', part: 0,
+    const DownloadTask(
+      hid: '123',
+      part: 0,
       title: '很长的视频标题用于检查小屏幕中列表的文字和操作按钮是否仍能使用',
       partTitle: '很长的分集名称同样需要换行显示而不挤出操作按钮',
-      source: 'https://media.invalid/movie.mp4', createdAt: 1,
-      status: DownloadStatus.paused),
+      source: 'https://media.invalid/movie.mp4',
+      createdAt: 1,
+      status: DownloadStatus.paused,
+    ),
   ].obs;
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -40,7 +44,9 @@ void main() {
 
   Widget app(Widget child) => GetMaterialApp(
     builder: (context, child) => MediaQuery(
-      data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.5)),
+      data: MediaQuery.of(
+        context,
+      ).copyWith(textScaler: const TextScaler.linear(1.5)),
       child: child!,
     ),
     home: child,
@@ -59,13 +65,26 @@ void main() {
 
   testWidgets('横向小屏分P选择的大字号布局不溢出', (tester) async {
     await viewport(tester, const Size(568, 240));
-    const video = VideoModel(hid: '123', title: '测试', parts: [
-      VideoPart(title: '测试分集', file: 'https://media.invalid/movie.mp4'),
-    ]);
-    await tester.pumpWidget(app(Scaffold(body: Builder(builder: (context) => IconButton(
-      icon: const Icon(Icons.download),
-      onPressed: () => showVideoDownloadSheet(context, video: video, initialPart: 0),
-    )))));
+    const video = VideoModel(
+      hid: '123',
+      title: '测试',
+      parts: [
+        VideoPart(title: '测试分集', file: 'https://media.invalid/movie.mp4'),
+      ],
+    );
+    await tester.pumpWidget(
+      app(
+        Scaffold(
+          body: Builder(
+            builder: (context) => IconButton(
+              icon: const Icon(Icons.download),
+              onPressed: () =>
+                  showVideoDownloadSheet(context, video: video, initialPart: 0),
+            ),
+          ),
+        ),
+      ),
+    );
     await tester.tap(find.byIcon(Icons.download));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);

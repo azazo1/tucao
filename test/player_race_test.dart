@@ -18,8 +18,7 @@ class _Settings implements Box {
   final data = <dynamic, dynamic>{'player_continue_last': false};
 
   @override
-  dynamic get(dynamic key, {dynamic defaultValue}) =>
-      data[key] ?? defaultValue;
+  dynamic get(dynamic key, {dynamic defaultValue}) => data[key] ?? defaultValue;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -260,7 +259,9 @@ void main() {
     final detail = Completer<ApiResponse<VideoModel>>();
     final player = _Player();
     final controller = PlayerPageController(
-      hid: '123', player: player, loadVideo: (_) => detail.future,
+      hid: '123',
+      player: player,
+      loadVideo: (_) => detail.future,
     );
     final load = controller.load();
     controller.onClose();
@@ -275,7 +276,8 @@ void main() {
   test('初始化期间快速选分P只打开最后选择', () async {
     final player = _Player()..initialize = Completer<void>();
     final controller = PlayerPageController(
-      hid: '123', player: player,
+      hid: '123',
+      player: player,
       loadVideo: (_) async => _response(_video),
       loadDanmaku: (_, _, _) async => [],
     );
@@ -298,7 +300,8 @@ void main() {
     final player = _Player()
       ..opening = (url) => url.endsWith('/a') ? opened.future : Future.value();
     final controller = PlayerPageController(
-      hid: '123', player: player,
+      hid: '123',
+      player: player,
       loadVideo: (_) async => _response(_video),
       loadDanmaku: (_, _, _) async => [],
     );
@@ -312,7 +315,10 @@ void main() {
     opened.completeError(StateError('old open failed'));
     await Future.wait([initial, second, latest]);
     expect(player.maximumActive, 1);
-    expect(player.opens, ['https://example.invalid/a', 'https://example.invalid/c']);
+    expect(player.opens, [
+      'https://example.invalid/a',
+      'https://example.invalid/c',
+    ]);
     expect(controller.part.value, 2);
     expect(controller.sourceError.value, isNull);
     expect(controller.playUrl.value, 'https://example.invalid/c');
@@ -322,7 +328,8 @@ void main() {
     final comments = <Completer<List<DanmakuModel>>>[];
     final player = _Player();
     final controller = PlayerPageController(
-      hid: '123', player: player,
+      hid: '123',
+      player: player,
       loadVideo: (_) async => _response(_video),
       loadDanmaku: (_, _, _) {
         final request = Completer<List<DanmakuModel>>();
@@ -351,7 +358,8 @@ void main() {
     final comments = Completer<List<DanmakuModel>>();
     final player = _Player();
     final controller = PlayerPageController(
-      hid: '123', player: player,
+      hid: '123',
+      player: player,
       loadVideo: (_) async => _response(_video),
       loadDanmaku: (_, _, _) => comments.future,
     );
@@ -369,7 +377,8 @@ void main() {
     final history = Get.put<HistoryService>(_History()) as _History;
     final player = _Player();
     final controller = PlayerPageController(
-      hid: '123', player: player,
+      hid: '123',
+      player: player,
       loadVideo: (_) async => _response(_video),
       loadDanmaku: (_, _, _) async => [],
     );
@@ -390,7 +399,8 @@ void main() {
     final opened = Completer<void>();
     final player = _Player()..opening = (_) => opened.future;
     final controller = PlayerPageController(
-      hid: '123', player: player,
+      hid: '123',
+      player: player,
       loadVideo: (_) async => _response(_video),
       loadDanmaku: (_, _, _) async => [],
     );
@@ -414,19 +424,22 @@ void main() {
     controller.playerReady.value = true;
     var opened = 0;
     var fullscreenExited = 0;
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: SizedBox(
-          width: 640, height: 360,
-          child: VideoPlayerView(
-            controller: controller,
-            fullscreen: true,
-            onToggleFullscreen: () => fullscreenExited++,
-            onOpenWebsite: () => opened++,
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 640,
+            height: 360,
+            child: VideoPlayerView(
+              controller: controller,
+              fullscreen: true,
+              onToggleFullscreen: () => fullscreenExited++,
+              onOpenWebsite: () => opened++,
+            ),
           ),
         ),
       ),
-    ));
+    );
     expect(find.byIcon(Icons.error_outline), findsNothing);
     player.fail('decoder failed');
     await tester.pump();
