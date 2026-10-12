@@ -15,9 +15,11 @@ import 'package:tucao/utils/logger.dart';
 class DownloadService extends GetxController with WidgetsBindingObserver {
   DownloadService({
     Directory? directory,
+    DownloadStore? store,
     required DownloadTransport transport,
     Future<Directory> Function()? location,
-  }) : _store = directory == null ? null : DownloadStore(directory),
+  }) : assert(directory == null || store == null),
+       _store = store ?? (directory == null ? null : DownloadStore(directory)),
        _location = location ?? DownloadLocation.directory,
        _transport = transport;
 
@@ -39,6 +41,7 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
   bool _foreground = true;
   bool _closed = false;
   final _removing = <String>{};
+  final _pending = <String>{};
 
   @override
   void onInit() {
@@ -142,8 +145,9 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _persist() {
-    final snapshot = items.toList();
+  Future<void> _persist({DownloadTask? completed}) {
+    final snapshot = items.map((task) =>
+        task.id == completed?.id ? completed! : task).toList();
     // 写入串行化, 较早的进度快照不能覆盖较晚的任务删除或完成状态.
     _saving = _saving
         .catchError((Object _) {})
@@ -179,7 +183,11 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
         _replace(existing.update(source: source));
         await retry(existing.id);
       }
-      return find(existing.id)!;
+      final current = find(existing.id);
+      if (current == null || _removing.contains(existing.id)) {
+        throw StateError('缓存任务已删除');
+      }
+      return current;
     }
     final task = DownloadTask(
       hid: video.hid,
@@ -189,47 +197,64 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
       source: source,
       createdAt: DateTime.now().millisecondsSinceEpoch,
     );
+    _pending.add(task.id);
     items.add(task);
     try {
       await _persist();
     } catch (error) {
-      _replace(
-        task.update(status: DownloadStatus.failed, error: '无法保存缓存任务, 请检查剩余空间'),
-      );
+      if (identical(find(task.id), task)) {
+        _replace(
+          task.update(status: DownloadStatus.failed, error: '无法保存缓存任务, 请检查剩余空间'),
+        );
+      }
       rethrow;
+    } finally {
+      _pending.remove(task.id);
     }
     _schedule();
-    return task;
+    return find(task.id) ?? (throw StateError('缓存任务已删除'));
   }
 
   Future<void> retry(String id) async {
-    final task = find(id);
+    var task = find(id);
     if (task == null ||
         _removing.contains(id) ||
-        _activeId == id ||
-        task.status == DownloadStatus.completed ||
-        task.status == DownloadStatus.downloading ||
-        _closed) {
+        _pending.contains(id) ||
+        !ready.value ||
+        _closed ||
+        ![DownloadStatus.paused, DownloadStatus.failed].contains(task.status)) {
       return;
     }
     if (!_foreground) {
       throw StateError('请返回应用后再开始缓存');
     }
-    _replace(
-      task.update(status: DownloadStatus.queued, received: 0, total: -1),
-    );
+    // 取消后的旧请求必须先完成文件清理, 不能丢弃用户的立即重试.
+    if (_activeId == id) {
+      await _activeFinished?.future;
+      if (!identical(find(id), task) || _removing.contains(id) || _closed) {
+        return;
+      }
+      if (!_foreground) {
+        throw StateError('请返回应用后再开始缓存');
+      }
+    }
+    final queued = task.update(status: DownloadStatus.queued, received: 0, total: -1);
+    _pending.add(id);
+    _replace(queued);
     try {
       await _persist();
     } catch (error) {
-      _replace(
-        task.update(
-          status: DownloadStatus.failed,
-          received: 0,
-          total: -1,
-          error: '无法保存缓存任务, 请检查剩余空间',
-        ),
-      );
+      if (identical(find(id), queued)) {
+        _replace(
+          queued.update(
+            status: DownloadStatus.failed,
+            error: '无法保存缓存任务, 请检查剩余空间',
+          ),
+        );
+      }
       rethrow;
+    } finally {
+      _pending.remove(id);
     }
     _schedule();
   }
@@ -282,7 +307,10 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
       return;
     }
     try {
-      items.removeWhere((item) => item.id == id);
+      if (task.status == DownloadStatus.downloading ||
+          task.status == DownloadStatus.queued) {
+        _replace(task.update(status: DownloadStatus.paused, received: 0, total: -1));
+      }
       final finished = _activeId == id ? _activeFinished?.future : null;
       if (_activeId == id) {
         _cancel?.cancel('缓存任务已删除');
@@ -290,9 +318,46 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
       if (finished != null) {
         await finished;
       }
-      await store.discard(task, partial: true);
-      await store.discard(task);
-      await _persist();
+      items.removeWhere((item) => item.id == id);
+      // 先持久化删除, 写入失败时不能丢失仍在磁盘上的缓存记录.
+      try {
+        await _persist();
+      } catch (_) {
+        items.add(
+          task.status == DownloadStatus.completed
+              ? task
+              : task.update(status: DownloadStatus.paused, received: 0, total: -1),
+        );
+        rethrow;
+      }
+      try {
+        await store.discard(task, partial: true);
+        await store.discard(task);
+      } catch (error, stackTrace) {
+        var restored = task.update(
+          status: DownloadStatus.failed,
+          received: 0,
+          total: -1,
+          error: '无法删除缓存文件, 请检查存储设备后重试',
+        );
+        if (task.status == DownloadStatus.completed) {
+          try {
+            final file = store.media(task);
+            if (await file.exists() && await file.length() == task.received) {
+              restored = task;
+            }
+          } on FileSystemException {
+            // 删除途中存储设备可能已不可用, 仍保留可再次删除的记录.
+          }
+        }
+        items.add(restored);
+        try {
+          await _persist();
+        } catch (saveError, saveStackTrace) {
+          Log.e('恢复删除失败的缓存记录失败', error: saveError, stackTrace: saveStackTrace);
+        }
+        Error.throwWithStackTrace(error, stackTrace);
+      }
       Log.i('已删除缓存任务 ${task.id}');
     } finally {
       _removing.remove(id);
@@ -305,9 +370,18 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
       return null;
     }
     final file = store.media(task);
-    if (await file.exists() &&
-        await file.length() == task.received &&
-        task.received > 0) {
+    var valid = false;
+    try {
+      valid = await file.exists() &&
+          await file.length() == task.received &&
+          task.received > 0;
+    } on FileSystemException {
+      // 文件可能在 exists 与 length 之间被并发删除.
+    }
+    if (!identical(find(id), task) || _removing.contains(id)) {
+      return null;
+    }
+    if (valid) {
       return file;
     }
     _replace(
@@ -335,7 +409,8 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
         })
         .whenComplete(() {
           _runner = null;
-          if (items.any((task) => task.status == DownloadStatus.queued)) {
+          if (items.any((task) =>
+              task.status == DownloadStatus.queued && !_pending.contains(task.id))) {
             _schedule();
           }
         });
@@ -345,7 +420,7 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
     while (!_closed && _foreground) {
       DownloadTask? next;
       for (final task in items) {
-        if (task.status == DownloadStatus.queued) {
+        if (task.status == DownloadStatus.queued && !_pending.contains(task.id)) {
           next = task;
           break;
         }
@@ -362,8 +437,16 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
       _replace(task.update(status: DownloadStatus.downloading));
       final watch = Stopwatch()..start();
       var lastUpdate = -250;
+      var published = false;
+      void checkActive() {
+        if (token.isCancelled ||
+            find(task.id)?.status != DownloadStatus.downloading) {
+          throw token.cancelError ?? StateError('缓存任务已停止');
+        }
+      }
       try {
         await _persist();
+        checkActive();
         final temporary = store.media(task, partial: true);
         final uri = DownloadTask.sourceUri(task.source);
         if (uri == null) {
@@ -380,29 +463,33 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
             }
             lastUpdate = watch.elapsedMilliseconds;
             final current = find(task.id);
-            if (current?.status == DownloadStatus.downloading) {
+            if (!token.isCancelled &&
+                identical(_cancel, token) &&
+                current?.status == DownloadStatus.downloading) {
               _replace(current!.update(received: received, total: total));
             }
           },
         );
-        if (token.isCancelled ||
-            find(task.id)?.status != DownloadStatus.downloading) {
-          throw token.cancelError ?? StateError('缓存任务已停止');
-        }
+        checkActive();
         if (bytes <= 0 ||
             !await temporary.exists() ||
             await temporary.length() != bytes) {
           throw const FormatException('缓存文件为空或不完整');
         }
+        checkActive();
         // 源路径与目标路径均由已校验的任务编号和私有目录生成.
         await temporary.rename(store.media(task).path);
-        _replace(
-          task.update(
-            status: DownloadStatus.completed,
-            received: bytes,
-            total: bytes,
-          ),
+        published = true;
+        checkActive();
+        final completed = task.update(
+          status: DownloadStatus.completed,
+          received: bytes,
+          total: bytes,
         );
+        // 完成快照落盘前不暴露本地文件, 保存期间仍允许取消.
+        await _persist(completed: completed);
+        checkActive();
+        _replace(completed);
         Log.i(
           '缓存任务 ${task.id} 完成, $bytes 字节, 耗时 ${watch.elapsedMilliseconds}ms',
         );
@@ -426,7 +513,24 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
       } finally {
         try {
           await store.discard(task, partial: true);
-          await _persist();
+          if (published && find(task.id)?.status != DownloadStatus.completed) {
+            await store.discard(task);
+          }
+          try {
+            await _persist();
+          } catch (_) {
+            final current = find(task.id);
+            if (current?.status == DownloadStatus.completed) {
+              _replace(current!.update(
+                status: DownloadStatus.failed,
+                received: 0,
+                total: -1,
+                error: '无法保存缓存任务, 请检查剩余空间',
+              ));
+              await store.discard(task);
+            }
+            rethrow;
+          }
         } finally {
           _activeId = null;
           _cancel = null;

@@ -9,6 +9,7 @@ import 'package:tucao/models/download_task.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/services/download/download_location.dart';
 import 'package:tucao/services/download/download_service.dart';
+import 'package:tucao/services/download/download_store.dart';
 import 'package:tucao/services/download/download_transport.dart';
 
 class _Request {
@@ -40,6 +41,63 @@ class _Transport implements DownloadTransport {
     calls.add(request);
     return behavior == null ? request.complete() : behavior!(request);
   }
+}
+
+class _Store extends DownloadStore {
+  _Store(super.directory);
+
+  Future<void> Function(List<DownloadTask>)? beforeSave;
+  Future<void> Function()? afterRename;
+  Future<void> Function()? beforeDelete;
+
+  @override
+  Future<void> save(List<DownloadTask> tasks) async {
+    await beforeSave?.call(tasks);
+    await super.save(tasks);
+  }
+
+  @override
+  File media(DownloadTask task, {bool partial = false}) {
+    final file = super.media(task, partial: partial);
+    final hook = afterRename;
+    if (partial && hook != null) {
+      return _DelayedRenameFile(file, hook);
+    }
+    if (!partial && beforeDelete != null) {
+      return _DelayedRenameFile(file, () async {}, beforeDelete: beforeDelete);
+    }
+    return file;
+  }
+}
+
+class _DelayedRenameFile implements File {
+  _DelayedRenameFile(this.file, this.hook, {this.beforeDelete});
+  final File file;
+  final Future<void> Function() hook;
+  final Future<void> Function()? beforeDelete;
+
+  @override
+  String get path => file.path;
+  @override
+  Future<bool> exists() => file.exists();
+  @override
+  Future<int> length() => file.length();
+  @override
+  Future<FileSystemEntity> delete({bool recursive = false}) async {
+    await beforeDelete?.call();
+    return file.delete(recursive: recursive);
+  }
+  @override
+  Future<File> writeAsBytes(List<int> bytes, {FileMode mode = FileMode.write, bool flush = false}) =>
+      file.writeAsBytes(bytes, mode: mode, flush: flush);
+  @override
+  Future<File> rename(String newPath) async {
+    final result = await file.rename(newPath);
+    await hook();
+    return result;
+  }
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 void main() {
@@ -286,6 +344,268 @@ void main() {
     }
     expect(service.items, isEmpty);
     expect(transport.calls, isEmpty);
+  });
+
+  test('取消尚未收尾时立即重试, 等待旧请求退出后只发起一次新请求', () async {
+    final started = Completer<void>();
+    final cancelled = Completer<void>();
+    final release = Completer<void>();
+    final retried = Completer<void>();
+    final finishRetry = Completer<void>();
+    transport.behavior = (request) async {
+      if (transport.calls.length == 1) {
+        await request.file.writeAsBytes([1]);
+        started.complete();
+        final error = await request.token.whenCancel;
+        cancelled.complete();
+        await release.future;
+        throw error;
+      }
+      retried.complete();
+      await finishRetry.future;
+      return request.complete();
+    };
+    await service.enqueue(video, 0);
+    await started.future;
+    final pausing = service.pause('123-0');
+    await cancelled.future;
+    final retrying = service.retry('123-0');
+    expect(transport.calls.length, 1);
+    release.complete();
+    await Future.wait([pausing, retrying]);
+    await retried.future;
+    transport.calls.first.progress(999, 999);
+    expect(service.find('123-0')?.received, 0);
+    finishRetry.complete();
+    await service.waitForIdle();
+    expect(transport.calls.length, 2);
+    expect(service.find('123-0')?.status, DownloadStatus.completed);
+    expect((await service.store.load()).single.status, DownloadStatus.completed);
+  });
+
+  test('取消发生在最终文件移动期间, 不得覆盖暂停状态或留下已完成文件', () async {
+    service.onClose();
+    await service.waitForIdle();
+    final store = _Store(root);
+    service = DownloadService(store: store, transport: transport);
+    await service.initialize();
+    final moved = Completer<void>();
+    final release = Completer<void>();
+    store.afterRename = () async {
+      moved.complete();
+      await release.future;
+    };
+    final task = await service.enqueue(video, 0);
+    await moved.future;
+    final pausing = service.pause(task.id);
+    release.complete();
+    await pausing;
+    await service.waitForIdle();
+    expect(service.find(task.id)?.status, DownloadStatus.paused);
+    expect(await store.media(task).exists(), isFalse);
+    expect(await store.media(task, partial: true).exists(), isFalse);
+    expect((await store.load()).single.status, DownloadStatus.paused);
+  });
+
+  test('排队持久化尚未成功时现有 runner 不得提前启动新任务', () async {
+    service.onClose();
+    await service.waitForIdle();
+    final store = _Store(root);
+    service = DownloadService(store: store, transport: transport);
+    await service.initialize();
+    final completedSaving = Completer<void>();
+    final finishSaving = Completer<void>();
+    final admissionSaving = Completer<void>();
+    final failAdmission = Completer<void>();
+    store.beforeSave = (tasks) async {
+      if (!completedSaving.isCompleted &&
+          tasks.any((task) => task.id == '123-0' && task.status == DownloadStatus.completed)) {
+        completedSaving.complete();
+        await finishSaving.future;
+      } else if (!admissionSaving.isCompleted &&
+          tasks.any((task) => task.id == '123-1' && task.status == DownloadStatus.queued)) {
+        admissionSaving.complete();
+        await failAdmission.future;
+        throw const FileSystemException('模拟清单写入失败');
+      }
+    };
+    await service.enqueue(video, 0);
+    await completedSaving.future;
+    final adding = service.enqueue(video, 1);
+    final rejected = expectLater(adding, throwsA(isA<FileSystemException>()));
+    finishSaving.complete();
+    await admissionSaving.future;
+    failAdmission.complete();
+    await rejected;
+    await service.pauseAll();
+    await service.waitForIdle();
+    expect(transport.calls.length, 1);
+    expect(service.find('123-1')?.status, DownloadStatus.failed);
+    expect((await store.load()).last.status, DownloadStatus.failed);
+  });
+
+  test('排队保存失败的旧回滚不得覆盖用户已暂停的状态', () async {
+    service.onClose();
+    await service.waitForIdle();
+    final store = _Store(root);
+    service = DownloadService(store: store, transport: transport);
+    await service.initialize();
+    final saving = Completer<void>();
+    final release = Completer<void>();
+    store.beforeSave = (tasks) async {
+      if (!saving.isCompleted && tasks.any((task) => task.id == '123-0')) {
+        saving.complete();
+        await release.future;
+        throw const FileSystemException('模拟清单写入失败');
+      }
+    };
+    final adding = service.enqueue(video, 0);
+    final rejected = expectLater(adding, throwsA(isA<FileSystemException>()));
+    await saving.future;
+    final pausing = service.pause('123-0');
+    release.complete();
+    await Future.wait([rejected, pausing]);
+    await service.waitForIdle();
+    expect(service.find('123-0')?.status, DownloadStatus.paused);
+    expect(transport.calls, isEmpty);
+    expect((await store.load()).single.status, DownloadStatus.paused);
+  });
+
+  for (final action in ['complete', 'pause', 'remove']) {
+    test('完成保存等待期间不发布本地文件, 保存后遵守 $action 操作', () async {
+      service.onClose();
+      await service.waitForIdle();
+      final store = _Store(root);
+      service = DownloadService(store: store, transport: transport);
+      await service.initialize();
+      final saving = Completer<void>();
+      final release = Completer<void>();
+      store.beforeSave = (tasks) async {
+        if (!saving.isCompleted &&
+            tasks.any((task) => task.status == DownloadStatus.completed)) {
+          saving.complete();
+          await release.future;
+        }
+      };
+      final task = await service.enqueue(video, 0);
+      await saving.future;
+      expect(service.find(task.id)?.status, DownloadStatus.downloading);
+      expect(await service.localFile(task.id), isNull);
+      final stopping = action == 'pause'
+          ? service.pause(task.id)
+          : action == 'remove' ? service.remove(task.id) : Future<void>.value();
+      release.complete();
+      await stopping;
+      await service.waitForIdle();
+      if (action == 'complete') {
+        expect(service.find(task.id)?.status, DownloadStatus.completed);
+        expect(await service.localFile(task.id), isNotNull);
+      } else {
+        expect(service.find(task.id)?.status,
+            action == 'pause' ? DownloadStatus.paused : isNull);
+        expect(await store.media(task).exists(), isFalse);
+        expect(await service.localFile(task.id), isNull);
+      }
+    });
+  }
+
+  test('最终完成清单写入失败不能暴露未持久化缓存, 后续保存可恢复队列', () async {
+    service.onClose();
+    await service.waitForIdle();
+    final store = _Store(root);
+    service = DownloadService(store: store, transport: transport);
+    await service.initialize();
+    var failed = false;
+    final saving = Completer<void>();
+    final release = Completer<void>();
+    store.beforeSave = (tasks) async {
+      if (!failed && tasks.any((task) => task.status == DownloadStatus.completed)) {
+        failed = true;
+        saving.complete();
+        await release.future;
+        throw const FileSystemException('模拟完成清单写入失败');
+      }
+    };
+    await service.enqueue(video, 0);
+    await saving.future;
+    expect(service.find('123-0')?.status, DownloadStatus.downloading);
+    expect(await service.localFile('123-0'), isNull);
+    release.complete();
+    await service.waitForIdle();
+    final task = service.find('123-0')!;
+    expect(task.status, DownloadStatus.failed);
+    expect(await store.media(task).exists(), isFalse);
+    expect(await service.localFile(task.id), isNull);
+    await service.pauseAll();
+    expect((await store.load()).single.status, DownloadStatus.failed);
+    await service.retry(task.id);
+    await service.waitForIdle();
+    expect(service.find(task.id)?.status, DownloadStatus.completed);
+  });
+
+  test('删除清单保存失败时保留完成记录和文件, 可再次删除后重新排队', () async {
+    service.onClose();
+    await service.waitForIdle();
+    final store = _Store(root);
+    service = DownloadService(store: store, transport: transport);
+    await service.initialize();
+    await service.enqueue(video, 0);
+    await service.waitForIdle();
+    final task = service.find('123-0')!;
+    store.beforeSave = (_) async {
+      throw const FileSystemException('模拟清单写入失败');
+    };
+    await expectLater(service.remove(task.id), throwsA(isA<FileSystemException>()));
+    expect(service.find(task.id)?.status, DownloadStatus.completed);
+    expect(await store.media(task).exists(), isTrue);
+    store.beforeSave = null;
+    await service.remove(task.id);
+    expect(await store.load(), isEmpty);
+    await service.enqueue(video, 0);
+    await service.waitForIdle();
+    expect(transport.calls.length, 2);
+    expect(service.find(task.id)?.status, DownloadStatus.completed);
+  });
+
+  test('删除文件失败后恢复可管理记录与清单, 再次删除能够清理原文件', () async {
+    service.onClose();
+    await service.waitForIdle();
+    final store = _Store(root);
+    service = DownloadService(store: store, transport: transport);
+    await service.initialize();
+    await service.enqueue(video, 0);
+    await service.waitForIdle();
+    final task = service.find('123-0')!;
+    store.beforeDelete = () async {
+      throw const FileSystemException('模拟文件删除失败');
+    };
+    await expectLater(service.remove(task.id), throwsA(isA<FileSystemException>()));
+    expect(service.find(task.id)?.status, DownloadStatus.completed);
+    expect(await store.media(task).exists(), isTrue);
+    expect((await store.load()).single.status, DownloadStatus.completed);
+    store.beforeDelete = null;
+    await service.remove(task.id);
+    expect(service.items, isEmpty);
+    expect(await store.media(task).exists(), isFalse);
+    expect(await store.load(), isEmpty);
+  });
+
+  test('主清单截断后从同步备用清单恢复, 保留坏文件且不自动下载', () async {
+    await service.enqueue(video, 0);
+    await service.waitForIdle();
+    final task = service.find('123-0')!;
+    await service.store.manifest.writeAsString('{"version":1,"tasks":[');
+    final restored = DownloadService(directory: root, transport: transport);
+    await restored.initialize();
+    expect(restored.find(task.id)?.status, DownloadStatus.completed);
+    expect(await restored.localFile(task.id), isNotNull);
+    expect(await File(path.join(root.path, 'index.corrupt')).exists(), isTrue);
+    expect(transport.calls.length, 1);
+    restored.onClose();
+    await restored.waitForIdle();
+    await service.remove(task.id);
+    await service.store.manifest.writeAsString('{');
+    expect(await service.store.load(), isEmpty);
   });
 
   test('清单不能注入路径, 未支持的结构版本不恢复任务', () async {
