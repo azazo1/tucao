@@ -7,6 +7,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:tucao/models/danmaku.dart';
 import 'package:tucao/pages/video/widgets/player_gesture.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
+import 'package:tucao/utils/site_links.dart';
 import 'package:tucao/utils/utils.dart';
 
 
@@ -20,6 +21,7 @@ class VideoPlayerView extends StatefulWidget {
     required this.controller,
     required this.fullscreen,
     required this.onToggleFullscreen,
+    required this.onOpenWebsite,
   });
 
   final PlayerPageController controller;
@@ -28,6 +30,7 @@ class VideoPlayerView extends StatefulWidget {
   final bool fullscreen;
 
   final VoidCallback onToggleFullscreen;
+  final VoidCallback onOpenWebsite;
 
   @override
   State<VideoPlayerView> createState() => _VideoPlayerViewState();
@@ -162,7 +165,23 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
           children: [
             const Icon(Icons.link_off, color: Colors.white70, size: 32),
             const SizedBox(height: 8),
-            Text(tip, style: const TextStyle(color: Colors.white70)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                tip,
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                textAlign: TextAlign.center,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (SiteLinks.video(_controller.hid, part: _controller.part.value) != null)
+              TextButton.icon(
+                onPressed: widget.onOpenWebsite,
+                style: TextButton.styleFrom(foregroundColor: Colors.white),
+                icon: const Icon(Icons.open_in_browser, size: 18),
+                label: const Text('浏览器查看'),
+              ),
           ],
         ),
       );

@@ -7,9 +7,13 @@ import 'package:tucao/pages/reply/reply_page.dart';
 import 'package:tucao/pages/video/widgets/player_view.dart';
 import 'package:tucao/pages/video/widgets/video_action.dart';
 import 'package:tucao/pages/video/widgets/video_info.dart';
+import 'package:tucao/pages/video/widgets/video_link_menu.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
 import 'package:tucao/router/routes.dart';
+import 'package:tucao/utils/logger.dart';
+import 'package:tucao/utils/site_links.dart';
 import 'package:tucao/utils/storage_pref.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// 视频播放页.
 ///
@@ -46,6 +50,7 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
 
   /// 是否处于横屏全屏.
   bool _fullscreen = false;
+  bool _openingWebsite = false;
 
   @override
   void initState() {
@@ -165,6 +170,13 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
+      actions: [
+        Obx(() => VideoLinkMenu(
+          hid: _controller.hid,
+          part: _controller.part.value,
+          onOpenWebsite: _openWebsite,
+        )),
+      ],
       title: Obx(
         () => Text(
           _controller.video.value?.title ?? '视频',
@@ -181,6 +193,7 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
       controller: _controller,
       fullscreen: _fullscreen,
       onToggleFullscreen: _fullscreen ? _exitFullscreen : _enterFullscreen,
+      onOpenWebsite: _openWebsite,
     );
   }
 
@@ -217,6 +230,45 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
         ),
       ],
     );
+  }
+
+  Future<void> _openWebsite() async {
+    if (_openingWebsite) {
+      return;
+    }
+    final uri = SiteLinks.video(_controller.hid, part: _controller.part.value);
+    if (uri == null) {
+      return;
+    }
+    _openingWebsite = true;
+    try {
+      // 即使用户允许后台播放, 外部浏览器打开前也暂停, 避免两个播放器同时出声.
+      await _controller.player.pause();
+      if (!mounted || !(ModalRoute.of(context)?.isCurrent ?? false)) {
+        return;
+      }
+      if (_fullscreen) {
+        await _exitFullscreen();
+      }
+      if (!mounted || !(ModalRoute.of(context)?.isCurrent ?? false)) {
+        return;
+      }
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('无法打开浏览器, 可在菜单中复制链接')),
+        );
+      }
+    } catch (error, stackTrace) {
+      Log.e('打开视频站点页面失败', error: error, stackTrace: stackTrace);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('浏览器打开失败, 可在菜单中复制链接')),
+        );
+      }
+    } finally {
+      _openingWebsite = false;
+    }
   }
 
   void _openReply() {
