@@ -318,50 +318,32 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
 
   /// 跳过片头片尾用的按钮, 一次前进 [Pref.playerSeekStep] 秒.
   ///
-  /// 时长未知或已到片尾时不显示, 秒数在设置页可调.
+  /// 秒数在设置页可调, 按钮上不标出. 视频还没加载出时长时按钮照常显示,
+  /// 此时点击以当前位置为上界, 不会产生跳转.
   Widget _buildSeekStepButton() {
-    final player = _controller.player;
-    return ListenableBuilder(
-      listenable: player,
-      builder: (context, child) {
-        final total = player.duration;
-        if (total <= Duration.zero || player.position >= total) {
-          return const SizedBox.shrink();
-        }
-        final step = Pref.playerSeekStep;
-        return TextButton.icon(
-          onPressed: () =>
-              _seekForward(Duration(milliseconds: (step * 1000).round())),
-          style: TextButton.styleFrom(
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            minimumSize: const Size(0, 34),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            visualDensity: VisualDensity.compact,
-          ),
-          icon: const Icon(Icons.fast_forward, size: 18),
-          label: Text(
-            Utils.formatStep(step),
-            style: const TextStyle(fontSize: 12),
-          ),
-        );
-      },
+    return _iconButton(
+      Icons.fast_forward,
+      () =>
+          _seekBy(Duration(milliseconds: (Pref.playerSeekStep * 1000).round())),
     );
   }
 
-  void _seekForward(Duration step) {
+  /// 相对当前位置跳转, 结果夹在开头与片尾之间.
+  void _seekBy(Duration delta) {
     _keepControls();
     final player = _controller.player;
     final total = player.duration;
-    final target = player.position + step;
-    _controller.seek(target > total ? total : target);
+    final upper = total > Duration.zero
+        ? total.inMilliseconds
+        : player.position.inMilliseconds;
+    final target = (player.position + delta).inMilliseconds.clamp(0, upper);
+    _controller.seek(Duration(milliseconds: target.toInt()));
   }
 
   Widget _buildButtonRow() {
     final player = _controller.player;
     return Row(
       children: [
-        _buildSeekStepButton(),
         ListenableBuilder(
           listenable: player,
           builder: (context, child) => _iconButton(
@@ -370,6 +352,10 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
             size: 26,
           ),
         ),
+        _iconButton(Icons.replay_5, () => _seekBy(const Duration(seconds: -5))),
+        _iconButton(Icons.forward_5, () => _seekBy(const Duration(seconds: 5))),
+        _buildSeekStepButton(),
+        const Spacer(),
         Obx(
           () => _iconButton(
             _controller.danmakuEnabled.value
@@ -383,7 +369,6 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
           child: _iconButton(Icons.tune, _openDanmakuSettings),
         ),
         _buildSpeedButton(),
-        const Spacer(),
         _iconButton(
           widget.fullscreen ? Icons.fullscreen_exit : Icons.fullscreen,
           widget.onToggleFullscreen,

@@ -271,7 +271,7 @@ class _SettingPageState extends State<SettingPage> {
   }
 }
 
-/// 播放器左下角跳转按钮的秒数, 用于跳过片头片尾.
+/// 播放器跳转按钮的秒数, 用于跳过片头片尾.
 class _SeekStepTile extends StatelessWidget {
   const _SeekStepTile({required this.value, required this.onChanged});
 
@@ -305,7 +305,7 @@ class _SeekStepTile extends StatelessWidget {
             onChanged: onChanged,
           ),
           Text(
-            '播放器左下角按钮每次前进的时长, 用来跳过片头片尾',
+            '播放器跳转按钮每次前进的时长, 用来跳过片头片尾',
             style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
           ),
         ],

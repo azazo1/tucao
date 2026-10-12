@@ -18,13 +18,13 @@ abstract final class Pref {
   static const _kSearchHistoryLimit = 'search_history_limit';
   static const _kPlayerSeekStep = 'player_seek_step';
 
-  /// 左下角跳转按钮的秒数下限.
+  /// 跳转按钮的秒数下限.
   static const playerSeekStepMin = 80.0;
 
-  /// 左下角跳转按钮的秒数上限.
+  /// 跳转按钮的秒数上限.
   static const playerSeekStepMax = 100.0;
 
-  /// 左下角跳转按钮的默认秒数, 用于跳过片头片尾.
+  /// 跳转按钮的默认秒数, 用于跳过片头片尾.
   static const playerSeekStepDefault = 90.0;
 
   static int get _themeMode =>

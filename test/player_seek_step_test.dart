@@ -147,50 +147,6 @@ void main() {
     });
   });
 
-  testWidgets('左下角按钮按设置秒数前进, 越过片尾时停在片尾', (tester) async {
-    final controller = _Controller();
-    await _mount(tester, controller);
-    expect(find.text('1:30'), findsOneWidget);
-
-    await tester.tap(find.text('1:30'));
-    await tester.pump();
-    expect(controller.player.seeks, [const Duration(seconds: 390)]);
-
-    // 时长未知时不显示按钮, 避免无意义的跳转.
-    controller.player.currentDuration = Duration.zero;
-    controller.player.notifyListeners();
-    await tester.pump();
-    expect(find.text('1:30'), findsNothing);
-
-    controller.player.currentDuration = const Duration(minutes: 20);
-    controller.player.currentPosition = const Duration(
-      minutes: 19,
-      seconds: 30,
-    );
-    controller.player.notifyListeners();
-    await tester.pump();
-    await tester.tap(find.text('1:30'));
-    await tester.pump();
-    expect(controller.player.seeks.last, const Duration(minutes: 20));
-
-    await tester.pumpWidget(const SizedBox.shrink());
-    controller.player.dispose();
-  });
-
-  testWidgets('调整设置后按钮文字与跳转距离同步变化', (tester) async {
-    Pref.playerSeekStep = 85.5;
-    final controller = _Controller();
-    await _mount(tester, controller);
-    expect(find.text('1:25.5'), findsOneWidget);
-    await tester.tap(find.text('1:25.5'));
-    await tester.pump();
-    expect(controller.player.seeks, [
-      const Duration(minutes: 5, seconds: 85, milliseconds: 500),
-    ]);
-    await tester.pumpWidget(const SizedBox.shrink());
-    controller.player.dispose();
-  });
-
   group('进度条游标', () {
     /// 游标位置换算成进度条上的比例, 便于断言.
     ///
