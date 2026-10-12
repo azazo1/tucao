@@ -16,6 +16,16 @@ abstract final class Pref {
   static const _kPlayerBackground = 'player_background';
   static const _kHardwareDecode = 'player_hardware_decode';
   static const _kSearchHistoryLimit = 'search_history_limit';
+  static const _kPlayerSeekStep = 'player_seek_step';
+
+  /// 左下角跳转按钮的秒数下限.
+  static const playerSeekStepMin = 80.0;
+
+  /// 左下角跳转按钮的秒数上限.
+  static const playerSeekStepMax = 100.0;
+
+  /// 左下角跳转按钮的默认秒数, 用于跳过片头片尾.
+  static const playerSeekStepDefault = 90.0;
 
   static int get _themeMode =>
       GStorage.setting.get(_kThemeMode, defaultValue: 0) as int;
@@ -123,6 +133,28 @@ abstract final class Pref {
       GStorage.setting.get(_kSearchHistoryLimit, defaultValue: 20) as int;
   static set searchHistoryLimit(int value) =>
       GStorage.setting.put(_kSearchHistoryLimit, value);
+
+  /// 播放器跳转按钮一次前进的秒数.
+  ///
+  /// 旧版本或手工写入的值先收敛到 0.1 秒精度与允许区间, 再交给界面使用.
+  static double get playerSeekStep {
+    final raw = GStorage.setting.get(_kPlayerSeekStep);
+    return normalizeSeekStep(
+      raw is num ? raw.toDouble() : playerSeekStepDefault,
+    );
+  }
+
+  static set playerSeekStep(double value) =>
+      GStorage.setting.put(_kPlayerSeekStep, normalizeSeekStep(value));
+
+  /// 收敛跳转秒数, 非法值回落到默认值.
+  static double normalizeSeekStep(double value) {
+    if (!value.isFinite) {
+      return playerSeekStepDefault;
+    }
+    final clamped = value.clamp(playerSeekStepMin, playerSeekStepMax);
+    return (clamped * 10).roundToDouble() / 10;
+  }
 
   /// 请求使用的站点地址.
   static String get baseUrl => Constants.baseUrl;

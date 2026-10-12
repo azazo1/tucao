@@ -10,6 +10,7 @@ import 'package:tucao/pages/video/widgets/player_gesture.dart';
 import 'package:tucao/utils/danmaku_preferences_store.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
 import 'package:tucao/utils/site_links.dart';
+import 'package:tucao/utils/storage_pref.dart';
 import 'package:tucao/utils/utils.dart';
 
 /// 播放器区域: 视频画面, 弹幕层与控制条.
@@ -287,10 +288,52 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
     _controller.seek(position);
   }
 
+  /// 跳过片头片尾用的按钮, 一次前进 [Pref.playerSeekStep] 秒.
+  ///
+  /// 时长未知或已到片尾时不显示, 秒数在设置页可调.
+  Widget _buildSeekStepButton() {
+    final player = _controller.player;
+    return ListenableBuilder(
+      listenable: player,
+      builder: (context, child) {
+        final total = player.duration;
+        if (total <= Duration.zero || player.position >= total) {
+          return const SizedBox.shrink();
+        }
+        final step = Pref.playerSeekStep;
+        return TextButton.icon(
+          onPressed: () =>
+              _seekForward(Duration(milliseconds: (step * 1000).round())),
+          style: TextButton.styleFrom(
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            minimumSize: const Size(0, 34),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: VisualDensity.compact,
+          ),
+          icon: const Icon(Icons.fast_forward, size: 18),
+          label: Text(
+            Utils.formatStep(step),
+            style: const TextStyle(fontSize: 12),
+          ),
+        );
+      },
+    );
+  }
+
+  void _seekForward(Duration step) {
+    _keepControls();
+    final player = _controller.player;
+    final total = player.duration;
+    final target = player.position + step;
+    _controller.seek(target > total ? total : target);
+  }
+
   Widget _buildButtonRow() {
     final player = _controller.player;
     return Row(
       children: [
+        _buildSeekStepButton(),
         ListenableBuilder(
           listenable: player,
           builder: (context, child) => _iconButton(

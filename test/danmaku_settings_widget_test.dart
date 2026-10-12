@@ -4,6 +4,7 @@ import 'package:canvas_danmaku/canvas_danmaku.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:tucao/models/danmaku.dart';
 import 'package:tucao/models/danmaku_preferences.dart';
 import 'package:tucao/pages/video/widgets/danmaku_settings_sheet.dart';
@@ -11,6 +12,29 @@ import 'package:tucao/pages/video/widgets/player_gesture.dart';
 import 'package:tucao/pages/video/widgets/player_view.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
 import 'package:tucao/plugin/player/tucao_player.dart';
+import 'package:tucao/utils/storage.dart';
+
+/// 播放器会读取跳转秒数偏好, 这里用内存替身代替 Hive.
+class _Settings implements Box {
+  final data = <dynamic, dynamic>{};
+
+  @override
+  dynamic get(dynamic key, {dynamic defaultValue}) => data[key] ?? defaultValue;
+
+  @override
+  bool containsKey(dynamic key) => data.containsKey(key);
+
+  @override
+  Future<void> put(dynamic key, dynamic value) async {
+    data[key] = value;
+  }
+
+  @override
+  Stream<BoxEvent> watch({dynamic key}) => const Stream<BoxEvent>.empty();
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 class _Player extends ChangeNotifier implements TucaoPlayer {
   @override
@@ -61,6 +85,10 @@ class _Controller implements PlayerPageController {
 }
 
 void main() {
+  setUp(() {
+    GStorage.setting = _Settings();
+  });
+
   testWidgets('320宽大字面板滑动预览, 松手保存失败恢复原设置', (tester) async {
     tester.view.physicalSize = const Size(320, 560);
     tester.view.devicePixelRatio = 1;

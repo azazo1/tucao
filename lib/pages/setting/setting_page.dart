@@ -7,6 +7,7 @@ import 'package:tucao/services/history_service.dart';
 import 'package:tucao/services/theme_service.dart';
 import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/storage_pref.dart';
+import 'package:tucao/utils/utils.dart';
 
 /// 设置页.
 ///
@@ -32,6 +33,7 @@ class _SettingPageState extends State<SettingPage> {
   late int? _seedColor;
 
   late double _playerSpeed;
+  late double _seekStep;
   late bool _autoPlay;
   late bool _continueLast;
   late bool _hardwareDecode;
@@ -47,6 +49,7 @@ class _SettingPageState extends State<SettingPage> {
     _seedColor = _theme.seedColor.value;
 
     _playerSpeed = _speeds.contains(Pref.playerSpeed) ? Pref.playerSpeed : 1.0;
+    _seekStep = Pref.playerSeekStep;
     _autoPlay = Pref.playerAutoPlay;
     _continueLast = Pref.playerContinueLast;
     _hardwareDecode = Pref.hardwareDecode;
@@ -184,6 +187,13 @@ class _SettingPageState extends State<SettingPage> {
               },
             ),
           ),
+          _SeekStepTile(
+            value: _seekStep,
+            onChanged: (value) {
+              setState(() => _seekStep = value);
+              Pref.playerSeekStep = value;
+            },
+          ),
           SwitchListTile(
             title: const Text('自动播放'),
             value: _autoPlay,
@@ -254,6 +264,49 @@ class _SettingPageState extends State<SettingPage> {
             title: const Text('清除 Cookie / 退出登录'),
             trailing: const Icon(Icons.chevron_right),
             onTap: _logout,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 播放器左下角跳转按钮的秒数, 用于跳过片头片尾.
+class _SeekStepTile extends StatelessWidget {
+  const _SeekStepTile({required this.value, required this.onChanged});
+
+  final double value;
+  final ValueChanged<double> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(child: Text('跳转按钮秒数')),
+              Text(
+                '${value.toStringAsFixed(1)} 秒',
+                style: TextStyle(fontSize: 13, color: scheme.primary),
+              ),
+            ],
+          ),
+          Slider(
+            value: value,
+            min: Pref.playerSeekStepMin,
+            max: Pref.playerSeekStepMax,
+            divisions: ((Pref.playerSeekStepMax - Pref.playerSeekStepMin) * 10)
+                .round(),
+            label: Utils.formatStep(value),
+            onChanged: onChanged,
+          ),
+          Text(
+            '播放器左下角按钮每次前进的时长, 用来跳过片头片尾',
+            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
           ),
         ],
       ),

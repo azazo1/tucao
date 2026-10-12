@@ -31,6 +31,16 @@ abstract final class Utils {
   static String formatSeconds(double seconds) =>
       formatDuration(Duration(milliseconds: (seconds * 1000).round()));
 
+  /// 跳转步长显示, 整秒按 `分:秒`, 带小数时秒位补一位小数.
+  static String formatStep(double seconds) {
+    final minutes = seconds ~/ 60;
+    final rest = seconds - minutes * 60;
+    final text = rest == rest.roundToDouble()
+        ? rest.toStringAsFixed(0).padLeft(2, '0')
+        : rest.toStringAsFixed(1).padLeft(4, '0');
+    return '$minutes:$text';
+  }
+
   /// 文件大小.
   static String formatBytes(int bytes) {
     if (bytes < 1024) {
