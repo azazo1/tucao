@@ -117,6 +117,12 @@ class _MinePageState extends State<MinePage> {
             onTap: () => Get.toNamed(Routes.history),
           ),
           ListTile(
+            leading: const Icon(Icons.download_outlined),
+            title: const Text('离线缓存'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Get.toNamed(Routes.downloads),
+          ),
+          ListTile(
             leading: const Icon(Icons.article_outlined),
             title: const Text('档案'),
             subtitle: const Text('番组情报与年鉴'),

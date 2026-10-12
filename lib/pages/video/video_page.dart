@@ -8,6 +8,7 @@ import 'package:tucao/pages/video/widgets/player_view.dart';
 import 'package:tucao/pages/video/widgets/video_action.dart';
 import 'package:tucao/pages/video/widgets/video_info.dart';
 import 'package:tucao/pages/video/widgets/video_link_menu.dart';
+import 'package:tucao/pages/video/widgets/download_sheet.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
 import 'package:tucao/router/routes.dart';
 import 'package:tucao/utils/logger.dart';
@@ -176,6 +177,7 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
             hid: _controller.hid,
             part: _controller.part.value,
             onOpenWebsite: _openWebsite,
+            onDownload: _controller.video.value == null ? null : _openDownloadSheet,
           ),
         ),
       ],
@@ -232,6 +234,13 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
         ),
       ],
     );
+  }
+
+  void _openDownloadSheet() {
+    final video = _controller.video.value;
+    if (video != null) {
+      showVideoDownloadSheet(context, video: video, initialPart: _controller.part.value);
+    }
   }
 
   Future<void> _openWebsite() async {

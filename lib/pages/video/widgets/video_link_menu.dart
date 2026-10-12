@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/site_links.dart';
 
-enum _LinkAction { copy, browser }
+enum _LinkAction { copy, browser, download }
 
 /// 视频链接操作, 不把播放直链或账号信息放入复制内容.
 class VideoLinkMenu extends StatelessWidget {
@@ -12,11 +12,13 @@ class VideoLinkMenu extends StatelessWidget {
     required this.hid,
     required this.part,
     required this.onOpenWebsite,
+    this.onDownload,
   });
 
   final String hid;
   final int part;
   final VoidCallback onOpenWebsite;
+  final VoidCallback? onDownload;
 
   Future<void> _copy(BuildContext context, Uri uri) async {
     try {
@@ -43,7 +45,7 @@ class VideoLinkMenu extends StatelessWidget {
     final uri = SiteLinks.video(hid, part: part);
     return PopupMenuButton<_LinkAction>(
       enabled: uri != null,
-      tooltip: '视频链接',
+      tooltip: '视频操作',
       icon: const Icon(Icons.more_vert),
       onSelected: (action) {
         switch (action) {
@@ -53,10 +55,21 @@ class VideoLinkMenu extends StatelessWidget {
             }
           case _LinkAction.browser:
             onOpenWebsite();
+          case _LinkAction.download:
+            onDownload?.call();
         }
       },
-      itemBuilder: (context) => const [
+      itemBuilder: (context) => [
         PopupMenuItem(
+          value: _LinkAction.download,
+          enabled: onDownload != null,
+          child: const ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.download_outlined),
+            title: Text('下载缓存'),
+          ),
+        ),
+        const PopupMenuItem(
           value: _LinkAction.copy,
           child: ListTile(
             contentPadding: EdgeInsets.zero,
@@ -64,7 +77,7 @@ class VideoLinkMenu extends StatelessWidget {
             title: Text('复制链接'),
           ),
         ),
-        PopupMenuItem(
+        const PopupMenuItem(
           value: _LinkAction.browser,
           child: ListTile(
             contentPadding: EdgeInsets.zero,

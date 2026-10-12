@@ -15,6 +15,7 @@ abstract final class Routes {
   static const forgotPassword = '/forgot-password';
   static const changePassword = '/change-password';
   static const history = '/history';
+  static const downloads = '/downloads';
   static const bgmIndex = '/bgm';
   static const hotSearch = '/hot-search';
   static const data = '/data';

@@ -5,9 +5,12 @@ import 'package:tucao/router/routes.dart';
 import 'package:tucao/common/style.dart';
 import 'package:tucao/http/init.dart';
 import 'package:tucao/services/account_service.dart';
+import 'package:tucao/services/download/download_service.dart';
+import 'package:tucao/services/download/download_transport.dart';
 import 'package:tucao/services/history_service.dart';
 import 'package:tucao/services/theme_service.dart';
 import 'package:tucao/utils/logger.dart';
+import 'package:tucao/utils/http_util.dart';
 import 'package:tucao/utils/storage.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:media_kit/media_kit.dart';
@@ -22,6 +25,16 @@ Future<void> main() async {
   Get.put(ThemeService());
   Get.put(AccountService());
   Get.put(HistoryService());
+  final downloads = Get.put(
+    DownloadService(transport: DioDownloadTransport(HttpUtil.dio)),
+    permanent: true,
+  );
+  try {
+    await downloads.initialize();
+  } catch (error) {
+    // 外部存储不可用时其他页面照常启动, 缓存页提供重试.
+    Log.w('外部缓存目录未就绪: $error');
+  }
 
   Log.i('应用启动完成, 耗时 ${DateTime.now().difference(start).inMilliseconds}ms');
   runApp(const TucaoApp());

@@ -115,6 +115,19 @@ void main() {
     expect(copies, 0);
   });
 
+  testWidgets('下载菜单使用下载入口回调, 不误触浏览器', (tester) async {
+    var downloads = 0;
+    await tester.pumpWidget(MaterialApp(home: Scaffold(appBar: AppBar(actions: [
+      VideoLinkMenu(hid: '123', part: 0,
+        onOpenWebsite: () => fail('不应打开浏览器'), onDownload: () => downloads++),
+    ]))));
+    await tester.tap(find.byWidgetPredicate((widget) => widget is PopupMenuButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.download_outlined));
+    await tester.pumpAndSettle();
+    expect(downloads, 1);
+  });
+
   testWidgets('无效视频编号禁用菜单', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
