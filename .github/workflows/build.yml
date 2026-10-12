@@ -169,6 +169,14 @@ jobs:
       - name: 运行测试
         run: flutter test
 
+      - name: 准备 uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: false
+
+      - name: 验证 Android 冒烟脚本
+        run: uv run --no-project python -m unittest discover -s test -p android_smoke_test.py
+
   android:
     name: 构建 Android
     needs: version
@@ -258,10 +266,69 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  android-smoke:
+    name: Android 模拟器基本页面冒烟
+    needs: [version, android]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: 检出目标提交
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.version.outputs.source_ref }}
+
+      - name: 准备 uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: false
+
+      - name: 下载同一提交的 x86_64 Release APK
+        uses: actions/download-artifact@v4
+        with:
+          name: tucao-${{ needs.version.outputs.build_version }}-android-x86_64
+          path: .tmp/smoke-apk
+
+      - name: 启用 runner KVM
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # action 负责 SDK 包和 emulator 安装, 不在本地安装或重复构建 APK.
+      # UI 语义不可用会失败, 不用固定坐标或只检查进程来冒充页面验证.
+      - name: 验证安装启动和基本页面
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          SMOKE_APK: .tmp/smoke-apk/tucao-${{ needs.version.outputs.build_version }}-android-x86_64.apk
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7_pro
+          cores: 2
+          ram-size: 2048M
+          emulator-boot-timeout: 180
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: uv run --no-project python scripts/android_smoke.py --apk "$SMOKE_APK" --serial emulator-5554 --timeout 240
+
+      - name: 保存截图层级与有限崩溃诊断
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-smoke-${{ needs.version.outputs.build_version }}-api35-x86_64
+          path: .tmp/android-smoke/
+          if-no-files-found: warn
+          retention-days: 7
+
   release:
     name: 发布 Release
     if: needs.version.outputs.is_release == 'true'
-    needs: [version, analyze, test, android]
+    needs: [version, analyze, test, android, android-smoke]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -350,6 +417,7 @@ jobs:
       - name: 下载构建产物
         uses: actions/download-artifact@v5
         with:
+          pattern: tucao-${{ needs.version.outputs.build_version }}-android-*
           path: release-artifacts
           merge-multiple: true
 
