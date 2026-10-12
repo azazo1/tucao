@@ -27,7 +27,11 @@ class _Adapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     requests.add(options);
-    payloads.add(requestStream == null ? '' : await utf8.decoder.bind(requestStream).join());
+    payloads.add(
+      requestStream == null
+          ? ''
+          : await utf8.decoder.bind(requestStream).join(),
+    );
     return respond!(options);
   }
 
@@ -87,11 +91,15 @@ void main() {
     test('按官方正文成功标记识别, 不把拒绝结果当作成功', () {
       // 正向结构样本, 不是从真实邮箱发送中取得的成功响应.
       expect(
-        FormResponse.parse('<body>操作成功<script>redirect();</script></body>').status,
+        FormResponse.parse(
+          '<body>操作成功<script>redirect();</script></body>',
+        ).status,
         FormResponseStatus.success,
       );
       expect(
-        FormResponse.parse('<body><a href="javascript:history.back();">请稍后再试</a></body>').status,
+        FormResponse.parse(
+          '<body><a href="javascript:history.back();">请稍后再试</a></body>',
+        ).status,
         FormResponseStatus.rejected,
       );
     });
@@ -111,7 +119,10 @@ void main() {
       final request = adapter.requests.last;
       expect(request.uri.queryParameters['a'], 'public_forget_password');
       expect(request.method, 'POST');
-      expect(request.headers[HttpHeaders.cookieHeader], contains('PHPSESSID=test-session'));
+      expect(
+        request.headers[HttpHeaders.cookieHeader],
+        contains('PHPSESSID=test-session'),
+      );
       expect(Uri.splitQueryString(adapter.payloads.last), {
         'email': 'user+tag@example.com',
         'code': 'aB12',
@@ -133,19 +144,24 @@ void main() {
       adapter.respond = (_) => ResponseBody.fromString(
         '<body>请重新登录</body>',
         200,
-        headers: {Headers.contentTypeHeader: ['text/html']},
+        headers: {
+          Headers.contentTypeHeader: ['text/html'],
+        },
       );
       await expectLater(UserHttp.checkCode(), throwsFormatException);
       adapter.respond = (_) => ResponseBody.fromBytes(
         [],
         200,
-        headers: {Headers.contentTypeHeader: ['image/png']},
+        headers: {
+          Headers.contentTypeHeader: ['image/png'],
+        },
       );
       await expectLater(UserHttp.checkCode(), throwsFormatException);
     });
 
     test('HTTP 错误即使带成功正文也不能当作成功', () async {
-      adapter.respond = (_) => ResponseBody.fromString('<body>操作成功</body>', 403);
+      adapter.respond = (_) =>
+          ResponseBody.fromString('<body>操作成功</body>', 403);
       await expectLater(
         UserHttp.forgotPassword(email: 'test@example.com', code: '1234'),
         throwsA(isA<DioException>()),
@@ -156,25 +172,37 @@ void main() {
   testWidgets('提交期间不能刷新, 离开页面后迟到的成功响应不能再次退栈', (tester) async {
     Get.testMode = true;
     final pending = Completer<ResponseBody>();
-    adapter.respond = (options) => options.method == 'GET' ? image() : pending.future;
-    await tester.pumpWidget(GetMaterialApp(
-      home: Scaffold(
-        body: TextButton(
-          onPressed: () => Get.to(() => const ForgotPasswordPage()),
-          child: const Icon(Icons.home),
+    adapter.respond = (options) =>
+        options.method == 'GET' ? image() : pending.future;
+    await tester.pumpWidget(
+      GetMaterialApp(
+        home: Scaffold(
+          body: TextButton(
+            onPressed: () => Get.to(() => const ForgotPasswordPage()),
+            child: const Icon(Icons.home),
+          ),
         ),
       ),
-    ));
+    );
     await tester.tap(find.byType(TextButton));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextFormField).at(0), 'test@example.com');
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'test@example.com',
+    );
     await tester.enterText(find.byType(TextFormField).at(1), 'aB12');
     await tester.tap(find.byType(FilledButton));
     await tester.pump();
-    expect(tester.widget<FilledButton>(find.byType(FilledButton)).onPressed, isNull);
+    expect(
+      tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+      isNull,
+    );
     await tester.tap(find.byTooltip('点击换一张'));
     await tester.pump();
-    expect(adapter.requests.where((request) => request.method == 'GET').length, 1);
+    expect(
+      adapter.requests.where((request) => request.method == 'GET').length,
+      1,
+    );
     Get.back();
     await tester.pumpAndSettle();
     pending.complete(ResponseBody.fromString('<body>操作成功</body>', 200));
@@ -194,9 +222,13 @@ void main() {
       calls++;
       return calls == 1
           ? image()
-          : ResponseBody.fromBytes([], 200, headers: {
-              Headers.contentTypeHeader: ['image/png'],
-            });
+          : ResponseBody.fromBytes(
+              [],
+              200,
+              headers: {
+                Headers.contentTypeHeader: ['image/png'],
+              },
+            );
     };
     await tester.pumpWidget(const GetMaterialApp(home: ForgotPasswordPage()));
     await tester.pumpAndSettle();
@@ -206,7 +238,10 @@ void main() {
     await tester.pumpAndSettle();
     submit = tester.widget<FilledButton>(find.byType(FilledButton));
     expect(submit.onPressed, isNull);
-    expect(adapter.requests.every((request) => request.method == 'GET'), isTrue);
+    expect(
+      adapter.requests.every((request) => request.method == 'GET'),
+      isTrue,
+    );
     await tester.pump(const Duration(seconds: 5));
     Get.closeAllSnackbars();
     await tester.pumpAndSettle();

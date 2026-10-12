@@ -27,7 +27,8 @@ abstract final class ApiPath {
   /// 评论.
   static const replyList = 'index.php?m=comment&c=index&a=ajax';
   static const replySend = 'index.php?m=comment&c=index&a=post';
-  static const replySupport = 'index.php?m=comment&c=index&a=support&format=json';
+  static const replySupport =
+      'index.php?m=comment&c=index&a=support&format=json';
 
   /// 用户.
   static const userInfo = 'api.php?op=user';
@@ -41,7 +42,8 @@ abstract final class ApiPath {
       'index.php?m=member&c=index&a=public_forget_password&siteid=1';
 
   /// 图形验证码, 需要与提交请求共用同一份 cookie.
-  static const checkCode = 'api.php?op=checkcode&code_len=4&font_size=14'
+  static const checkCode =
+      'api.php?op=checkcode&code_len=4&font_size=14'
       '&width=118&height=40&font_color=&background=';
 
   /// 私信, 需要登录态.
@@ -60,8 +62,7 @@ abstract final class ApiPath {
   ///
   /// 与官方构造一致: `content_{typeid}-{hid}-1`, 末尾的 1 是固定值,
   /// 不是分P序号, 同一视频的所有分P共用同一个评论楼层.
-  static String commentId(int typeId, String hid) =>
-      'content_$typeId-$hid-1';
+  static String commentId(int typeId, String hid) => 'content_$typeId-$hid-1';
 
   static String playUrl(String hid) => '${Constants.baseUrl}play/h$hid/';
 

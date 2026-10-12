@@ -43,7 +43,10 @@ class _LoginPageState extends State<LoginPage> {
         _passwordController.text,
       );
       Get.back();
-      Get.snackbar('登录成功', '欢迎回来, ${AccountService.instance.user.value?.displayName ?? ''}');
+      Get.snackbar(
+        '登录成功',
+        '欢迎回来, ${AccountService.instance.user.value?.displayName ?? ''}',
+      );
     } catch (e) {
       if (!mounted) {
         return;
@@ -120,7 +123,9 @@ class _LoginPageState extends State<LoginPage> {
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: _submitting ? null : () => Get.toNamed(Routes.forgotPassword),
+                  onPressed: _submitting
+                      ? null
+                      : () => Get.toNamed(Routes.forgotPassword),
                   child: const Text('忘记密码'),
                 ),
               ),

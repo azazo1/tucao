@@ -29,7 +29,8 @@ abstract final class UserHttp {
       final map = data.cast<String, dynamic>();
       if (map['userid'] == null && map['uid'] == null) {
         for (final value in map.values) {
-          if (value is Map && (value['userid'] != null || value['uid'] != null)) {
+          if (value is Map &&
+              (value['userid'] != null || value['uid'] != null)) {
             return UserModel.fromJson(value.cast<String, dynamic>());
           }
         }
@@ -136,7 +137,8 @@ abstract final class UserHttp {
       data: {'email': email, 'code': code, 'dosubmit': '提交'},
       options: Options(
         contentType: Headers.formUrlEncodedContentType,
-        validateStatus: (status) => status != null && status >= 200 && status < 300,
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 300,
       ),
       cancelToken: cancelToken,
     );
@@ -153,13 +155,19 @@ abstract final class UserHttp {
       options: Options(
         responseType: ResponseType.bytes,
         headers: {'cache-control': 'no-cache'},
-        validateStatus: (status) => status != null && status >= 200 && status < 300,
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 300,
       ),
       cancelToken: cancelToken,
     );
     final bytes = response.data;
-    if (bytes == null || bytes.isEmpty ||
-        !(response.headers.value(Headers.contentTypeHeader)?.toLowerCase().startsWith('image/') ?? false)) {
+    if (bytes == null ||
+        bytes.isEmpty ||
+        !(response.headers
+                .value(Headers.contentTypeHeader)
+                ?.toLowerCase()
+                .startsWith('image/') ??
+            false)) {
       throw const FormatException('站点未返回有效的验证码图片');
     }
     return bytes;

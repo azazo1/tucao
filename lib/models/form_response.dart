@@ -23,7 +23,10 @@ class FormResponse {
         body == null ||
         body.querySelector('form, input') != null ||
         text.length > 500) {
-      return const FormResponse(FormResponseStatus.unknown, '站点返回了未识别的响应, 请稍后重试');
+      return const FormResponse(
+        FormResponseStatus.unknown,
+        '站点返回了未识别的响应, 请稍后重试',
+      );
     }
     if (RegExp(r'错误|失败|不正确|不存在|不能为空|过期|不成功|未成功|不允许').hasMatch(text)) {
       return FormResponse(FormResponseStatus.rejected, text);

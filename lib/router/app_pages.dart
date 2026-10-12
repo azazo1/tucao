@@ -35,7 +35,10 @@ abstract final class AppPages {
     GetPage(name: Routes.setting, page: () => const SettingPage()),
     GetPage(name: Routes.login, page: () => const LoginPage()),
     GetPage(name: Routes.register, page: () => const RegisterPage()),
-    GetPage(name: Routes.forgotPassword, page: () => const ForgotPasswordPage()),
+    GetPage(
+      name: Routes.forgotPassword,
+      page: () => const ForgotPasswordPage(),
+    ),
     GetPage(
       name: Routes.changePassword,
       page: () => const ChangePasswordPage(),
@@ -58,9 +61,8 @@ abstract final class AppPages {
     ),
     GetPage(
       name: Routes.space,
-      page: () => SpacePage(
-        userId: int.tryParse(Get.parameters['uid'] ?? '') ?? 0,
-      ),
+      page: () =>
+          SpacePage(userId: int.tryParse(Get.parameters['uid'] ?? '') ?? 0),
     ),
   ];
 }

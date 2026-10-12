@@ -68,7 +68,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   }
 
   Future<void> _submit() async {
-    if (_submitting || _loadingCode || _codeImage == null ||
+    if (_submitting ||
+        _loadingCode ||
+        _codeImage == null ||
         !(_formKey.currentState?.validate() ?? false)) {
       return;
     }
@@ -208,7 +210,11 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                           )
                         : const Icon(Icons.refresh, size: 18),
                   )
-                : Image.memory(_codeImage!, fit: BoxFit.contain, gaplessPlayback: true),
+                : Image.memory(
+                    _codeImage!,
+                    fit: BoxFit.contain,
+                    gaplessPlayback: true,
+                  ),
           ),
         ),
       ),
