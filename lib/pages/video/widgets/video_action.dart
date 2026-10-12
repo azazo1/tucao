@@ -7,9 +7,14 @@ import 'package:tucao/utils/utils.dart';
 
 /// 播放器下方的操作区: 弹幕发送框, 评论与本地收藏入口.
 class VideoActionBar extends StatefulWidget {
-  const VideoActionBar({super.key, required this.controller});
+  const VideoActionBar({
+    super.key,
+    required this.controller,
+    this.onComment,
+  });
 
   final PlayerPageController controller;
+  final VoidCallback? onComment;
 
   @override
   State<VideoActionBar> createState() => _VideoActionBarState();
@@ -110,7 +115,7 @@ class _VideoActionBarState extends State<VideoActionBar> {
           ),
           const SizedBox(width: 4),
           IconButton.outlined(
-            onPressed: _openReply,
+            onPressed: widget.onComment ?? _openReply,
             icon: Icon(Icons.comment_outlined, size: 18, color: scheme.primary),
             visualDensity: VisualDensity.compact,
             tooltip: '评论',

@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/models/video.dart';
-import 'package:tucao/pages/reply/reply_page.dart';
+import 'package:tucao/pages/video/widgets/video_content_tabs.dart';
 import 'package:tucao/pages/video/widgets/player_view.dart';
 import 'package:tucao/pages/video/widgets/video_action.dart';
 import 'package:tucao/pages/video/widgets/video_info.dart';
@@ -43,7 +43,9 @@ class VideoPage extends StatefulWidget {
   State<VideoPage> createState() => _VideoPageState();
 }
 
-class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
+class _VideoPageState extends State<VideoPage>
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
+  late final TabController _contentTabs = TabController(length: 2, vsync: this);
   /// 同一视频可能被重复打开, 用实例标识区分控制器.
   late final String _tag = 'video_${identityHashCode(this)}';
 
@@ -75,6 +77,7 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _contentTabs.dispose();
     _controller.detachDanmaku();
     if (Get.isRegistered<PlayerPageController>(tag: _tag)) {
       Get.delete<PlayerPageController>(tag: _tag);
@@ -127,6 +130,8 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
         }
       },
       child: Scaffold(
+        // 输入弹层自行避让键盘, 不压缩播放器和下方分页的高度.
+        resizeToAvoidBottomInset: false,
         backgroundColor: _fullscreen
             ? Colors.black
             : Theme.of(context).colorScheme.surface,
@@ -135,10 +140,12 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
         appBar: _fullscreen ? _emptyAppBar : _buildAppBar(),
         body: LayoutBuilder(
           builder: (context, constraints) {
-            // 竖屏下播放器固定为 16:9, 全屏下铺满.
+            // 高度有限时为下方内容留下空间, 全屏仍铺满播放器.
+            final inlinePlayerHeight = (constraints.maxWidth * 9 / 16)
+                .clamp(0.0, constraints.maxHeight / 2);
             final playerHeight = _fullscreen
                 ? constraints.maxHeight
-                : constraints.maxWidth * 9 / 16;
+                : inlinePlayerHeight;
             return Stack(
               children: [
                 Positioned(
@@ -148,14 +155,19 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
                   height: playerHeight,
                   child: _buildPlayerView(),
                 ),
-                if (!_fullscreen)
-                  Positioned(
-                    left: 0,
-                    top: playerHeight,
-                    right: 0,
-                    bottom: 0,
-                    child: _buildContentArea(),
+                Positioned(
+                  left: 0,
+                  top: inlinePlayerHeight,
+                  right: 0,
+                  bottom: 0,
+                  child: Offstage(
+                    offstage: _fullscreen,
+                    child: TickerMode(
+                      enabled: !_fullscreen,
+                      child: _buildContentArea(),
+                    ),
                   ),
+                ),
               ],
             );
           },
@@ -220,21 +232,23 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
           ? const LoadingWidget()
           : const EmptyWidget(message: '视频信息加载失败');
     }
-    return ListView(
-      padding: EdgeInsets.zero,
-      children: [
-        VideoInfoPanel(controller: _controller),
-        const Divider(),
-        VideoPartBar(controller: _controller),
-        VideoActionBar(controller: _controller),
-        const Divider(),
-        ListTile(
-          leading: const Icon(Icons.comment_outlined),
-          title: const Text('查看评论'),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: _openReply,
-        ),
-      ],
+    return VideoContentTabs(
+      controller: _contentTabs,
+      typeId: video.typeId,
+      hid: _controller.hid,
+      part: _controller.part.value,
+      introduction: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          VideoInfoPanel(controller: _controller),
+          const Divider(),
+          VideoPartBar(controller: _controller),
+          VideoActionBar(
+            controller: _controller,
+            onComment: () => _contentTabs.animateTo(1),
+          ),
+        ],
+      ),
     );
   }
 
@@ -286,15 +300,5 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
     } finally {
       _openingWebsite = false;
     }
-  }
-
-  void _openReply() {
-    Get.to(
-      () => ReplyPage(
-        typeId: _controller.typeId,
-        hid: _controller.hid,
-        part: _controller.part.value,
-      ),
-    );
   }
 }

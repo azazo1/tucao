@@ -6,12 +6,9 @@ import 'package:tucao/common/widgets/paging_list.dart';
 import 'package:tucao/models/reply.dart';
 import 'package:tucao/pages/reply/reply_controller.dart';
 import 'package:tucao/services/account_service.dart';
-import 'package:tucao/utils/utils.dart';
 
-/// 评论页.
-///
-/// [part] 是分 P 序号, 从 0 开始.
-class ReplyPage extends StatefulWidget {
+/// 独立评论入口, 视频页直接使用 [ReplyPanel].
+class ReplyPage extends StatelessWidget {
   const ReplyPage({
     super.key,
     required this.typeId,
@@ -19,94 +16,120 @@ class ReplyPage extends StatefulWidget {
     this.part = 0,
   });
 
-  /// 视频所在分区, 与 hid 一起构成评论楼层 id.
   final int typeId;
-
   final String hid;
-
-  /// 当前分P, 仅用于展示; 同一视频的所有分P共用一个评论楼层.
   final int part;
 
   @override
-  State<ReplyPage> createState() => _ReplyPageState();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('评论')),
+      body: ReplyPanel(typeId: typeId, hid: hid, part: part),
+    );
+  }
 }
 
-class _ReplyPageState extends State<ReplyPage> {
-  late final ReplyController controller;
+/// 不带页面外壳的评论面板, 每个实例拥有自己的控制器.
+class ReplyPanel extends StatefulWidget {
+  const ReplyPanel({
+    super.key,
+    required this.typeId,
+    required this.hid,
+    this.part = 0,
+    this.controllerFactory,
+  });
+
+  /// 视频所在分区, 与 hid 一起构成评论楼层 id.
+  final int typeId;
+  final String hid;
+
+  /// 当前分 P, 不参与评论控制器的身份.
+  final int part;
+
+  /// 允许测试注入无网络控制器, 所有权仍属于面板.
+  final ReplyController Function(int typeId, String hid, int part)?
+      controllerFactory;
+
+  @override
+  State<ReplyPanel> createState() => _ReplyPanelState();
+}
+
+class _ReplyPanelState extends State<ReplyPanel>
+    with AutomaticKeepAliveClientMixin {
+  late ReplyController controller;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
     super.initState();
-    // 同一个视频可能被多次打开评论页, 换了视频就换掉旧的注册.
-    final existing = Get.isRegistered<ReplyController>()
-        ? Get.find<ReplyController>()
-        : null;
-    if (existing != null && existing.hid != widget.hid) {
-      Get.delete<ReplyController>();
+    _createController();
+  }
+
+  void _createController() {
+    controller = widget.controllerFactory?.call(
+          widget.typeId, widget.hid, widget.part,
+        ) ??
+        ReplyController(
+          typeId: widget.typeId,
+          hid: widget.hid,
+          part: widget.part,
+        );
+    // 不注册到全局 Get, 避免重复打开视频时共享或删除别的面板.
+    controller.onStart();
+  }
+
+  @override
+  void didUpdateWidget(covariant ReplyPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.hid != widget.hid || oldWidget.typeId != widget.typeId) {
+      controller.onDelete();
+      _createController();
     }
-    controller = Get.put(
-      ReplyController(
-        typeId: widget.typeId,
-        hid: widget.hid,
-        part: widget.part,
-      ),
-    );
   }
 
   @override
   void dispose() {
-    if (Get.isRegistered<ReplyController>() &&
-        identical(Get.find<ReplyController>(), controller)) {
-      Get.delete<ReplyController>();
-    }
+    controller.onDelete();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Obx(() {
-          final total = controller.total.value;
-          return Row(
-            children: [
-              const Text('评论'),
-              if (total > 0) ...[
-                const SizedBox(width: 6),
-                Text(
-                  Utils.formatCount(total),
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+    super.build(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scale = MediaQuery.textScalerOf(context).scale(13) / 13;
+        final inputHeight = (56 * scale + MediaQuery.paddingOf(context).bottom)
+            .clamp(0.0, constraints.maxHeight / 2);
+        return Column(
+          children: [
+            Expanded(
+              child: Obx(
+                () => PagingList<ReplyModel>(
+                  key: ValueKey(controller),
+                  list: controller.list,
+                  itemBuilder: _buildItem,
+                  onRefresh: controller.refresh,
+                  onLoadMore: controller.loadMore,
+                  hasMore: controller.hasMore,
+                  loading: controller.loading.value,
+                  firstLoading: controller.firstLoading.value,
+                  error: _cleanError(controller.error.value),
+                  onRetry: controller.loadFirst,
+                  emptyMessage: '还没有评论, 来说点什么吧',
+                  separator: const Divider(),
                 ),
-              ],
-            ],
-          );
-        }),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: Obx(
-              () => PagingList<ReplyModel>(
-                list: controller.list,
-                itemBuilder: _buildItem,
-                onRefresh: controller.refresh,
-                onLoadMore: controller.loadMore,
-                hasMore: controller.hasMore,
-                loading: controller.loading.value,
-                firstLoading: controller.firstLoading.value,
-                error: _cleanError(controller.error.value),
-                onRetry: controller.loadFirst,
-                emptyMessage: '还没有评论, 来说点什么吧',
-                separator: const Divider(),
               ),
             ),
-          ),
-          _buildInputBar(context),
-        ],
-      ),
+            SizedBox(
+              height: inputHeight,
+              child: SingleChildScrollView(child: _buildInputBar(context)),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -176,7 +199,7 @@ class _ReplyPageState extends State<ReplyPage> {
               borderRadius: BorderRadius.circular(20),
               onTap: sending ? null : () => _openInput(),
               child: Container(
-                height: 38,
+                constraints: const BoxConstraints(minHeight: 38),
                 alignment: Alignment.centerLeft,
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
@@ -201,11 +224,13 @@ class _ReplyPageState extends State<ReplyPage> {
                         color: scheme.onSurfaceVariant,
                       ),
                     const SizedBox(width: 8),
-                    Text(
-                      sending ? '正在发送' : '说点什么',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: scheme.onSurfaceVariant,
+                    Expanded(
+                      child: Text(
+                        sending ? '正在发送' : '说点什么',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: scheme.onSurfaceVariant,
+                        ),
                       ),
                     ),
                   ],
@@ -241,6 +266,7 @@ class _ReplyPageState extends State<ReplyPage> {
       _toast('请先登录');
       return;
     }
+    final inputController = controller;
     final text = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -248,11 +274,15 @@ class _ReplyPageState extends State<ReplyPage> {
         hint: replyTo == null ? '说点什么' : '回复 @${replyTo.userName}',
       ),
     );
-    if (text == null || text.trim().isEmpty) {
+    if (!mounted ||
+        !identical(controller, inputController) ||
+        inputController.isClosed ||
+        text == null ||
+        text.trim().isEmpty) {
       return;
     }
     try {
-      await controller.send(text, replyTo: replyTo);
+      await inputController.send(text, replyTo: replyTo);
       _toast(replyTo == null ? '评论成功' : '回复成功');
     } catch (e) {
       _toast(_cleanError(e.toString()) ?? '发送失败');
@@ -304,21 +334,21 @@ class _CommentTile extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
+              Wrap(
+                spacing: 6,
+                runSpacing: 2,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  Flexible(
-                    child: Text(
-                      comment.userName.isEmpty ? '匿名' : comment.userName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: dense ? 12 : 13,
-                        fontWeight: FontWeight.w500,
-                        color: scheme.onSurface,
-                      ),
+                  Text(
+                    comment.userName.isEmpty ? '匿名' : comment.userName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: dense ? 12 : 13,
+                      fontWeight: FontWeight.w500,
+                      color: scheme.onSurface,
                     ),
                   ),
-                  const SizedBox(width: 6),
                   Text(
                     comment.createAt,
                     style: TextStyle(
@@ -338,7 +368,9 @@ class _CommentTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 2),
-              Row(
+              Wrap(
+                spacing: 16,
+                runSpacing: 2,
                 children: [
                   _ActionButton(
                     icon: supported ? Icons.thumb_up : Icons.thumb_up_outlined,
@@ -346,7 +378,6 @@ class _CommentTile extends StatelessWidget {
                     color: supported ? scheme.primary : scheme.onSurfaceVariant,
                     onTap: onSupport,
                   ),
-                  const SizedBox(width: 16),
                   _ActionButton(
                     icon: Icons.chat_bubble_outline,
                     label: '回复',
