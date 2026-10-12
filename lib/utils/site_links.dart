@@ -9,8 +9,8 @@ abstract final class SiteLinks {
         part < 0) {
       return null;
     }
-    return Uri.parse(Constants.baseUrl).resolve('play/h$hid/').replace(
-      fragment: (part + 1).toString(),
-    );
+    return Uri.parse(
+      Constants.baseUrl,
+    ).resolve('play/h$hid/').replace(fragment: (part + 1).toString());
   }
 }

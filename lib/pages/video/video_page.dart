@@ -171,11 +171,13 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       actions: [
-        Obx(() => VideoLinkMenu(
-          hid: _controller.hid,
-          part: _controller.part.value,
-          onOpenWebsite: _openWebsite,
-        )),
+        Obx(
+          () => VideoLinkMenu(
+            hid: _controller.hid,
+            part: _controller.part.value,
+            onOpenWebsite: _openWebsite,
+          ),
+        ),
       ],
       title: Obx(
         () => Text(
@@ -255,16 +257,16 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
       }
       final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!opened && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('无法打开浏览器, 可在菜单中复制链接')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('无法打开浏览器, 可在菜单中复制链接')));
       }
     } catch (error, stackTrace) {
       Log.e('打开视频站点页面失败', error: error, stackTrace: stackTrace);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('浏览器打开失败, 可在菜单中复制链接')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('浏览器打开失败, 可在菜单中复制链接')));
       }
     } finally {
       _openingWebsite = false;

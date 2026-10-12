@@ -10,7 +10,6 @@ import 'package:tucao/plugin/player/player_controller.dart';
 import 'package:tucao/utils/site_links.dart';
 import 'package:tucao/utils/utils.dart';
 
-
 /// 播放器区域: 视频画面, 弹幕层与控制条.
 ///
 /// 控制条与进度条直接读 [PlayerPageController.player] 的状态,
@@ -175,7 +174,11 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (SiteLinks.video(_controller.hid, part: _controller.part.value) != null)
+            if (SiteLinks.video(
+                  _controller.hid,
+                  part: _controller.part.value,
+                ) !=
+                null)
               TextButton.icon(
                 onPressed: widget.onOpenWebsite,
                 style: TextButton.styleFrom(foregroundColor: Colors.white),
@@ -316,7 +319,8 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
     return ListenableBuilder(
       listenable: player,
       builder: (context, child) {
-        final text = '${player.speed.toStringAsFixed(player.speed == player.speed.roundToDouble() ? 1 : 2)}x';
+        final text =
+            '${player.speed.toStringAsFixed(player.speed == player.speed.roundToDouble() ? 1 : 2)}x';
         return PopupMenuButton<double>(
           tooltip: '倍速',
           initialValue: player.speed,
@@ -427,7 +431,10 @@ class _PlayerProgressBarState extends State<PlayerProgressBar> {
                 alignment: Alignment.centerLeft,
                 children: [
                   _bar(Colors.white24, 1),
-                  _bar(Colors.white70, _ratio(widget.buffered.inMilliseconds / 1000)),
+                  _bar(
+                    Colors.white70,
+                    _ratio(widget.buffered.inMilliseconds / 1000),
+                  ),
                   _bar(scheme.primary, _ratio(_positionSeconds)),
                   Align(
                     alignment: Alignment(_ratio(_positionSeconds) * 2 - 1, 0),

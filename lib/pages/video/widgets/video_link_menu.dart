@@ -24,13 +24,17 @@ class VideoLinkMenu extends StatelessWidget {
       if (!context.mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('链接已复制')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('链接已复制')));
     } catch (error, stackTrace) {
       Log.e('复制视频链接失败', error: error, stackTrace: stackTrace);
       if (!context.mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('复制失败, 请重试')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('复制失败, 请重试')));
     }
   }
 
