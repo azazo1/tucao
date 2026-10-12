@@ -54,6 +54,7 @@ Future<Offset> _mount(
   WidgetTester tester,
   _Controller controller, {
   VoidCallback? onToggleControls,
+  SeekPreviewCallback? onSeekPreview,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -68,6 +69,7 @@ Future<Offset> _mount(
               child: PlayerGestureDetector(
                 controller: controller,
                 onToggleControls: onToggleControls ?? () {},
+                onSeekPreview: onSeekPreview,
               ),
             ),
           ],
@@ -152,6 +154,69 @@ void main() {
     await tester.pump();
     // 从 (20, 20) 右移 150 像素, 跨度 90 秒: 30 + 90 * 150/400.
     expect(controller.seeks, [const Duration(milliseconds: 63750)]);
+    await tester.pump(const Duration(milliseconds: 400));
+  });
+
+  testWidgets('横向拖动逐步上报预览位置, 松手与取消时回调空值', (tester) async {
+    final controller = _Controller();
+    final previews = <Duration?>[];
+    final committedFlags = <bool>[];
+    final origin = await _mount(
+      tester,
+      controller,
+      onSeekPreview: (preview, {required bool committed}) {
+        previews.add(preview);
+        committedFlags.add(committed);
+      },
+    );
+    final gesture = await tester.startGesture(origin + const Offset(150, 130));
+    await gesture.moveBy(const Offset(40, 0));
+    await tester.pump();
+    // 总时长 120 秒, 跨度 90 秒: 30 + 90 * 40/400.
+    expect(previews, [const Duration(milliseconds: 39000)]);
+    expect(committedFlags, [false]);
+    await gesture.moveBy(const Offset(60, 0));
+    await tester.pump();
+    expect(previews.last, const Duration(milliseconds: 52500));
+    await gesture.up();
+    await tester.pump();
+    expect(previews.last, isNull);
+    expect(committedFlags.last, isTrue);
+    expect(controller.seeks, [const Duration(milliseconds: 52500)]);
+
+    // 阈值内的移动不算拖动, 不产生预览.
+    previews.clear();
+    final small = await tester.startGesture(origin + const Offset(150, 130));
+    await small.moveBy(const Offset(6, 0));
+    await tester.pump();
+    expect(previews, isEmpty);
+    await small.up();
+    await tester.pump(const Duration(milliseconds: 400));
+  });
+
+  testWidgets('落在取消区的拖动上报未提交, 让游标回到真实进度', (tester) async {
+    final controller = _Controller();
+    final previews = <Duration?>[];
+    final committedFlags = <bool>[];
+    final origin = await _mount(
+      tester,
+      controller,
+      onSeekPreview: (preview, {required bool committed}) {
+        previews.add(preview);
+        committedFlags.add(committed);
+      },
+    );
+    final gesture = await tester.startGesture(origin + const Offset(200, 130));
+    await gesture.moveBy(const Offset(40, 0));
+    await tester.pump();
+    await gesture.moveTo(origin + const Offset(20, 20));
+    await tester.pump();
+    expect(find.byKey(cancelled), findsOneWidget);
+    await gesture.up();
+    await tester.pump();
+    expect(previews.last, isNull);
+    expect(committedFlags.last, isFalse);
+    expect(controller.seeks, isEmpty);
     await tester.pump(const Duration(milliseconds: 400));
   });
 

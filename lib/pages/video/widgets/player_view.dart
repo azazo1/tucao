@@ -47,6 +47,12 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
   bool _showControls = true;
   bool _settingsOpen = false;
 
+  /// 手势横向拖动的预览位置, 非空时进度条游标跟随手指.
+  Duration? _seekPreview;
+
+  /// 手势松手时是否提交了跳转, 供进度条决定要不要保留目标位置.
+  bool _seekCommitted = false;
+
   Timer? _hideTimer;
 
   PlayerPageController get _controller => widget.controller;
@@ -97,6 +103,25 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
     _restartHideTimer();
   }
 
+  /// 手势拖动期间保持控制条可见, 让进度条游标跟着手指走.
+  ///
+  /// 松手提交跳转时把目标位置保留给进度条, 等播放器上报新位置再交还;
+  /// 落在取消区时不保留, 游标直接回到真实进度.
+  void _onSeekPreview(Duration? preview, {required bool committed}) {
+    if (preview != null) {
+      _hideTimer?.cancel();
+    } else {
+      _restartHideTimer();
+    }
+    setState(() {
+      if (preview != null) {
+        _showControls = true;
+      }
+      _seekPreview = preview;
+      _seekCommitted = committed;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Stack(
@@ -113,6 +138,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
           child: PlayerGestureDetector(
             controller: _controller,
             onToggleControls: _toggleControls,
+            onSeekPreview: _onSeekPreview,
           ),
         ),
         if (_showControls) _buildControls(context),
@@ -269,6 +295,8 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
                 position: player.position,
                 duration: player.duration,
                 buffered: player.buffered,
+                preview: _seekPreview,
+                previewCommitted: _seekCommitted,
                 onSeek: _onSeek,
               ),
             ),
@@ -436,6 +464,8 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
 /// 播放进度条.
 ///
 /// 自绘的原因是需要同时展示播放进度与缓冲进度, 并支持拖动时即时预览.
+/// 预览有三个来源, 优先级从高到低: 直接拖动进度条, 手势层传入的
+/// [preview], 以及提交跳转后等待播放位置追上的过渡值.
 class PlayerProgressBar extends StatefulWidget {
   const PlayerProgressBar({
     super.key,
@@ -443,11 +473,22 @@ class PlayerProgressBar extends StatefulWidget {
     required this.duration,
     required this.buffered,
     required this.onSeek,
+    this.preview,
+    this.previewCommitted = false,
   });
 
   final Duration position;
   final Duration duration;
   final Duration buffered;
+
+  /// 手势层横向拖动的预览位置, 非空时游标跟随手指.
+  final Duration? preview;
+
+  /// [preview] 结束时空值是否代表已经提交跳转.
+  ///
+  /// 提交后游标停在目标位置, 等播放位置追上来再交还真实进度,
+  /// 避免松手瞬间游标先弹回原处再跳到目标.
+  final bool previewCommitted;
 
   /// 拖动结束时提交跳转.
   final ValueChanged<Duration> onSeek;
@@ -461,13 +502,56 @@ class _PlayerProgressBarState extends State<PlayerProgressBar> {
   static const _thumbSize = 11.0;
   static const _touchHeight = 24.0;
 
-  /// 拖动过程中的预览位置, 为空表示没有在拖动.
+  /// 直接拖动进度条时的预览位置, 为空表示没有在拖动.
   double? _dragging;
+
+  /// 提交跳转后的过渡位置, 等播放位置更新再交还真实进度.
+  double? _settle;
+
+  /// 过渡开始时播放器的位置, 用来判断播放器是否已经响应跳转.
+  Duration _settleFrom = Duration.zero;
 
   double get _totalSeconds => widget.duration.inMilliseconds / 1000;
 
   double get _positionSeconds =>
-      _dragging ?? widget.position.inMilliseconds / 1000;
+      _dragging ?? _previewSeconds ?? widget.position.inMilliseconds / 1000;
+
+  /// 手势层预览优先, 松手后沿用最后的目标位置直到播放器响应.
+  double? get _previewSeconds {
+    final preview = widget.preview;
+    if (preview != null) {
+      return preview.inMilliseconds / 1000;
+    }
+    return _settle;
+  }
+
+  @override
+  void didUpdateWidget(covariant PlayerProgressBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.preview != null) {
+      // 新一轮拖动开始, 丢弃上一次的过渡.
+      _settle = null;
+      return;
+    }
+    if (oldWidget.preview != null) {
+      // 松手提交跳转时保留目标位置, 取消拖动时直接回到真实进度.
+      if (widget.previewCommitted) {
+        _startSettle(oldWidget.preview!.inMilliseconds / 1000);
+      } else {
+        _settle = null;
+      }
+      return;
+    }
+    // 播放器上报了新位置, 说明跳转已经生效, 交还真实进度.
+    if (_settle != null && widget.position != _settleFrom) {
+      _settle = null;
+    }
+  }
+
+  void _startSettle(double value) {
+    _settle = value;
+    _settleFrom = widget.position;
+  }
 
   double _ratio(double value) {
     final total = _totalSeconds;
@@ -489,7 +573,10 @@ class _PlayerProgressBarState extends State<PlayerProgressBar> {
     if (value == null) {
       return;
     }
-    setState(() => _dragging = null);
+    setState(() {
+      _dragging = null;
+      _startSettle(value);
+    });
     widget.onSeek(Duration(milliseconds: (value * 1000).round()));
   }
 
@@ -526,9 +613,10 @@ class _PlayerProgressBarState extends State<PlayerProgressBar> {
                   Align(
                     alignment: Alignment(_ratio(_positionSeconds) * 2 - 1, 0),
                     child: Container(
+                      key: const ValueKey('player-progress-thumb'),
                       width: _thumbSize,
                       height: _thumbSize,
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         color: Colors.white,
                         shape: BoxShape.circle,
                       ),

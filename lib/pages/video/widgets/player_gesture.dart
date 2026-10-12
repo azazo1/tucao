@@ -4,10 +4,19 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
 
+/// 横向拖动的预览回调.
+///
+/// [preview] 是拖动中的目标位置, 松手与取消时为空值.
+/// [committed] 为真表示松手时已经提交跳转, 界面可以保持在目标位置,
+/// 等播放器上报新进度再交还真实进度.
+typedef SeekPreviewCallback =
+    void Function(Duration? preview, {required bool committed});
+
 /// 播放器手势层.
 ///
 /// 参照常见播放器的交互:
-/// - 横向拖动调整进度, 松手生效, 拖动到顶部左右角可取消.
+/// - 横向拖动调整进度, 拖动中通过 [onSeekPreview] 上报预览位置, 松手生效,
+///   拖动到顶部左右角可取消.
 /// - 竖向拖动调整音量, 只作用于屏幕左半侧.
 /// - 长按临时切换到 3 倍速, 松手恢复原速.
 /// - 单击切换控制条, 双击播放暂停.
@@ -18,12 +27,18 @@ class PlayerGestureDetector extends StatefulWidget {
     super.key,
     required this.controller,
     required this.onToggleControls,
+    this.onSeekPreview,
   });
 
   final PlayerPageController controller;
 
   /// 单击时通知外层切换控制条.
   final VoidCallback onToggleControls;
+
+  /// 横向拖动的预览位置.
+  ///
+  /// 外层用它让进度条游标跟随手指, 而不是等松手后才跳动.
+  final SeekPreviewCallback? onSeekPreview;
 
   @override
   State<PlayerGestureDetector> createState() => _PlayerGestureDetectorState();
@@ -144,14 +159,17 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
       _seekCancelling = cancelling;
       _seekTarget = Duration(milliseconds: clamped.toInt());
     });
+    widget.onSeekPreview?.call(_seekTarget, committed: false);
   }
 
   void _onHorizontalDragEnd(DragEndDetails details) {
     final target = _seekTarget;
-    if (target != null && !_seekCancelling) {
+    // 落在取消区时不提交跳转, 界面也回到真实进度.
+    final committed = target != null && !_seekCancelling;
+    if (committed) {
       widget.controller.seek(target);
     }
-    _onDragCancel();
+    _onDragCancel(committed: committed);
   }
 
   void _onVerticalDragUpdate(DragUpdateDetails details) {
@@ -178,7 +196,10 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
     _onDragCancel();
   }
 
-  void _onDragCancel() {
+  /// 收尾清理. [committed] 表示本次横向拖动已经提交跳转.
+  void _onDragCancel({bool committed = false}) {
+    // 只有横向拖动会产生预览, 通知外层收起跟随状态.
+    final hadPreview = _seekTarget != null;
     setState(() {
       _seekCancelling = false;
       _seekTarget = null;
@@ -189,6 +210,9 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
       _startPosition = Duration.zero;
       _startVolume = 100;
     });
+    if (hadPreview) {
+      widget.onSeekPreview?.call(null, committed: committed);
+    }
   }
 
   /// 手势提示, 没有手势时返回透明占位.
