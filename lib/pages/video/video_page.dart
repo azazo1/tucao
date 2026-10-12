@@ -271,14 +271,14 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
         return;
       }
       final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!opened && mounted) {
+      if (!opened && mounted && (ModalRoute.of(context)?.isCurrent ?? false)) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('无法打开浏览器, 可在菜单中复制链接')));
       }
     } catch (error, stackTrace) {
       Log.e('打开视频站点页面失败', error: error, stackTrace: stackTrace);
-      if (mounted) {
+      if (mounted && (ModalRoute.of(context)?.isCurrent ?? false)) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('浏览器打开失败, 可在菜单中复制链接')));
