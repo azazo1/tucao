@@ -39,8 +39,8 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
   /// 长按切到的倍速.
   static const _longPressSpeed = 3.0;
 
-  /// 拖满屏幕宽度对应的进度变化量, 取屏幕宽度的 1.2 倍作为基准时长.
-  static const _seekScreenRatio = 1.2;
+  /// 拖满屏幕宽度对应的进度变化量上限.
+  static const _seekSpan = Duration(seconds: 90);
 
   /// 竖向拖满屏幕高度对应的音量变化量.
   static const _volumeScreenRatio = 1.0;
@@ -134,10 +134,11 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
     final cancelling =
         localY <= cornerHeight &&
         (localX <= cornerWidth || localX >= width - cornerWidth);
-    // 以屏幕宽度的 1.2 倍代表整段时长, 便于在小屏上快速定位.
-    final ratio = dx / (width * _seekScreenRatio);
-    final targetMs =
-        _startPosition.inMilliseconds + (total.inMilliseconds * ratio);
+    // 拖满屏幕宽度最多改变 90 秒进度, 视频更短时以整段时长为跨度,
+    // 避免小屏上轻微滑动就跳过很长一段.
+    final span = math.min(_seekSpan.inMilliseconds, total.inMilliseconds);
+    final ratio = dx / width;
+    final targetMs = _startPosition.inMilliseconds + span * ratio;
     final clamped = targetMs.clamp(0, total.inMilliseconds);
     setState(() {
       _seekCancelling = cancelling;

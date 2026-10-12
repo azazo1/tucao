@@ -5,11 +5,13 @@ import 'package:tucao/plugin/player/player_controller.dart';
 import 'package:tucao/plugin/player/tucao_player.dart';
 
 class _Player implements TucaoPlayer {
+  _Player({this.duration = const Duration(seconds: 120)});
+
   @override
   Duration get position => const Duration(seconds: 30);
 
   @override
-  Duration get duration => const Duration(seconds: 120);
+  final Duration duration;
 
   @override
   double get volume => 50;
@@ -22,8 +24,11 @@ class _Player implements TucaoPlayer {
 }
 
 class _Controller implements PlayerPageController {
+  _Controller({Duration duration = const Duration(seconds: 120)})
+    : player = _Player(duration: duration);
+
   @override
-  final player = _Player();
+  final _Player player;
   final seeks = <Duration>[];
   final volumes = <double>[];
   final speeds = <double>[];
@@ -116,7 +121,8 @@ void main() {
     expect(find.byKey(cancelled), findsNothing);
     await gesture.up();
     await tester.pump();
-    expect(controller.seeks, [const Duration(seconds: 55)]);
+    // 总时长 120 秒, 跨度取 90 秒: 从 30 秒处右移 100 像素 = 90 * 100/400.
+    expect(controller.seeks, [const Duration(milliseconds: 52500)]);
 
     final abandoned = await tester.startGesture(
       origin + const Offset(200, 130),
@@ -144,7 +150,18 @@ void main() {
     expect(find.byKey(cancelled), findsNothing);
     await gesture.up();
     await tester.pump();
-    expect(controller.seeks, [const Duration(milliseconds: 67500)]);
+    // 从 (20, 20) 右移 150 像素, 跨度 90 秒: 30 + 90 * 150/400.
+    expect(controller.seeks, [const Duration(milliseconds: 63750)]);
+    await tester.pump(const Duration(milliseconds: 400));
+  });
+
+  testWidgets('时长不足 90 秒时跨度收缩为整段时长', (tester) async {
+    final controller = _Controller(duration: const Duration(seconds: 60));
+    final origin = await _mount(tester, controller);
+    await tester.dragFrom(origin + const Offset(150, 130), const Offset(100, 0));
+    await tester.pump();
+    // 跨度 60 秒: 30 + 60 * 100/400.
+    expect(controller.seeks, [const Duration(milliseconds: 45000)]);
     await tester.pump(const Duration(milliseconds: 400));
   });
 
