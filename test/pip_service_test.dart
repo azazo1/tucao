@@ -29,7 +29,8 @@ void main() {
     final entered = await PipService.instance.enter(
       width: 1920,
       height: 1080,
-      sourceRect: const Rect.fromLTWH(10, 20, 110, 80),
+      // 用 LTRB 构造, 与下面断言的四个边界一一对应.
+      sourceRect: const Rect.fromLTRB(10, 20, 110, 80),
     );
 
     expect(entered, isTrue);
