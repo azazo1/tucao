@@ -63,13 +63,15 @@ class DownloadTask {
 
   static bool validIdentity(String hid, int part) =>
       RegExp(r'^[0-9]+$').hasMatch(hid) &&
-      hid.contains(RegExp(r'[1-9]')) && part >= 0;
+      hid.contains(RegExp(r'[1-9]')) &&
+      part >= 0;
 
   static Uri? sourceUri(String source) {
     final uri = Uri.tryParse(source);
     if (uri == null ||
         !['http', 'https'].contains(uri.scheme) ||
-        uri.host.isEmpty || uri.userInfo.isNotEmpty) {
+        uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty) {
       return null;
     }
     return uri;
@@ -81,7 +83,10 @@ class DownloadTask {
     final source = json['source'] as String;
     final received = json['received'] as int;
     final total = json['total'] as int;
-    if (!validIdentity(hid, part) || sourceUri(source) == null || received < 0 || total < -1) {
+    if (!validIdentity(hid, part) ||
+        sourceUri(source) == null ||
+        received < 0 ||
+        total < -1) {
       throw const FormatException('无效的缓存任务');
     }
     return DownloadTask(

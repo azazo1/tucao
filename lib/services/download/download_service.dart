@@ -13,11 +13,13 @@ import 'package:tucao/utils/logger.dart';
 
 /// 前台单文件缓存队列. 不做分段下载, 暂停后重试从头开始.
 class DownloadService extends GetxController with WidgetsBindingObserver {
-  DownloadService({Directory? directory, required DownloadTransport transport,
-    Future<Directory> Function()? location})
-    : _store = directory == null ? null : DownloadStore(directory),
-      _location = location ?? DownloadLocation.directory,
-      _transport = transport;
+  DownloadService({
+    Directory? directory,
+    required DownloadTransport transport,
+    Future<Directory> Function()? location,
+  }) : _store = directory == null ? null : DownloadStore(directory),
+       _location = location ?? DownloadLocation.directory,
+       _transport = transport;
 
   static DownloadService get instance => Get.find<DownloadService>();
 
@@ -54,11 +56,14 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
       _foreground = false;
-      unawaited(pauseAll().catchError((Object error, StackTrace stackTrace) {
-        Log.e('暂停缓存任务失败', error: error, stackTrace: stackTrace);
-      }));
+      unawaited(
+        pauseAll().catchError((Object error, StackTrace stackTrace) {
+          Log.e('暂停缓存任务失败', error: error, stackTrace: stackTrace);
+        }),
+      );
     } else if (state == AppLifecycleState.resumed) {
       _foreground = true;
       // 返回应用时不自动产生流量, 由用户主动重试暂停任务.
@@ -69,11 +74,13 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
     if (ready.value) {
       return Future.value();
     }
-    return _initializing ??= _initialize().catchError((Object error, StackTrace stackTrace) {
-      initializationError.value = '外部缓存目录不可用, 请检查存储设备后重试';
-      Log.e('初始化外部缓存目录失败', error: error, stackTrace: stackTrace);
-      throw error;
-    }).whenComplete(() => _initializing = null);
+    return _initializing ??= _initialize()
+        .catchError((Object error, StackTrace stackTrace) {
+          initializationError.value = '外部缓存目录不可用, 请检查存储设备后重试';
+          Log.e('初始化外部缓存目录失败', error: error, stackTrace: stackTrace);
+          throw error;
+        })
+        .whenComplete(() => _initializing = null);
   }
 
   Future<void> _initialize() async {
@@ -86,21 +93,31 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
       await store.discard(task, partial: true);
       if (task.status == DownloadStatus.completed) {
         final file = store.media(task);
-        final valid = await file.exists() && await file.length() > 0 &&
+        final valid =
+            await file.exists() &&
+            await file.length() > 0 &&
             await file.length() == task.received;
-        restored.add(valid ? task : task.update(
-          status: DownloadStatus.failed,
-          received: 0,
-          total: -1,
-          error: '本地缓存文件缺失或不完整, 请重新下载',
-        ));
+        restored.add(
+          valid
+              ? task
+              : task.update(
+                  status: DownloadStatus.failed,
+                  received: 0,
+                  total: -1,
+                  error: '本地缓存文件缺失或不完整, 请重新下载',
+                ),
+        );
       } else {
-        restored.add(task.update(
-          status: task.status == DownloadStatus.failed ? DownloadStatus.failed : DownloadStatus.paused,
-          received: 0,
-          total: -1,
-          error: task.error,
-        ));
+        restored.add(
+          task.update(
+            status: task.status == DownloadStatus.failed
+                ? DownloadStatus.failed
+                : DownloadStatus.paused,
+            received: 0,
+            total: -1,
+            error: task.error,
+          ),
+        );
       }
     }
     items.assignAll(restored);
@@ -128,7 +145,9 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
   Future<void> _persist() {
     final snapshot = items.toList();
     // 写入串行化, 较早的进度快照不能覆盖较晚的任务删除或完成状态.
-    _saving = _saving.catchError((Object _) {}).then((_) => store.save(snapshot));
+    _saving = _saving
+        .catchError((Object _) {})
+        .then((_) => store.save(snapshot));
     return _saving;
   }
 
@@ -136,7 +155,8 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
     if (!ready.value || _closed || !_foreground) {
       throw StateError('请等待缓存服务就绪并在应用前台开始下载');
     }
-    if (!DownloadTask.validIdentity(video.hid, part) || part >= video.parts.length) {
+    if (!DownloadTask.validIdentity(video.hid, part) ||
+        part >= video.parts.length) {
       throw const FormatException('无效的视频分P');
     }
     final target = video.parts[part];
@@ -153,7 +173,8 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
     }
     final existing = find('${video.hid}-$part');
     if (existing != null) {
-      if (existing.status == DownloadStatus.paused || existing.status == DownloadStatus.failed) {
+      if (existing.status == DownloadStatus.paused ||
+          existing.status == DownloadStatus.failed) {
         // 重新从视频详情添加时使用最新直链, 避免一直重试过期的临时地址.
         _replace(existing.update(source: source));
         await retry(existing.id);
@@ -172,7 +193,9 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
     try {
       await _persist();
     } catch (error) {
-      _replace(task.update(status: DownloadStatus.failed, error: '无法保存缓存任务, 请检查剩余空间'));
+      _replace(
+        task.update(status: DownloadStatus.failed, error: '无法保存缓存任务, 请检查剩余空间'),
+      );
       rethrow;
     }
     _schedule();
@@ -181,20 +204,31 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
 
   Future<void> retry(String id) async {
     final task = find(id);
-    if (task == null || _removing.contains(id) || _activeId == id ||
+    if (task == null ||
+        _removing.contains(id) ||
+        _activeId == id ||
         task.status == DownloadStatus.completed ||
-        task.status == DownloadStatus.downloading || _closed) {
+        task.status == DownloadStatus.downloading ||
+        _closed) {
       return;
     }
     if (!_foreground) {
       throw StateError('请返回应用后再开始缓存');
     }
-    _replace(task.update(status: DownloadStatus.queued, received: 0, total: -1));
+    _replace(
+      task.update(status: DownloadStatus.queued, received: 0, total: -1),
+    );
     try {
       await _persist();
     } catch (error) {
-      _replace(task.update(status: DownloadStatus.failed, received: 0, total: -1,
-        error: '无法保存缓存任务, 请检查剩余空间'));
+      _replace(
+        task.update(
+          status: DownloadStatus.failed,
+          received: 0,
+          total: -1,
+          error: '无法保存缓存任务, 请检查剩余空间',
+        ),
+      );
       rethrow;
     }
     _schedule();
@@ -202,10 +236,16 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
 
   Future<void> pause(String id) async {
     final task = find(id);
-    if (task == null || ![DownloadStatus.queued, DownloadStatus.downloading].contains(task.status)) {
+    if (task == null ||
+        ![
+          DownloadStatus.queued,
+          DownloadStatus.downloading,
+        ].contains(task.status)) {
       return;
     }
-    _replace(task.update(status: DownloadStatus.paused, received: 0, total: -1));
+    _replace(
+      task.update(status: DownloadStatus.paused, received: 0, total: -1),
+    );
     final finished = _activeId == id ? _activeFinished?.future : null;
     if (_activeId == id) {
       _cancel?.cancel('缓存已暂停');
@@ -221,8 +261,11 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
       return;
     }
     for (final task in items.toList()) {
-      if (task.status == DownloadStatus.queued || task.status == DownloadStatus.downloading) {
-        _replace(task.update(status: DownloadStatus.paused, received: 0, total: -1));
+      if (task.status == DownloadStatus.queued ||
+          task.status == DownloadStatus.downloading) {
+        _replace(
+          task.update(status: DownloadStatus.paused, received: 0, total: -1),
+        );
       }
     }
     final finished = _activeFinished?.future;
@@ -262,10 +305,14 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
       return null;
     }
     final file = store.media(task);
-    if (await file.exists() && await file.length() == task.received && task.received > 0) {
+    if (await file.exists() &&
+        await file.length() == task.received &&
+        task.received > 0) {
       return file;
     }
-    _replace(task.update(status: DownloadStatus.failed, error: '本地文件缺失或不完整, 请重新下载'));
+    _replace(
+      task.update(status: DownloadStatus.failed, error: '本地文件缺失或不完整, 请重新下载'),
+    );
     await _persist();
     return null;
   }
@@ -282,14 +329,16 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
     if (_runner != null || _closed || !_foreground) {
       return;
     }
-    _runner = _run().catchError((Object error, StackTrace stackTrace) {
-      Log.e('缓存队列异常', error: error, stackTrace: stackTrace);
-    }).whenComplete(() {
-      _runner = null;
-      if (items.any((task) => task.status == DownloadStatus.queued)) {
-        _schedule();
-      }
-    });
+    _runner = _run()
+        .catchError((Object error, StackTrace stackTrace) {
+          Log.e('缓存队列异常', error: error, stackTrace: stackTrace);
+        })
+        .whenComplete(() {
+          _runner = null;
+          if (items.any((task) => task.status == DownloadStatus.queued)) {
+            _schedule();
+          }
+        });
   }
 
   Future<void> _run() async {
@@ -336,25 +385,40 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
             }
           },
         );
-        if (token.isCancelled || find(task.id)?.status != DownloadStatus.downloading) {
+        if (token.isCancelled ||
+            find(task.id)?.status != DownloadStatus.downloading) {
           throw token.cancelError ?? StateError('缓存任务已停止');
         }
-        if (bytes <= 0 || !await temporary.exists() || await temporary.length() != bytes) {
+        if (bytes <= 0 ||
+            !await temporary.exists() ||
+            await temporary.length() != bytes) {
           throw const FormatException('缓存文件为空或不完整');
         }
         // 源路径与目标路径均由已校验的任务编号和私有目录生成.
         await temporary.rename(store.media(task).path);
-        _replace(task.update(status: DownloadStatus.completed, received: bytes, total: bytes));
-        Log.i('缓存任务 ${task.id} 完成, $bytes 字节, 耗时 ${watch.elapsedMilliseconds}ms');
+        _replace(
+          task.update(
+            status: DownloadStatus.completed,
+            received: bytes,
+            total: bytes,
+          ),
+        );
+        Log.i(
+          '缓存任务 ${task.id} 完成, $bytes 字节, 耗时 ${watch.elapsedMilliseconds}ms',
+        );
       } catch (error, stackTrace) {
         final current = find(task.id);
         if (current != null && current.status == DownloadStatus.downloading) {
-          _replace(current.update(
-            status: token.isCancelled ? DownloadStatus.paused : DownloadStatus.failed,
-            received: 0,
-            total: -1,
-            error: token.isCancelled ? null : _errorText(error),
-          ));
+          _replace(
+            current.update(
+              status: token.isCancelled
+                  ? DownloadStatus.paused
+                  : DownloadStatus.failed,
+              received: 0,
+              total: -1,
+              error: token.isCancelled ? null : _errorText(error),
+            ),
+          );
         }
         if (!token.isCancelled) {
           Log.e('缓存任务 ${task.id} 失败', error: error, stackTrace: stackTrace);

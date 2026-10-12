@@ -177,7 +177,9 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
             hid: _controller.hid,
             part: _controller.part.value,
             onOpenWebsite: _openWebsite,
-            onDownload: _controller.video.value == null ? null : _openDownloadSheet,
+            onDownload: _controller.video.value == null
+                ? null
+                : _openDownloadSheet,
           ),
         ),
       ],
@@ -239,7 +241,11 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
   void _openDownloadSheet() {
     final video = _controller.video.value;
     if (video != null) {
-      showVideoDownloadSheet(context, video: video, initialPart: _controller.part.value);
+      showVideoDownloadSheet(
+        context,
+        video: video,
+        initialPart: _controller.part.value,
+      );
     }
   }
 

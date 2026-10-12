@@ -18,17 +18,19 @@ Future<void> showVideoDownloadSheet(
   final result = await showModalBottomSheet<_DownloadSubmission>(
     context: context,
     isScrollControlled: true,
-    builder: (sheetContext) => _VideoDownloadSheet(
-      video: video,
-      initialPart: initialPart,
-    ),
+    builder: (sheetContext) =>
+        _VideoDownloadSheet(video: video, initialPart: initialPart),
   );
   if (result == null || !context.mounted || route?.isCurrent != true) {
     return;
   }
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-    content: Text('已提交 ${result.succeeded} 项, 失败 ${result.failed} 项. 提交不代表缓存完成.'),
-  ));
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        '已提交 ${result.succeeded} 项, 失败 ${result.failed} 项. 提交不代表缓存完成.',
+      ),
+    ),
+  );
 }
 
 class _DownloadSubmission {
@@ -59,8 +61,10 @@ class _VideoDownloadSheetState extends State<_VideoDownloadSheet> {
   void initState() {
     super.initState();
     final part = widget.initialPart;
-    if (part >= 0 && part < widget.video.parts.length &&
-        _reason(part, _service.items.toList(), ready: _service.ready.value) == null) {
+    if (part >= 0 &&
+        part < widget.video.parts.length &&
+        _reason(part, _service.items.toList(), ready: _service.ready.value) ==
+            null) {
       _selected.add(part);
     }
   }
@@ -103,9 +107,19 @@ class _VideoDownloadSheetState extends State<_VideoDownloadSheet> {
     if (_submitting || !_current || !_service.ready.value) {
       return;
     }
-    final parts = _selected.where((part) => _reason(
-      part, _service.items.toList(), ready: _service.ready.value,
-    ) == null).toList()..sort();
+    final parts =
+        _selected
+            .where(
+              (part) =>
+                  _reason(
+                    part,
+                    _service.items.toList(),
+                    ready: _service.ready.value,
+                  ) ==
+                  null,
+            )
+            .toList()
+          ..sort();
     if (parts.isEmpty) return;
     setState(() => _submitting = true);
     var succeeded = 0;
@@ -114,7 +128,12 @@ class _VideoDownloadSheetState extends State<_VideoDownloadSheet> {
       for (final part in parts) {
         // 关闭弹层或进入其他路由后, 不再提交余下分 P.
         if (!_current) return;
-        if (_reason(part, _service.items.toList(), ready: _service.ready.value) != null) {
+        if (_reason(
+              part,
+              _service.items.toList(),
+              ready: _service.ready.value,
+            ) !=
+            null) {
           failed++;
           continue;
         }
@@ -145,7 +164,9 @@ class _VideoDownloadSheetState extends State<_VideoDownloadSheet> {
         child: Obx(() {
           final ready = _service.ready.value;
           final tasks = _service.items.toList();
-          final selected = _selected.where((part) => _reason(part, tasks, ready: ready) == null).toSet();
+          final selected = _selected
+              .where((part) => _reason(part, tasks, ready: ready) == null)
+              .toSet();
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -157,14 +178,20 @@ class _VideoDownloadSheetState extends State<_VideoDownloadSheet> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Text(
                   '仅在前台下载. 暂停或失败后, 重试将从头开始.',
-                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
               if (!ready)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  child: Text('缓存服务不可用, 请在视频缓存页面重新加载.',
-                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error)),
+                  child: Text(
+                    '缓存服务不可用, 请在视频缓存页面重新加载.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
                 ),
               const SizedBox(height: 8),
               Expanded(
@@ -175,25 +202,32 @@ class _VideoDownloadSheetState extends State<_VideoDownloadSheet> {
                         itemBuilder: (context, part) {
                           final reason = _reason(part, tasks, ready: ready);
                           final existing = _existing(part, tasks);
-                          final retry = existing?.status == DownloadStatus.paused ||
+                          final retry =
+                              existing?.status == DownloadStatus.paused ||
                               existing?.status == DownloadStatus.failed;
                           return CheckboxListTile(
                             key: ValueKey('download-part-$part'),
                             controlAffinity: ListTileControlAffinity.leading,
-                            title: Text('P${part + 1} ${widget.video.parts[part].title}'),
+                            title: Text(
+                              'P${part + 1} ${widget.video.parts[part].title}',
+                            ),
                             subtitle: reason != null
                                 ? Text(reason)
-                                : retry ? const Text('从头重试') : null,
+                                : retry
+                                ? const Text('从头重试')
+                                : null,
                             value: selected.contains(part),
-                            onChanged: reason != null || _submitting ? null : (value) {
-                              setState(() {
-                                if (value == true) {
-                                  _selected.add(part);
-                                } else {
-                                  _selected.remove(part);
-                                }
-                              });
-                            },
+                            onChanged: reason != null || _submitting
+                                ? null
+                                : (value) {
+                                    setState(() {
+                                      if (value == true) {
+                                        _selected.add(part);
+                                      } else {
+                                        _selected.remove(part);
+                                      }
+                                    });
+                                  },
                           );
                         },
                       ),
@@ -202,10 +236,15 @@ class _VideoDownloadSheetState extends State<_VideoDownloadSheet> {
                 padding: const EdgeInsets.all(16),
                 child: FilledButton(
                   key: const ValueKey('download-submit'),
-                  onPressed: _submitting || selected.isEmpty || !ready ? null : _submit,
+                  onPressed: _submitting || selected.isEmpty || !ready
+                      ? null
+                      : _submit,
                   child: _submitting
-                      ? const SizedBox(width: 20, height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2))
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
                       : Text('开始缓存 (${selected.length})'),
                 ),
               ),

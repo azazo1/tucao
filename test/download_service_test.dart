@@ -47,13 +47,19 @@ void main() {
   late Directory root;
   late _Transport transport;
   late DownloadService service;
-  const video = VideoModel(hid: '123', title: '视频标题/不能成为目录', parts: [
-    VideoPart(title: '第一集', file: 'https://media.example.com/one.mp4'),
-    VideoPart(title: '第二集', file: 'https://media.example.com/two.mp4'),
-  ]);
+  const video = VideoModel(
+    hid: '123',
+    title: '视频标题/不能成为目录',
+    parts: [
+      VideoPart(title: '第一集', file: 'https://media.example.com/one.mp4'),
+      VideoPart(title: '第二集', file: 'https://media.example.com/two.mp4'),
+    ],
+  );
 
   setUp(() async {
-    final temporary = Directory(path.join(Directory.current.path, '.tmp')).absolute;
+    final temporary = Directory(
+      path.join(Directory.current.path, '.tmp'),
+    ).absolute;
     await temporary.create(recursive: true);
     root = await temporary.createTemp('download-service-');
     transport = _Transport();
@@ -64,7 +70,9 @@ void main() {
   tearDown(() async {
     service.onClose();
     await service.waitForIdle();
-    final temporary = path.normalize(path.join(Directory.current.absolute.path, '.tmp'));
+    final temporary = path.normalize(
+      path.join(Directory.current.absolute.path, '.tmp'),
+    );
     final target = path.normalize(root.absolute.path);
     expect(path.isWithin(temporary, target), isTrue);
     expect(path.basename(target).startsWith('download-service-'), isTrue);
@@ -72,19 +80,31 @@ void main() {
   });
 
   test('仅使用 Android 外部专属目录, 不可用时不回退内部存储', () async {
-    final external = Directory(path.join(root.path, 'Android', 'data', 'com.azazo1.tucao', 'files'));
-    final directory = await DownloadLocation.directory(externalDirectory: () async => external);
+    final external = Directory(
+      path.join(root.path, 'Android', 'data', 'com.azazo1.tucao', 'files'),
+    );
+    final directory = await DownloadLocation.directory(
+      externalDirectory: () async => external,
+    );
     expect(directory.path, path.join(external.path, 'downloads'));
-    await expectLater(DownloadLocation.directory(externalDirectory: () async => null),
-      throwsA(isA<FileSystemException>()));
+    await expectLater(
+      DownloadLocation.directory(externalDirectory: () async => null),
+      throwsA(isA<FileSystemException>()),
+    );
     var available = false;
-    final unavailable = DownloadService(transport: transport, location: () async {
-      if (!available) {
-        throw const FileSystemException('外部存储未挂载');
-      }
-      return directory;
-    });
-    await expectLater(unavailable.initialize(), throwsA(isA<FileSystemException>()));
+    final unavailable = DownloadService(
+      transport: transport,
+      location: () async {
+        if (!available) {
+          throw const FileSystemException('外部存储未挂载');
+        }
+        return directory;
+      },
+    );
+    await expectLater(
+      unavailable.initialize(),
+      throwsA(isA<FileSystemException>()),
+    );
     expect(unavailable.ready.value, isFalse);
     expect(unavailable.initializationError.value, isNotNull);
     available = true;
@@ -113,7 +133,10 @@ void main() {
     expect(service.items.length, 2);
     release.complete();
     await service.waitForIdle();
-    expect(service.items.every((task) => task.status == DownloadStatus.completed), isTrue);
+    expect(
+      service.items.every((task) => task.status == DownloadStatus.completed),
+      isTrue,
+    );
     final file = await service.localFile('123-0');
     expect(await file?.readAsBytes(), [1, 2, 3]);
     expect(file?.path, service.store.media(service.items.first).path);
@@ -182,9 +205,15 @@ void main() {
     await service.waitForIdle();
     final completed = service.items.single;
     final pending = DownloadTask(
-      hid: '456', part: 0, title: '另一视频', partTitle: '第一集',
-      source: 'https://media.example.com/file.mp4', createdAt: 1,
-      status: DownloadStatus.downloading, received: 1, total: 3,
+      hid: '456',
+      part: 0,
+      title: '另一视频',
+      partTitle: '第一集',
+      source: 'https://media.example.com/file.mp4',
+      createdAt: 1,
+      status: DownloadStatus.downloading,
+      received: 1,
+      total: 3,
     );
     await service.store.media(pending, partial: true).writeAsBytes([1]);
     await service.store.save([completed, pending]);
@@ -192,7 +221,10 @@ void main() {
     await restored.initialize();
     expect(restored.find(completed.id)?.status, DownloadStatus.completed);
     expect(restored.find(pending.id)?.status, DownloadStatus.paused);
-    expect(await restored.store.media(pending, partial: true).exists(), isFalse);
+    expect(
+      await restored.store.media(pending, partial: true).exists(),
+      isFalse,
+    );
     expect(transport.calls.length, 1);
     restored.onClose();
     await restored.waitForIdle();
@@ -221,15 +253,34 @@ void main() {
     service.didChangeAppLifecycleState(AppLifecycleState.resumed);
     await service.waitForIdle();
     expect(transport.calls.length, 1);
-    expect(service.items.every((task) => task.status == DownloadStatus.paused), isTrue);
+    expect(
+      service.items.every((task) => task.status == DownloadStatus.paused),
+      isTrue,
+    );
   });
 
   test('空直链, HLS 与无效编号在排队前拒绝', () async {
     for (final item in [
-      const VideoModel(hid: '../bad', title: '', parts: [VideoPart(title: '', file: 'https://example.com/a.mp4')]),
-      const VideoModel(hid: '12', title: '', parts: [VideoPart(title: '', file: 'file:///private/data')]),
-      const VideoModel(hid: '12', title: '', parts: [VideoPart(title: '', file: 'https://example.com/a.m3u8')]),
-      const VideoModel(hid: '12', title: '', parts: [VideoPart(title: '', vid: 'external')]),
+      const VideoModel(
+        hid: '../bad',
+        title: '',
+        parts: [VideoPart(title: '', file: 'https://example.com/a.mp4')],
+      ),
+      const VideoModel(
+        hid: '12',
+        title: '',
+        parts: [VideoPart(title: '', file: 'file:///private/data')],
+      ),
+      const VideoModel(
+        hid: '12',
+        title: '',
+        parts: [VideoPart(title: '', file: 'https://example.com/a.m3u8')],
+      ),
+      const VideoModel(
+        hid: '12',
+        title: '',
+        parts: [VideoPart(title: '', vid: 'external')],
+      ),
     ]) {
       await expectLater(service.enqueue(item, 0), throwsFormatException);
     }
@@ -238,8 +289,14 @@ void main() {
   });
 
   test('清单不能注入路径, 未支持的结构版本不恢复任务', () async {
-    final bad = DownloadTask(hid: '../escape', part: 0, title: '', partTitle: '',
-      source: 'https://example.com/a.mp4', createdAt: 1);
+    final bad = DownloadTask(
+      hid: '../escape',
+      part: 0,
+      title: '',
+      partTitle: '',
+      source: 'https://example.com/a.mp4',
+      createdAt: 1,
+    );
     expect(() => service.store.media(bad), throwsFormatException);
     await service.store.save([bad]);
     expect(await service.store.load(), isEmpty);

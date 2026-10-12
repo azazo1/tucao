@@ -22,9 +22,9 @@ class _DownloadPageState extends State<DownloadPage> {
 
   void _notify(String message) {
     if (_current) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
@@ -101,18 +101,18 @@ class _DownloadPageState extends State<DownloadPage> {
 
   Widget _list(List<DownloadTask> tasks, {required bool completed}) {
     if (tasks.isEmpty) {
-      return Center(
-        child: Text(completed ? '还没有已缓存的视频' : '还没有缓存任务'),
-      );
+      return Center(child: Text(completed ? '还没有已缓存的视频' : '还没有缓存任务'));
     }
     return ListView.separated(
       padding: const EdgeInsets.symmetric(vertical: 4),
       itemCount: tasks.length,
-      separatorBuilder: (context, index) => const Divider(height: 1, indent: 16),
+      separatorBuilder: (context, index) =>
+          const Divider(height: 1, indent: 16),
       itemBuilder: (context, index) {
         final task = tasks[index];
         final busy = _busy.contains(task.id);
-        final retry = task.status == DownloadStatus.paused ||
+        final retry =
+            task.status == DownloadStatus.paused ||
             task.status == DownloadStatus.failed;
         return _DownloadTile(
           key: ValueKey(task.id),
@@ -120,10 +120,13 @@ class _DownloadPageState extends State<DownloadPage> {
           busy: busy,
           onOpen: completed && !busy ? () => _open(task) : null,
           onRemove: busy ? null : () => _remove(task),
-          onAction: busy || completed ? null : () => _perform(
-            task.id,
-            () => retry ? _service.retry(task.id) : _service.pause(task.id),
-          ),
+          onAction: busy || completed
+              ? null
+              : () => _perform(
+                  task.id,
+                  () =>
+                      retry ? _service.retry(task.id) : _service.pause(task.id),
+                ),
         );
       },
     );
@@ -136,10 +139,12 @@ class _DownloadPageState extends State<DownloadPage> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('视频缓存'),
-          bottom: const TabBar(tabs: [
-            Tab(text: '缓存中'),
-            Tab(text: '已缓存'),
-          ]),
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: '缓存中'),
+              Tab(text: '已缓存'),
+            ],
+          ),
         ),
         body: Column(
           children: [
@@ -159,15 +164,20 @@ class _DownloadPageState extends State<DownloadPage> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(_service.initializationError.value ?? '缓存加载失败或尚未就绪'),
+                        Text(
+                          _service.initializationError.value ?? '缓存加载失败或尚未就绪',
+                        ),
                         const SizedBox(height: 8),
                         FilledButton(
                           key: const ValueKey('download-initialize'),
                           onPressed: _initializing ? null : _initialize,
                           child: _initializing
                               ? const SizedBox(
-                                  width: 18, height: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
                                 )
                               : const Text('重新加载'),
                         ),
@@ -176,10 +186,26 @@ class _DownloadPageState extends State<DownloadPage> {
                   );
                 }
                 final items = _service.items.toList();
-                return TabBarView(children: [
-                  _list(items.where((task) => task.status != DownloadStatus.completed).toList(), completed: false),
-                  _list(items.where((task) => task.status == DownloadStatus.completed).toList(), completed: true),
-                ]);
+                return TabBarView(
+                  children: [
+                    _list(
+                      items
+                          .where(
+                            (task) => task.status != DownloadStatus.completed,
+                          )
+                          .toList(),
+                      completed: false,
+                    ),
+                    _list(
+                      items
+                          .where(
+                            (task) => task.status == DownloadStatus.completed,
+                          )
+                          .toList(),
+                      completed: true,
+                    ),
+                  ],
+                );
               }),
             ),
           ],
@@ -226,7 +252,9 @@ class _DownloadTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final completed = task.status == DownloadStatus.completed;
-    final retry = task.status == DownloadStatus.paused || task.status == DownloadStatus.failed;
+    final retry =
+        task.status == DownloadStatus.paused ||
+        task.status == DownloadStatus.failed;
     final size = task.total > 0
         ? '${_bytes(task.received)} / ${_bytes(task.total)}'
         : '${_bytes(task.received)} / 大小未知';
@@ -241,26 +269,41 @@ class _DownloadTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(task.title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500)),
+                  Text(
+                    task.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  Text('P${task.part + 1} ${task.partTitle}',
-                    maxLines: 2, overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall),
+                  Text(
+                    'P${task.part + 1} ${task.partTitle}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall,
+                  ),
                   const SizedBox(height: 6),
                   Text('$_status - $size', style: theme.textTheme.bodySmall),
                   if (!completed) ...[
                     const SizedBox(height: 8),
                     LinearProgressIndicator(
                       value: task.status == DownloadStatus.downloading
-                          ? task.progress : task.progress ?? 0,
+                          ? task.progress
+                          : task.progress ?? 0,
                       minHeight: 3,
                     ),
                   ],
-                  if (task.status == DownloadStatus.failed && task.error != null) ...[
+                  if (task.status == DownloadStatus.failed &&
+                      task.error != null) ...[
                     const SizedBox(height: 6),
-                    Text(task.error!, style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error)),
+                    Text(
+                      task.error!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.error,
+                      ),
+                    ),
                   ],
                   const SizedBox(height: 4),
                   if (completed)
@@ -280,8 +323,11 @@ class _DownloadTile extends StatelessWidget {
             if (busy)
               const Padding(
                 padding: EdgeInsets.all(12),
-                child: SizedBox(width: 20, height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2)),
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
               ),
             IconButton(
               key: ValueKey('download-remove-${task.id}'),

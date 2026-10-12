@@ -99,10 +99,7 @@ class _MinePageState extends State<MinePage> {
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 12),
         children: [
-          const Padding(
-            padding: Style.pagePadding,
-            child: _UserHeader(),
-          ),
+          const Padding(padding: Style.pagePadding, child: _UserHeader()),
           const SizedBox(height: 16),
           ListTile(
             leading: const Icon(Icons.mail_outline),
@@ -318,10 +315,7 @@ class _AboutDialog extends StatelessWidget {
         ],
       ),
       actions: [
-        TextButton(
-          onPressed: () => Get.back(),
-          child: const Text('关闭'),
-        ),
+        TextButton(onPressed: () => Get.back(), child: const Text('关闭')),
       ],
     );
   }
@@ -343,10 +337,8 @@ class _LinkRow extends StatelessWidget {
         Text('$label: ', style: const TextStyle(fontSize: 13)),
         Expanded(
           child: InkWell(
-            onTap: () => launchUrl(
-              Uri.parse(url),
-              mode: LaunchMode.externalApplication,
-            ),
+            onTap: () =>
+                launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
             child: Text(
               url,
               style: TextStyle(fontSize: 13, color: scheme.primary),

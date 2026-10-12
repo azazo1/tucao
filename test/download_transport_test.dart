@@ -68,7 +68,10 @@ void main() {
     tempRoot = Directory(p.join(workspace, '.tmp'));
     await tempRoot.create(recursive: true);
     // 不接受指向工作区之外的 .tmp 符号链接.
-    if (!p.equals(tempRoot.resolveSymbolicLinksSync(), tempRoot.absolute.path)) {
+    if (!p.equals(
+      tempRoot.resolveSymbolicLinksSync(),
+      tempRoot.absolute.path,
+    )) {
       throw StateError('测试临时目录必须位于工作区 .tmp 内');
     }
     directory = await tempRoot.createTemp('download_transport_');
@@ -121,14 +124,20 @@ void main() {
     );
     expect(received, 5);
     expect(await target.readAsBytes(), [0, 1, 2, 3, 4]);
-    expect(progress, [[3, 5], [5, 5]]);
+    expect(progress, [
+      [3, 5],
+      [5, 5],
+    ]);
     final request = adapter.requests.single;
     expect(request.method, 'GET');
     expect(request.responseType, ResponseType.stream);
     expect(request.headers['user-agent'], Constants.userAgent);
     expect(request.headers['referer'], Constants.baseUrl);
     expect(request.headers['x-common-interceptor'], 'used');
-    expect(request.headers.keys.any((key) => key.toLowerCase() == 'range'), isFalse);
+    expect(
+      request.headers.keys.any((key) => key.toLowerCase() == 'range'),
+      isFalse,
+    );
   });
 
   test('支持音频, 二进制与缺省 MIME, 未知长度为 -1', () async {
@@ -136,7 +145,9 @@ void main() {
       adapter.respond = (_) => bytes([0, 2, 4], mime: mime);
       final progress = <List<int>>[];
       expect(await fetch(progress: (r, t) => progress.add([r, t])), 3);
-      expect(progress, [[3, -1]]);
+      expect(progress, [
+        [3, -1],
+      ]);
     }
   });
 
@@ -199,7 +210,11 @@ void main() {
   });
 
   test('空文件与已知长度的短缺或超出均失败, 不删除部分文件', () async {
-    for (final data in [<int>[], [1, 2], [1, 2, 3, 4]]) {
+    for (final data in [
+      <int>[],
+      [1, 2],
+      [1, 2, 3, 4],
+    ]) {
       adapter.respond = (_) => bytes(data, length: 3);
       await expectLater(fetch(), throwsFormatException);
       expect(target.existsSync(), isTrue);
@@ -213,7 +228,13 @@ void main() {
     final cancelled = CancelToken()..cancel('before request');
     await expectLater(
       fetch(cancelToken: cancelled),
-      throwsA(isA<DioException>().having((e) => e.type, 'type', DioExceptionType.cancel)),
+      throwsA(
+        isA<DioException>().having(
+          (e) => e.type,
+          'type',
+          DioExceptionType.cancel,
+        ),
+      ),
     );
     expect(adapter.requests, isEmpty);
     final token = CancelToken();
@@ -225,7 +246,10 @@ void main() {
       200,
     );
     await expectLater(
-      fetch(cancelToken: token, progress: (_, _) => token.cancel('after write')),
+      fetch(
+        cancelToken: token,
+        progress: (_, _) => token.cancel('after write'),
+      ),
       throwsA(
         predicate<DioException>((error) => identical(error, token.cancelError)),
       ),

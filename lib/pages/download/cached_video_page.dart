@@ -17,7 +17,8 @@ class CachedVideoPage extends StatefulWidget {
   State<CachedVideoPage> createState() => _CachedVideoPageState();
 }
 
-class _CachedVideoPageState extends State<CachedVideoPage> with WidgetsBindingObserver {
+class _CachedVideoPageState extends State<CachedVideoPage>
+    with WidgetsBindingObserver {
   final _player = TucaoPlayer();
   bool _loading = true;
   String? _error;
@@ -45,7 +46,8 @@ class _CachedVideoPageState extends State<CachedVideoPage> with WidgetsBindingOb
       }
       if (mounted && (ModalRoute.of(context)?.isCurrent ?? false)) {
         // 在后台或被另一页覆盖期间加载完成时不自动开始播放.
-        if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.paused) {
+        if (WidgetsBinding.instance.lifecycleState !=
+            AppLifecycleState.paused) {
           await _player.play();
         }
       }
@@ -82,7 +84,13 @@ class _CachedVideoPageState extends State<CachedVideoPage> with WidgetsBindingOb
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.task.title, maxLines: 1, overflow: TextOverflow.ellipsis)),
+      appBar: AppBar(
+        title: Text(
+          widget.task.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -99,8 +107,11 @@ class _CachedVideoPageState extends State<CachedVideoPage> with WidgetsBindingOb
                           return const Center(
                             child: Padding(
                               padding: EdgeInsets.all(24),
-                              child: Text('本地缓存无法播放, 请删除后重新下载',
-                                style: TextStyle(color: Colors.white70), textAlign: TextAlign.center),
+                              child: Text(
+                                '本地缓存无法播放, 请删除后重新下载',
+                                style: TextStyle(color: Colors.white70),
+                                textAlign: TextAlign.center,
+                              ),
                             ),
                           );
                         }
@@ -111,9 +122,12 @@ class _CachedVideoPageState extends State<CachedVideoPage> with WidgetsBindingOb
           ),
           Padding(
             padding: const EdgeInsets.all(16),
-            child: Text('本地缓存 - P${widget.task.part + 1} ${widget.task.partTitle}',
-              maxLines: 2, overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall),
+            child: Text(
+              '本地缓存 - P${widget.task.part + 1} ${widget.task.partTitle}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
           ),
         ],
       ),

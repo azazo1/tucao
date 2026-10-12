@@ -15,7 +15,8 @@ class DownloadStore {
 
   File _file(String name) {
     final target = path.normalize(path.join(directory.path, name));
-    if (!path.isWithin(directory.path, target) || path.basename(target) != name) {
+    if (!path.isWithin(directory.path, target) ||
+        path.basename(target) != name) {
       throw const FormatException('缓存文件路径越界');
     }
     return File(target);
@@ -45,7 +46,9 @@ class DownloadStore {
       final ids = <String>{};
       for (final entry in raw['tasks'] as List) {
         try {
-          final task = DownloadTask.fromJson((entry as Map).cast<String, dynamic>());
+          final task = DownloadTask.fromJson(
+            (entry as Map).cast<String, dynamic>(),
+          );
           if (ids.add(task.id)) {
             tasks.add(task);
           }
@@ -62,10 +65,13 @@ class DownloadStore {
 
   Future<void> save(List<DownloadTask> tasks) async {
     final temporary = _file('index.new');
-    await temporary.writeAsString(jsonEncode({
-      'version': version,
-      'tasks': tasks.map((task) => task.toJson()).toList(),
-    }), flush: true);
+    await temporary.writeAsString(
+      jsonEncode({
+        'version': version,
+        'tasks': tasks.map((task) => task.toJson()).toList(),
+      }),
+      flush: true,
+    );
     // 两个目标都由固定目录和固定文件名得到, 未采用外部传入路径.
     await temporary.rename(manifest.path);
   }
