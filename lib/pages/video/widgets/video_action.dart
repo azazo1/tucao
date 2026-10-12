@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/pages/reply/reply_page.dart';
+import 'package:tucao/pages/favorite/widgets/favorite_button.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
 import 'package:tucao/utils/utils.dart';
 
-/// 播放器下方的操作区: 弹幕发送框与评论入口.
+/// 播放器下方的操作区: 弹幕发送框, 评论与本地收藏入口.
 class VideoActionBar extends StatefulWidget {
   const VideoActionBar({super.key, required this.controller});
 
@@ -114,6 +115,10 @@ class _VideoActionBarState extends State<VideoActionBar> {
             visualDensity: VisualDensity.compact,
             tooltip: '评论',
           ),
+          Obx(() {
+            final video = widget.controller.video.value;
+            return video == null ? const SizedBox.shrink() : FavoriteButton(video: video);
+          }),
         ],
       ),
     );
