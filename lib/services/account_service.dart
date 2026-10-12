@@ -61,9 +61,7 @@ class AccountService extends GetxController {
     final sessionVersion = ++_sessionVersion;
     final raw = await UserHttp.login(username: username, password: password);
     // discuz 登录失败时返回带提示的页面, 成功时通常是跳转脚本.
-    if (raw.contains('密码错误') ||
-        raw.contains('登录失败') ||
-        raw.contains('不存在')) {
+    if (raw.contains('密码错误') || raw.contains('登录失败') || raw.contains('不存在')) {
       throw Exception('用户名或密码错误');
     }
     await _confirmLogin(
@@ -103,7 +101,10 @@ class AccountService extends GetxController {
   }
 
   /// 登录操作必须用本次服务端查询确认, 不能沿用刷新失败后保留的缓存.
-  Future<void> _confirmLogin({required String failure, required int sessionVersion}) async {
+  Future<void> _confirmLogin({
+    required String failure,
+    required int sessionVersion,
+  }) async {
     final info = await UserHttp.info();
     if (sessionVersion != _sessionVersion) {
       throw Exception('账号状态已变化, 请重新操作');

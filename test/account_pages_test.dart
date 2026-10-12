@@ -60,15 +60,17 @@ class _PendingAccount extends GetxController implements AccountService {
 
 void main() {
   final cases = [
-    (
-      name: '登录',
-      page: const LoginPage(),
-      values: ['username', 'password'],
-    ),
+    (name: '登录', page: const LoginPage(), values: ['username', 'password']),
     (
       name: '注册',
       page: const RegisterPage(),
-      values: ['username', 'nickname', 'user@example.com', 'password', 'password'],
+      values: [
+        'username',
+        'nickname',
+        'user@example.com',
+        'password',
+        'password',
+      ],
     ),
     (
       name: '修改密码',
@@ -81,10 +83,12 @@ void main() {
     Get.testMode = true;
     final account = _PendingAccount();
     Get.put<AccountService>(account);
-    await tester.pumpWidget(GetMaterialApp(
-      home: const Scaffold(body: Icon(Icons.home)),
-      getPages: [GetPage(name: Routes.login, page: () => const LoginPage())],
-    ));
+    await tester.pumpWidget(
+      GetMaterialApp(
+        home: const Scaffold(body: Icon(Icons.home)),
+        getPages: [GetPage(name: Routes.login, page: () => const LoginPage())],
+      ),
+    );
     Get.to(() => const ChangePasswordPage());
     await tester.pumpAndSettle();
     final values = ['old-password', 'new-password', 'new-password'];
@@ -114,7 +118,10 @@ void main() {
       Get.put<AccountService>(account);
       await tester.pumpWidget(GetMaterialApp(home: item.page));
       for (var i = 0; i < item.values.length; i++) {
-        await tester.enterText(find.byType(TextFormField).at(i), item.values[i]);
+        await tester.enterText(
+          find.byType(TextFormField).at(i),
+          item.values[i],
+        );
       }
       await tester.ensureVisible(find.byType(FilledButton));
       await tester.tap(find.byType(FilledButton));
@@ -128,7 +135,10 @@ void main() {
       expect(Get.isSnackbarOpen, isFalse);
       Get.back();
       await tester.pumpAndSettle();
-      expect(tester.widget<FilledButton>(find.byType(FilledButton)).onPressed, isNotNull);
+      expect(
+        tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+        isNotNull,
+      );
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();
       Get.reset();

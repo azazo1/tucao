@@ -8,7 +8,8 @@ import 'package:tucao/services/account_service.dart';
 void main() {
   group('注册响应判定', () {
     test('成功响应视为无错误', () {
-      const raw = '<body>操作成功 '
+      const raw =
+          '<body>操作成功 '
           'setTimeout("redirect(\'index.php?m=member&c=index&a=init\');",1250);'
           '</body>';
       expect(AccountService.registerFailure(raw), isNull);
@@ -40,7 +41,8 @@ void main() {
   group('修改密码响应判定', () {
     test('会话过期时给出提示而不是静默成功', () {
       // 站点未登录时返回的正文是 "您的会话已过期, 请重新登录.".
-      const raw = '<body>您的会话已过期，请重新登录。 '
+      const raw =
+          '<body>您的会话已过期，请重新登录。 '
           'setTimeout("redirect(\'index.php?m=member&amp;c=index&amp;a=login\');",1250);'
           '</body>';
       final failure = AccountService.formFailure(
@@ -51,13 +53,11 @@ void main() {
     });
 
     test('成功响应视为无错误', () {
-      const raw = '<body>操作成功 '
+      const raw =
+          '<body>操作成功 '
           'setTimeout("redirect(\'index.php?m=member&amp;c=index\');",1250);'
           '</body>';
-      expect(
-        AccountService.formFailure(raw, fallback: '修改密码失败'),
-        isNull,
-      );
+      expect(AccountService.formFailure(raw, fallback: '修改密码失败'), isNull);
     });
 
     test('成功标记与拒绝提示同时出现时不能判为成功', () {
@@ -65,16 +65,16 @@ void main() {
         '<body>操作成功失败</body>',
         '<body>操作成功<script>showmessage(\'原密码不正确\', \'back\');</script></body>',
       ]) {
-        expect(AccountService.formFailure(raw, fallback: 'rejected'), isNotNull);
+        expect(
+          AccountService.formFailure(raw, fallback: 'rejected'),
+          isNotNull,
+        );
       }
     });
 
     test('旧密码错误时提取站点文案', () {
       const raw = "<script>showmessage('原密码不正确', 'back');</script>";
-      expect(
-        AccountService.formFailure(raw, fallback: '修改密码失败'),
-        '原密码不正确',
-      );
+      expect(AccountService.formFailure(raw, fallback: '修改密码失败'), '原密码不正确');
     });
   });
 }

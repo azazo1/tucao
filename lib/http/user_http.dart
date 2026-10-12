@@ -9,6 +9,7 @@ import 'package:tucao/utils/http_util.dart';
 abstract final class UserHttp {
   static bool _isSuccessStatus(int? status) =>
       status != null && status >= 200 && status < 300;
+
   /// 查询当前登录状态.
   ///
   /// 未登录时接口返回 `{"islogin":false}`.

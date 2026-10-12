@@ -167,7 +167,9 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                   TextButton(
-                    onPressed: _submitting ? null : () => Get.toNamed(Routes.register),
+                    onPressed: _submitting
+                        ? null
+                        : () => Get.toNamed(Routes.register),
                     child: const Text('注册账号'),
                   ),
                 ],

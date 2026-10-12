@@ -141,9 +141,8 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                   labelText: '确认新密码',
                   prefixIcon: Icon(Icons.lock_reset_outlined),
                 ),
-                validator: (value) => value != _newController.text
-                    ? '两次输入的新密码不一致'
-                    : null,
+                validator: (value) =>
+                    value != _newController.text ? '两次输入的新密码不一致' : null,
                 onFieldSubmitted: (_) => _submit(),
               ),
               const SizedBox(height: 20),

@@ -183,9 +183,8 @@ class _RegisterPageState extends State<RegisterPage> {
                   labelText: '确认密码',
                   prefixIcon: Icon(Icons.lock_reset_outlined),
                 ),
-                validator: (value) => value != _passwordController.text
-                    ? '两次输入的密码不一致'
-                    : null,
+                validator: (value) =>
+                    value != _passwordController.text ? '两次输入的密码不一致' : null,
                 onFieldSubmitted: (_) => _submit(),
               ),
               const SizedBox(height: 20),

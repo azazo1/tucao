@@ -51,7 +51,11 @@ class _Adapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     requests.add(options);
-    payloads.add(requestStream == null ? '' : await utf8.decoder.bind(requestStream).join());
+    payloads.add(
+      requestStream == null
+          ? ''
+          : await utf8.decoder.bind(requestStream).join(),
+    );
     return respond!(options);
   }
 
@@ -101,7 +105,10 @@ void main() {
     expect(account.isLogin, isFalse);
     expect(box.data.containsKey('user'), isFalse);
     expect(cookies.clears, 1);
-    expect(adapter.requests.single.uri.queryParameters['a'], 'account_manage_password');
+    expect(
+      adapter.requests.single.uri.queryParameters['a'],
+      'account_manage_password',
+    );
     expect(Uri.splitQueryString(adapter.payloads.single), {
       'info[password]': 'old-password',
       'info[newpassword]': 'new-password',
@@ -147,7 +154,10 @@ void main() {
     adapter.respond = (request) => request.method == 'POST'
         ? success()
         : ResponseBody.fromString('unavailable', 503);
-    await expectLater(account.login('current-user', 'password'), throwsA(isA<DioException>()));
+    await expectLater(
+      account.login('current-user', 'password'),
+      throwsA(isA<DioException>()),
+    );
     expect(adapter.requests.length, 2);
     expect(account.user.value, cached);
   });
@@ -171,7 +181,8 @@ void main() {
   });
 
   test('登录缓存只保存本次确认的用户信息, 不保存密码', () async {
-    adapter.respond = (request) => request.method == 'POST' ? success() : info();
+    adapter.respond = (request) =>
+        request.method == 'POST' ? success() : info();
     await account.login('current-user', 'password');
     expect(account.user.value?.userId, 2);
     expect((box.data['user'] as Map)['userid'], 2);
