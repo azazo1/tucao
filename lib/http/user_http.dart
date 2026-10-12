@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:tucao/common/constants.dart';
 import 'package:tucao/http/api_path.dart';
+import 'package:tucao/models/form_response.dart';
 import 'package:tucao/models/user.dart';
 import 'package:tucao/utils/http_util.dart';
 
@@ -119,5 +120,48 @@ abstract final class UserHttp {
       cancelToken: cancelToken,
     );
     return response.data.toString();
+  }
+
+  /// 找回密码.
+  ///
+  /// 表单只有邮箱与验证码两项, 站点把新密码发到邮箱.
+  /// 验证码与提交必须共用同一份 cookie, 否则站点判为验证码错误.
+  static Future<FormResponse> forgotPassword({
+    required String email,
+    required String code,
+    CancelToken? cancelToken,
+  }) async {
+    final response = await HttpUtil.dio.post(
+      '${Constants.baseUrl}${ApiPath.forgotPassword}',
+      data: {'email': email, 'code': code, 'dosubmit': '提交'},
+      options: Options(
+        contentType: Headers.formUrlEncodedContentType,
+        validateStatus: (status) => status != null && status >= 200 && status < 300,
+      ),
+      cancelToken: cancelToken,
+    );
+    return FormResponse.parse(response.data?.toString() ?? '');
+  }
+
+  /// 拉取图形验证码图片.
+  ///
+  /// 站点按 cookie 里的会话生成验证码, 因此这里必须走同一个 dio 实例.
+  static Future<List<int>> checkCode({CancelToken? cancelToken}) async {
+    final response = await HttpUtil.dio.get<List<int>>(
+      '${Constants.baseUrl}${ApiPath.checkCode}',
+      queryParameters: {'_': DateTime.now().microsecondsSinceEpoch},
+      options: Options(
+        responseType: ResponseType.bytes,
+        headers: {'cache-control': 'no-cache'},
+        validateStatus: (status) => status != null && status >= 200 && status < 300,
+      ),
+      cancelToken: cancelToken,
+    );
+    final bytes = response.data;
+    if (bytes == null || bytes.isEmpty ||
+        !(response.headers.value(Headers.contentTypeHeader)?.toLowerCase().startsWith('image/') ?? false)) {
+      throw const FormatException('站点未返回有效的验证码图片');
+    }
+    return bytes;
   }
 }

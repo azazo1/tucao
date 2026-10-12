@@ -37,6 +37,12 @@ abstract final class ApiPath {
   static const logout = 'index.php?m=member&c=index&a=logout&forward=&siteid=1';
   static const changePassword =
       'index.php?m=member&c=index&a=account_manage_password&t=account';
+  static const forgotPassword =
+      'index.php?m=member&c=index&a=public_forget_password&siteid=1';
+
+  /// 图形验证码, 需要与提交请求共用同一份 cookie.
+  static const checkCode = 'api.php?op=checkcode&code_len=4&font_size=14'
+      '&width=118&height=40&font_color=&background=';
 
   /// 私信, 需要登录态.
   static const messageList = 'index.php?m=message&c=index&a=inbox';

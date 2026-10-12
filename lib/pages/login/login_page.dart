@@ -117,6 +117,13 @@ class _LoginPageState extends State<LoginPage> {
                     (value == null || value.isEmpty) ? '请输入密码' : null,
                 onFieldSubmitted: (_) => _submit(),
               ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _submitting ? null : () => Get.toNamed(Routes.forgotPassword),
+                  child: const Text('忘记密码'),
+                ),
+              ),
               const SizedBox(height: 20),
               FilledButton(
                 onPressed: _submitting ? null : _submit,
