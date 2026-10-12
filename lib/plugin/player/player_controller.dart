@@ -7,11 +7,13 @@ import 'package:tucao/http/danmaku_http.dart';
 import 'package:tucao/http/video_http.dart';
 import 'package:tucao/models/api_response.dart';
 import 'package:tucao/models/danmaku.dart';
+import 'package:tucao/models/danmaku_preferences.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/plugin/player/tucao_player.dart';
 import 'package:tucao/services/account_service.dart';
 import 'package:tucao/services/history_service.dart';
 import 'package:tucao/utils/date_utils.dart';
+import 'package:tucao/utils/danmaku_preferences_store.dart';
 import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/storage_pref.dart';
 
@@ -19,7 +21,7 @@ import 'package:tucao/utils/storage_pref.dart';
 ///
 /// 负责视频详情, 分P选择, 弹幕拉取与投递, 播放历史.
 /// 播放本身交给 [TucaoPlayer].
-class PlayerPageController extends GetxController {
+class PlayerPageController extends GetxController with WidgetsBindingObserver {
   PlayerPageController({
     required this.hid,
     int part = 0,
@@ -49,6 +51,12 @@ class PlayerPageController extends GetxController {
   final Future<List<DanmakuModel>> Function(int, String, int) _fetchDanmaku;
   final _requests = PlayerRequestGate();
   bool _closed = false;
+  AppLifecycleState? _appLifecycleState = WidgetsBinding.instance.lifecycleState;
+
+  bool get _playbackAllowed =>
+      Pref.playerBackground ||
+      _appLifecycleState == null ||
+      _appLifecycleState == AppLifecycleState.resumed;
 
   // 原生播放器实际打开的分P, 不把旧播放进度记入新选择.
   int? _playingPart;
@@ -102,6 +110,8 @@ class PlayerPageController extends GetxController {
   bool _wasPlaying = false;
 
   DanmakuController<DanmakuModel>? _danmakuController;
+  DanmakuPreferences? _danmakuPreferences;
+  StreamSubscription<DanmakuPreferences>? _danmakuPreferenceChanges;
 
   Timer? _historyTimer;
 
@@ -125,9 +135,15 @@ class PlayerPageController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    _appLifecycleState = WidgetsBinding.instance.lifecycleState;
+    WidgetsBinding.instance.addObserver(this);
     video.value = _initial;
     part.value = _initialPart;
     player.addListener(_onPlayerChanged);
+    applyDanmakuPreferences(DanmakuPreferencesStore.read());
+    _danmakuPreferenceChanges = DanmakuPreferencesStore.watch().listen(
+      applyDanmakuPreferences,
+    );
     // 播放到结尾时记一次完整进度, 下次进入从头开始.
     player.onCompleted = () => unawaited(recordHistory());
     _historyTimer = Timer.periodic(_historyInterval, (_) => _tickHistory());
@@ -137,6 +153,9 @@ class PlayerPageController extends GetxController {
   @override
   void onClose() {
     _closed = true;
+    unawaited(_danmakuPreferenceChanges?.cancel());
+    _danmakuPreferenceChanges = null;
+    WidgetsBinding.instance.removeObserver(this);
     _requests.close();
     _historyTimer?.cancel();
     _historyTimer = null;
@@ -147,6 +166,24 @@ class PlayerPageController extends GetxController {
     player.dispose();
     _danmakuController = null;
     super.onClose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _appLifecycleState = state;
+    if (_closed || _playbackAllowed) {
+      return;
+    }
+    // 等待在途 open, 执行前重查代次和前台状态, 不暂停后来的请求.
+    unawaited(_requests.run(_requests.current, () async {
+      if (!_playbackAllowed) {
+        await player.pause();
+      }
+    }).catchError((Object error, StackTrace stackTrace) {
+      if (!_closed) {
+        Log.e('后台暂停播放器失败', error: error, stackTrace: stackTrace);
+      }
+    }));
   }
 
   /// 定时记录, 只在播放中写, 暂停时位置不会变.
@@ -246,9 +283,14 @@ class PlayerPageController extends GetxController {
         playerReady.value = true;
         await player.setUrl(
           url,
-          autoPlay: Pref.playerAutoPlay,
+          autoPlay: Pref.playerAutoPlay && _playbackAllowed,
           startAt: startAt,
         );
+        // open 期间也可能退到后台. 此时串行区内仍是本次实际媒体,
+        // 即使选择已换代也先暂停, 不把暂停排到新媒体打开之后.
+        if (!_closed && !_playbackAllowed) {
+          await player.pause();
+        }
         if (!_requests.isCurrent(request)) {
           return;
         }
@@ -331,34 +373,37 @@ class PlayerPageController extends GetxController {
     _danmakuController = null;
   }
 
-  /// 弹幕渲染配置, 全部来自用户偏好.
-  DanmakuOption get danmakuOption => DanmakuOption(
-    fontSize: Pref.danmakuFontSize,
-    area: Pref.danmakuArea,
-    // 站点设置里的弹幕速度是滚动弹幕穿过屏幕的秒数.
-    duration: Pref.danmakuSpeed,
-    opacity: Pref.danmakuOpacity,
-    strokeWidth: Pref.danmakuStroke,
-    hideScroll: Pref.danmakuHideScroll,
-    hideTop: Pref.danmakuHideTop,
-    hideBottom: Pref.danmakuHideBottom,
-  );
+  /// 弹幕渲染配置, 可预览正在编辑的样式.
+  DanmakuOption get danmakuOption =>
+      (_danmakuPreferences ?? DanmakuPreferencesStore.read()).toOption();
 
-  void toggleDanmaku() {
-    final enabled = !danmakuEnabled.value;
-    danmakuEnabled.value = enabled;
-    Pref.danmakuEnable = enabled;
+  /// 面板预览或偏好变更都使用同一入口, 不因改样式恢复暂停播放.
+  void applyDanmakuPreferences(DanmakuPreferences preferences) {
+    if (_closed) return;
+    _danmakuPreferences = preferences.normalized;
+    danmakuEnabled.value = _danmakuPreferences!.enabled;
     final controller = _danmakuController;
-    if (controller == null) {
-      return;
-    }
-    if (enabled) {
-      if (player.playing) {
-        controller.resume();
-      }
-    } else {
+    if (controller == null) return;
+    controller.updateOption(danmakuOption);
+    if (!danmakuEnabled.value) {
       controller.clear();
       controller.pause();
+    } else if (player.playing) {
+      controller.resume();
+    } else {
+      controller.pause();
+    }
+  }
+
+  Future<void> toggleDanmaku() async {
+    final next = DanmakuPreferencesStore.read().copyWith(
+      enabled: !danmakuEnabled.value,
+    );
+    try {
+      await DanmakuPreferencesStore.save(next);
+      applyDanmakuPreferences(next);
+    } catch (error, stackTrace) {
+      Log.e('保存弹幕开关失败', error: error, stackTrace: stackTrace);
     }
   }
 

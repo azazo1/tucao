@@ -1,4 +1,5 @@
 import 'package:tucao/common/constants.dart';
+import 'package:tucao/utils/danmaku_preferences_store.dart';
 import 'package:tucao/utils/storage.dart';
 
 /// 用户偏好的读写封装.
@@ -8,15 +9,6 @@ abstract final class Pref {
   static const _kThemeMode = 'theme_mode';
   static const _kThemeColor = 'theme_color';
   static const _kDynamicColor = 'dynamic_color';
-  static const _kDanmakuEnable = 'danmaku_enable';
-  static const _kDanmakuOpacity = 'danmaku_opacity';
-  static const _kDanmakuFontSize = 'danmaku_font_size';
-  static const _kDanmakuArea = 'danmaku_area';
-  static const _kDanmakuSpeed = 'danmaku_speed';
-  static const _kDanmakuStroke = 'danmaku_stroke';
-  static const _kDanmakuHideScroll = 'danmaku_hide_scroll';
-  static const _kDanmakuHideTop = 'danmaku_hide_top';
-  static const _kDanmakuHideBottom = 'danmaku_hide_bottom';
   static const _kPlayerSpeed = 'player_speed';
   static const _kPlayerVolume = 'player_volume';
   static const _kPlayerAutoPlay = 'player_auto_play';
@@ -46,32 +38,41 @@ abstract final class Pref {
   static bool get dynamicColor => GStorage.setting.get(_kDynamicColor, defaultValue: true) as bool;
   static set dynamicColor(bool value) => GStorage.setting.put(_kDynamicColor, value);
 
-  static bool get danmakuEnable => GStorage.setting.get(_kDanmakuEnable, defaultValue: true) as bool;
-  static set danmakuEnable(bool value) => GStorage.setting.put(_kDanmakuEnable, value);
+  static bool get danmakuEnable => DanmakuPreferencesStore.read().enabled;
+  static set danmakuEnable(bool value) =>
+      DanmakuPreferencesStore.updateLegacy((p) => p.copyWith(enabled: value));
 
-  static double get danmakuOpacity => GStorage.setting.get(_kDanmakuOpacity, defaultValue: 1.0) as double;
-  static set danmakuOpacity(double value) => GStorage.setting.put(_kDanmakuOpacity, value);
+  static double get danmakuOpacity => DanmakuPreferencesStore.read().opacity;
+  static set danmakuOpacity(double value) =>
+      DanmakuPreferencesStore.updateLegacy((p) => p.copyWith(opacity: value));
 
-  static double get danmakuFontSize => GStorage.setting.get(_kDanmakuFontSize, defaultValue: 16.0) as double;
-  static set danmakuFontSize(double value) => GStorage.setting.put(_kDanmakuFontSize, value);
+  static double get danmakuFontSize => DanmakuPreferencesStore.read().fontSize;
+  static set danmakuFontSize(double value) =>
+      DanmakuPreferencesStore.updateLegacy((p) => p.copyWith(fontSize: value));
 
-  static double get danmakuArea => GStorage.setting.get(_kDanmakuArea, defaultValue: 1.0) as double;
-  static set danmakuArea(double value) => GStorage.setting.put(_kDanmakuArea, value);
+  static double get danmakuArea => DanmakuPreferencesStore.read().area;
+  static set danmakuArea(double value) =>
+      DanmakuPreferencesStore.updateLegacy((p) => p.copyWith(area: value));
 
-  static double get danmakuSpeed => GStorage.setting.get(_kDanmakuSpeed, defaultValue: 8.0) as double;
-  static set danmakuSpeed(double value) => GStorage.setting.put(_kDanmakuSpeed, value);
+  static double get danmakuSpeed => DanmakuPreferencesStore.read().duration;
+  static set danmakuSpeed(double value) =>
+      DanmakuPreferencesStore.updateLegacy((p) => p.copyWith(duration: value));
 
-  static double get danmakuStroke => GStorage.setting.get(_kDanmakuStroke, defaultValue: 1.5) as double;
-  static set danmakuStroke(double value) => GStorage.setting.put(_kDanmakuStroke, value);
+  static double get danmakuStroke => DanmakuPreferencesStore.read().strokeWidth;
+  static set danmakuStroke(double value) =>
+      DanmakuPreferencesStore.updateLegacy((p) => p.copyWith(strokeWidth: value));
 
-  static bool get danmakuHideScroll => GStorage.setting.get(_kDanmakuHideScroll, defaultValue: false) as bool;
-  static set danmakuHideScroll(bool value) => GStorage.setting.put(_kDanmakuHideScroll, value);
+  static bool get danmakuHideScroll => DanmakuPreferencesStore.read().hideScroll;
+  static set danmakuHideScroll(bool value) =>
+      DanmakuPreferencesStore.updateLegacy((p) => p.copyWith(hideScroll: value));
 
-  static bool get danmakuHideTop => GStorage.setting.get(_kDanmakuHideTop, defaultValue: false) as bool;
-  static set danmakuHideTop(bool value) => GStorage.setting.put(_kDanmakuHideTop, value);
+  static bool get danmakuHideTop => DanmakuPreferencesStore.read().hideTop;
+  static set danmakuHideTop(bool value) =>
+      DanmakuPreferencesStore.updateLegacy((p) => p.copyWith(hideTop: value));
 
-  static bool get danmakuHideBottom => GStorage.setting.get(_kDanmakuHideBottom, defaultValue: false) as bool;
-  static set danmakuHideBottom(bool value) => GStorage.setting.put(_kDanmakuHideBottom, value);
+  static bool get danmakuHideBottom => DanmakuPreferencesStore.read().hideBottom;
+  static set danmakuHideBottom(bool value) =>
+      DanmakuPreferencesStore.updateLegacy((p) => p.copyWith(hideBottom: value));
 
   /// 默认播放倍速.
   static double get playerSpeed => GStorage.setting.get(_kPlayerSpeed, defaultValue: 1.0) as double;

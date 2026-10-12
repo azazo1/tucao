@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:tucao/models/danmaku.dart';
+import 'package:tucao/pages/video/widgets/danmaku_settings_sheet.dart';
 import 'package:tucao/pages/video/widgets/player_gesture.dart';
+import 'package:tucao/utils/danmaku_preferences_store.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
 import 'package:tucao/utils/site_links.dart';
 import 'package:tucao/utils/utils.dart';
@@ -42,6 +44,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
   static const _speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 
   bool _showControls = true;
+  bool _settingsOpen = false;
 
   Timer? _hideTimer;
 
@@ -69,7 +72,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
 
   void _restartHideTimer() {
     _hideTimer?.cancel();
-    if (!widget.fullscreen) {
+    if (!widget.fullscreen || _settingsOpen) {
       return;
     }
     _hideTimer = Timer(_hideDelay, () {
@@ -112,14 +115,14 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
           ),
         ),
         if (_showControls) _buildControls(context),
-        if (widget.fullscreen) _buildFullscreenBack(),
+        if (widget.fullscreen && _showControls) _buildFullscreenBack(),
         _buildBuffering(),
         _buildSourceTip(),
       ],
     );
   }
 
-  /// 全屏下控制条会自动隐藏, 单独留一个返回按钮, 避免只能靠系统返回键.
+  /// 全屏返回按钮随控制条一起显隐, 点击画面可重新显示.
   Widget _buildFullscreenBack() {
     return Positioned(
       left: 0,
@@ -304,6 +307,10 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
             _controller.toggleDanmaku,
           ),
         ),
+        Tooltip(
+          message: '弹幕设置',
+          child: _iconButton(Icons.tune, _openDanmakuSettings),
+        ),
         _buildSpeedButton(),
         const Spacer(),
         _iconButton(
@@ -312,6 +319,27 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
         ),
       ],
     );
+  }
+
+  Future<void> _openDanmakuSettings() async {
+    if (_settingsOpen) return;
+    final controller = _controller;
+    _settingsOpen = true;
+    _hideTimer?.cancel();
+    try {
+      await showDanmakuSettingsSheet(context, onChanged: (preferences) {
+        if (mounted && identical(controller, _controller) && _settingsOpen) {
+          controller.applyDanmakuPreferences(preferences);
+        }
+      });
+    } finally {
+      if (mounted && identical(controller, _controller)) {
+        // 只恢复当前 View 自己的 controller 数据, 不向被覆盖的路由发送界面反馈.
+        controller.applyDanmakuPreferences(DanmakuPreferencesStore.read());
+        _settingsOpen = false;
+        _restartHideTimer();
+      }
+    }
   }
 
   Widget _iconButton(IconData icon, VoidCallback onTap, {double size = 20}) {

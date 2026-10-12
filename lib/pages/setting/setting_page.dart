@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/common/style.dart';
+import 'package:tucao/pages/video/widgets/danmaku_settings_sheet.dart';
 import 'package:tucao/services/account_service.dart';
 import 'package:tucao/services/history_service.dart';
 import 'package:tucao/services/theme_service.dart';
@@ -36,16 +37,6 @@ class _SettingPageState extends State<SettingPage> {
   late bool _hardwareDecode;
   late bool _background;
 
-  late bool _danmakuEnable;
-  late double _danmakuOpacity;
-  late double _danmakuFontSize;
-  late double _danmakuArea;
-  late double _danmakuSpeed;
-  late double _danmakuStroke;
-  late bool _hideScroll;
-  late bool _hideTop;
-  late bool _hideBottom;
-
   late int _searchHistoryLimit;
 
   @override
@@ -60,16 +51,6 @@ class _SettingPageState extends State<SettingPage> {
     _continueLast = Pref.playerContinueLast;
     _hardwareDecode = Pref.hardwareDecode;
     _background = Pref.playerBackground;
-
-    _danmakuEnable = Pref.danmakuEnable;
-    _danmakuOpacity = Pref.danmakuOpacity;
-    _danmakuFontSize = Pref.danmakuFontSize;
-    _danmakuArea = Pref.danmakuArea;
-    _danmakuSpeed = Pref.danmakuSpeed;
-    _danmakuStroke = Pref.danmakuStroke;
-    _hideScroll = Pref.danmakuHideScroll;
-    _hideTop = Pref.danmakuHideTop;
-    _hideBottom = Pref.danmakuHideBottom;
 
     // 旧版本可能存有不在预设里的值, 回落到默认档位.
     _searchHistoryLimit = _historyLimits.contains(Pref.searchHistoryLimit)
@@ -240,97 +221,11 @@ class _SettingPageState extends State<SettingPage> {
           ),
 
           const _SectionTitle('弹幕'),
-          SwitchListTile(
-            title: const Text('显示弹幕'),
-            value: _danmakuEnable,
-            onChanged: (value) {
-              setState(() => _danmakuEnable = value);
-              Pref.danmakuEnable = value;
-            },
-          ),
-          _SliderTile(
-            label: '不透明度',
-            value: _danmakuOpacity,
-            min: 0.1,
-            max: 1.0,
-            divisions: 18,
-            display: '${(_danmakuOpacity * 100).round()}%',
-            onChanged: (value) {
-              setState(() => _danmakuOpacity = value);
-              Pref.danmakuOpacity = value;
-            },
-          ),
-          _SliderTile(
-            label: '字号',
-            value: _danmakuFontSize,
-            min: 8,
-            max: 32,
-            divisions: 24,
-            display: _danmakuFontSize.round().toString(),
-            onChanged: (value) {
-              setState(() => _danmakuFontSize = value);
-              Pref.danmakuFontSize = value;
-            },
-          ),
-          _SliderTile(
-            label: '显示区域',
-            value: _danmakuArea,
-            min: 0.1,
-            max: 1.0,
-            divisions: 18,
-            display: '${(_danmakuArea * 100).round()}%',
-            onChanged: (value) {
-              setState(() => _danmakuArea = value);
-              Pref.danmakuArea = value;
-            },
-          ),
-          _SliderTile(
-            label: '滚动时长',
-            value: _danmakuSpeed,
-            min: 4,
-            max: 15,
-            divisions: 22,
-            display: '${_danmakuSpeed.toStringAsFixed(1)} 秒',
-            onChanged: (value) {
-              setState(() => _danmakuSpeed = value);
-              Pref.danmakuSpeed = value;
-            },
-          ),
-          _SliderTile(
-            label: '描边宽度',
-            value: _danmakuStroke,
-            min: 0,
-            max: 4,
-            divisions: 8,
-            display: _danmakuStroke.toStringAsFixed(1),
-            onChanged: (value) {
-              setState(() => _danmakuStroke = value);
-              Pref.danmakuStroke = value;
-            },
-          ),
-          SwitchListTile(
-            title: const Text('屏蔽滚动弹幕'),
-            value: _hideScroll,
-            onChanged: (value) {
-              setState(() => _hideScroll = value);
-              Pref.danmakuHideScroll = value;
-            },
-          ),
-          SwitchListTile(
-            title: const Text('屏蔽顶部弹幕'),
-            value: _hideTop,
-            onChanged: (value) {
-              setState(() => _hideTop = value);
-              Pref.danmakuHideTop = value;
-            },
-          ),
-          SwitchListTile(
-            title: const Text('屏蔽底部弹幕'),
-            value: _hideBottom,
-            onChanged: (value) {
-              setState(() => _hideBottom = value);
-              Pref.danmakuHideBottom = value;
-            },
+          ListTile(
+            title: const Text('弹幕样式与类型'),
+            subtitle: const Text('文字预览, 显示区域, 时长和字幕避让'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => showDanmakuSettingsSheet(context),
           ),
 
           const _SectionTitle('其他'),
@@ -516,61 +411,6 @@ class _Dot extends StatelessWidget {
               ? Icon(Icons.check, size: 16, color: foreground)
               : null,
         ),
-      ),
-    );
-  }
-}
-
-/// 带标题与数值显示的滑块.
-class _SliderTile extends StatelessWidget {
-  const _SliderTile({
-    required this.label,
-    required this.value,
-    required this.min,
-    required this.max,
-    required this.divisions,
-    required this.display,
-    required this.onChanged,
-  });
-
-  final String label;
-  final double value;
-  final double min;
-  final double max;
-  final int divisions;
-
-  /// 右侧显示的当前值.
-  final String display;
-
-  final ValueChanged<double> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(label, style: const TextStyle(fontSize: 15)),
-              ),
-              Text(
-                display,
-                style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
-              ),
-            ],
-          ),
-          Slider(
-            value: value.clamp(min, max),
-            min: min,
-            max: max,
-            divisions: divisions,
-            onChanged: onChanged,
-          ),
-        ],
       ),
     );
   }

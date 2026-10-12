@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:tucao/models/api_response.dart';
 import 'package:tucao/models/danmaku.dart';
+import 'package:tucao/models/danmaku_preferences.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/pages/video/widgets/player_view.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
@@ -21,12 +22,28 @@ class _Settings implements Box {
   dynamic get(dynamic key, {dynamic defaultValue}) => data[key] ?? defaultValue;
 
   @override
+  bool containsKey(dynamic key) => data.containsKey(key);
+
+  @override
+  Future<void> put(dynamic key, dynamic value) async {
+    data[key] = value;
+  }
+
+  @override
+  Stream<BoxEvent> watch({dynamic key}) => const Stream<BoxEvent>.empty();
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _Player extends ChangeNotifier implements TucaoPlayer {
   Completer<void>? initialize;
   final opens = <String>[];
+  final autoPlays = <bool>[];
+  final pausedUrls = <String?>[];
+  String? currentUrl;
+  bool isPlaying = true;
+  int plays = 0;
   Future<void> Function(String)? opening;
   int active = 0;
   int maximumActive = 0;
@@ -63,7 +80,7 @@ class _Player extends ChangeNotifier implements TucaoPlayer {
   String? get error => playbackError;
 
   @override
-  bool get playing => true;
+  bool get playing => isPlaying;
 
   @override
   Duration get duration => currentDuration;
@@ -81,16 +98,36 @@ class _Player extends ChangeNotifier implements TucaoPlayer {
     Duration? startAt,
   }) async {
     opens.add(url);
+    autoPlays.add(autoPlay);
     active++;
     if (active > maximumActive) {
       maximumActive = active;
     }
     try {
       await opening?.call(url);
+      currentUrl = url;
+      isPlaying = autoPlay;
     } finally {
       active--;
     }
   }
+
+  @override
+  Future<void> pause() async {
+    pausedUrls.add(currentUrl);
+    isPlaying = false;
+    notifyListeners();
+  }
+
+  @override
+  Future<void> play() async {
+    plays++;
+    isPlaying = true;
+    notifyListeners();
+  }
+
+  @override
+  Future<void> toggle() => playing ? pause() : play();
 
   @override
   Future<void> stop() async => stops++;
@@ -110,19 +147,26 @@ class _Player extends ChangeNotifier implements TucaoPlayer {
 
 class _Danmaku implements DanmakuController<DanmakuModel> {
   final delivered = <String>[];
+  DanmakuOption? appliedOption;
+  int paused = 0;
+  int resumed = 0;
+  int cleared = 0;
+
+  @override
+  ValueChanged<DanmakuOption> get updateOption => (option) => appliedOption = option;
 
   @override
   ValueChanged<DanmakuContentItem<DanmakuModel>> get addDanmaku =>
       (item) => delivered.add(item.extra!.text);
 
   @override
-  VoidCallback get clear => () {};
+  VoidCallback get clear => () => cleared++;
 
   @override
-  VoidCallback get pause => () {};
+  VoidCallback get pause => () => paused++;
 
   @override
-  VoidCallback get resume => () {};
+  VoidCallback get resume => () => resumed++;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -183,6 +227,33 @@ void main() {
 
   tearDown(() {
     Get.reset();
+  });
+
+  test('弹幕样式实时生效且暂停时不会因预览恢复播放', () {
+    final player = _Player()..isPlaying = false;
+    final controller = PlayerPageController(hid: '123', player: player);
+    final renderer = _Danmaku();
+    controller.attachDanmaku(renderer);
+    final pausedBefore = renderer.paused;
+    controller.applyDanmakuPreferences(
+      DanmakuPreferences.defaults.copyWith(opacity: 0.4, fontSize: 24),
+    );
+    expect(renderer.appliedOption!.opacity, 0.4);
+    expect(renderer.appliedOption!.fontSize, 24);
+    expect(renderer.resumed, 0);
+    expect(renderer.paused, pausedBefore + 1);
+    player.isPlaying = true;
+    controller.applyDanmakuPreferences(DanmakuPreferences.defaults);
+    expect(renderer.resumed, 1);
+    controller.applyDanmakuPreferences(
+      DanmakuPreferences.defaults.copyWith(enabled: false),
+    );
+    expect(controller.danmakuEnabled.value, isFalse);
+    expect(renderer.cleared, 1);
+    final lastOption = renderer.appliedOption;
+    controller.onClose();
+    controller.applyDanmakuPreferences(DanmakuPreferences.defaults);
+    expect(renderer.appliedOption, same(lastOption));
   });
 
   test('串行守卫跳过旧排队请求, 单个错误不阻塞新请求', () async {
@@ -416,6 +487,141 @@ void main() {
     expect(controller.playUrl.value, isEmpty);
     expect(controller.sourceError.value, isNotNull);
     expect(controller.playerReady.value, isFalse);
+  });
+
+  for (final state in [AppLifecycleState.paused, AppLifecycleState.hidden]) {
+    testWidgets('$state 后详情或 init 和弹幕迟到不自动播放, resumed 只允许主动播放', (
+      tester,
+    ) async {
+      (GStorage.setting as _Settings).data['player_background'] = false;
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      final detail = Completer<ApiResponse<VideoModel>>();
+      final initialized = Completer<void>();
+      final comments = Completer<List<DanmakuModel>>();
+      final player = _Player()..initialize = initialized;
+      final controller = PlayerPageController(
+        hid: '123',
+        player: player,
+        loadVideo: (_) => detail.future,
+        loadDanmaku: (_, _, _) => comments.future,
+      );
+      controller.onInit();
+      try {
+        // hidden 场景先进入 init, paused 场景连详情也在后台才到达.
+        if (state == AppLifecycleState.hidden) {
+          detail.complete(_response(_video));
+          await tester.pump();
+        }
+        tester.binding.handleAppLifecycleStateChanged(state);
+        await tester.pump();
+        if (state == AppLifecycleState.paused) {
+          detail.complete(_response(_video));
+          await tester.pump();
+        }
+        expect(player.opens, isEmpty);
+        initialized.complete();
+        await tester.pump();
+        expect(player.autoPlays, [false]);
+        expect(player.playing, isFalse);
+        comments.complete([_comment('late')]);
+        await tester.pump();
+        expect(controller.firstLoading.value, isFalse);
+        expect(player.playing, isFalse);
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        await tester.pump();
+        expect(player.playing, isFalse);
+        expect(player.plays, 0);
+        await controller.togglePlay();
+        expect(player.playing, isTrue);
+        expect(player.plays, 1);
+      } finally {
+        controller.onClose();
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      }
+    });
+  }
+
+  testWidgets('open 期间退后台并换代只暂停旧实际媒体, 不暂停 resumed 后的新媒体', (
+    tester,
+  ) async {
+    (GStorage.setting as _Settings).data['player_background'] = false;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    final firstOpened = Completer<void>();
+    final nextOpened = Completer<void>();
+    final player = _Player()
+      ..opening = (url) =>
+          url.endsWith('/a') ? firstOpened.future : nextOpened.future;
+    final controller = PlayerPageController(
+      hid: '123',
+      player: player,
+      loadVideo: (_) async => _response(_video),
+      loadDanmaku: (_, _, _) async => [],
+    );
+    controller.onInit();
+    try {
+      await tester.pump();
+      expect(player.autoPlays, [true]);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      final next = controller.switchPart(1);
+      await tester.pump();
+      expect(player.pausedUrls, isEmpty);
+      firstOpened.complete();
+      await tester.pump();
+      expect(player.pausedUrls, ['https://example.invalid/a']);
+      expect(player.autoPlays, [true, false]);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      nextOpened.complete();
+      await tester.pump();
+      await next;
+      expect(player.pausedUrls, ['https://example.invalid/a']);
+      expect(player.currentUrl, 'https://example.invalid/b');
+      expect(player.playing, isFalse);
+      expect(player.plays, 0);
+      expect(player.maximumActive, 1);
+    } finally {
+      controller.onClose();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    }
+  });
+
+  testWidgets('允许后台播放时迟到详情和 open 保留自动播放策略, 仍尊重 autoPlay 偏好', (
+    tester,
+  ) async {
+    (GStorage.setting as _Settings).data['player_background'] = true;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    final detail = Completer<ApiResponse<VideoModel>>();
+    final opened = Completer<void>();
+    final player = _Player()
+      ..opening = (url) => url.endsWith('/a') ? opened.future : Future.value();
+    final controller = PlayerPageController(
+      hid: '123',
+      player: player,
+      loadVideo: (_) => detail.future,
+      loadDanmaku: (_, _, _) async => [],
+    );
+    controller.onInit();
+    try {
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      detail.complete(_response(_video));
+      await tester.pump();
+      expect(player.autoPlays, [true]);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      opened.complete();
+      await tester.pump();
+      expect(player.playing, isTrue);
+      expect(player.pausedUrls, isEmpty);
+      (GStorage.setting as _Settings).data['player_auto_play'] = false;
+      final next = controller.switchPart(1);
+      await tester.pump();
+      await next;
+      expect(player.autoPlays, [true, false]);
+      expect(player.playing, isFalse);
+      expect(player.pausedUrls, isEmpty);
+    } finally {
+      controller.onClose();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    }
   });
 
   testWidgets('播放错误事件显示覆盖层并保留浏览器回调, 全屏返回不受影响', (tester) async {

@@ -1,10 +1,13 @@
+import 'dart:math' as math;
+
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
 
 /// 播放器手势层.
 ///
 /// 参照常见播放器的交互:
-/// - 横向拖动调整进度, 松手生效, 拖动过程中显示目标时间.
+/// - 横向拖动调整进度, 松手生效, 拖动到顶部左右角可取消.
 /// - 竖向拖动调整音量, 只作用于屏幕左半侧.
 /// - 长按临时切换到 3 倍速, 松手恢复原速.
 /// - 单击切换控制条, 双击播放暂停.
@@ -44,6 +47,8 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
 
   double _startX = 0;
   double _startY = 0;
+  double _startLocalX = 0;
+  bool _seekCancelling = false;
 
   /// 手势开始时播放器的进度, 用于累加拖动偏移.
   Duration _startPosition = Duration.zero;
@@ -65,6 +70,7 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
+      dragStartBehavior: DragStartBehavior.down,
       onTap: widget.onToggleControls,
       onDoubleTap: widget.controller.togglePlay,
       onLongPressStart: _onLongPressStart,
@@ -102,6 +108,10 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
   void _onDragStart(DragStartDetails details) {
     _startX = details.globalPosition.dx;
     _startY = details.globalPosition.dy;
+    _startLocalX = details.localPosition.dx;
+    _seekCancelling = false;
+    _seekTarget = null;
+    _volumeTarget = null;
     _startPosition = widget.controller.player.position;
     _startVolume = widget.controller.player.volume;
   }
@@ -115,22 +125,31 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
     if (dx.abs() < _seekThreshold && _seekTarget == null) {
       return;
     }
-    final width = context.size?.width ?? 1;
+    final size = context.size ?? const Size(1, 1);
+    final width = size.width;
+    final localX = details.localPosition.dx.clamp(0.0, width);
+    final localY = details.localPosition.dy.clamp(0.0, size.height);
+    final cornerWidth = math.min(width * 0.25, 120.0);
+    final cornerHeight = math.min(size.height / 3, 72.0);
+    final cancelling = localY <= cornerHeight &&
+        (localX <= cornerWidth || localX >= width - cornerWidth);
     // 以屏幕宽度的 1.2 倍代表整段时长, 便于在小屏上快速定位.
     final ratio = dx / (width * _seekScreenRatio);
     final targetMs =
         _startPosition.inMilliseconds + (total.inMilliseconds * ratio);
     final clamped = targetMs.clamp(0, total.inMilliseconds);
-    setState(() => _seekTarget = Duration(milliseconds: clamped.toInt()));
+    setState(() {
+      _seekCancelling = cancelling;
+      _seekTarget = Duration(milliseconds: clamped.toInt());
+    });
   }
 
   void _onHorizontalDragEnd(DragEndDetails details) {
     final target = _seekTarget;
-    if (target == null) {
-      return;
+    if (target != null && !_seekCancelling) {
+      widget.controller.seek(target);
     }
-    widget.controller.seek(target);
-    setState(() => _seekTarget = null);
+    _onDragCancel();
   }
 
   void _onVerticalDragUpdate(DragUpdateDetails details) {
@@ -140,7 +159,7 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
     }
     final width = context.size?.width ?? 1;
     // 竖向手势只作用于屏幕左半侧, 右半侧留给亮度等后续扩展.
-    if (_startX > width / 2) {
+    if (_startLocalX > width / 2) {
       return;
     }
     final height = context.size?.height ?? 1;
@@ -151,17 +170,22 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
 
   void _onVerticalDragEnd(DragEndDetails details) {
     final target = _volumeTarget;
-    if (target == null) {
-      return;
+    if (target != null) {
+      widget.controller.setVolume(target);
     }
-    widget.controller.setVolume(target);
-    setState(() => _volumeTarget = null);
+    _onDragCancel();
   }
 
   void _onDragCancel() {
     setState(() {
+      _seekCancelling = false;
       _seekTarget = null;
       _volumeTarget = null;
+      _startX = 0;
+      _startY = 0;
+      _startLocalX = 0;
+      _startPosition = Duration.zero;
+      _startVolume = 100;
     });
   }
 
@@ -173,6 +197,7 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
     }
     return Center(
       child: DecoratedBox(
+        key: _seekCancelling ? const ValueKey('seek-cancel-indicator') : null,
         decoration: BoxDecoration(
           color: Colors.black54,
           borderRadius: BorderRadius.circular(8),
@@ -193,6 +218,9 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
   }
 
   String? _indicatorText() {
+    if (_seekCancelling) {
+      return '取消拖动';
+    }
     if (_seekTarget != null) {
       final target = _seekTarget!;
       final total = widget.controller.player.duration;
