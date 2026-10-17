@@ -12,12 +12,21 @@ abstract final class ApiPath {
   static const search = 'search.php';
   static const view = 'view.php';
 
+  /// 播放页统计, 返回 javascript 而不是 json.
+  static const onlineScript = 'ol.php';
+  static const videoCountScript = 'api.php?op=count';
+
+  /// 站点视频内容模型 id.
+  ///
+  /// 所有视频共用 11, 与视频分区 id 不同; `api.php` 的 modelid 与
+  /// `ol.php` 的 cid 后缀都用它.
+  static const videoModelId = 11;
+
   /// 排行榜等页面数据在官方接口里已经废弃, 只能抓页面.
   static const rankHtml = 'html/hot.html';
   static const posHtml = 'html/pos.html';
   static const newHtml = 'html/new.html';
   static const weekBgmHtml = 'html/week_bgm.html';
-  static const olUrl = 'ol.php';
   static const bgmUrl = 'bgm/';
 
   /// 弹幕.

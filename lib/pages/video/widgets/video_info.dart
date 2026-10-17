@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/common/style.dart';
 import 'package:tucao/models/video.dart';
+import 'package:tucao/pages/video/widgets/video_stats_bar.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
 import 'package:tucao/router/routes.dart';
 import 'package:tucao/utils/date_utils.dart';
-import 'package:tucao/utils/utils.dart';
 
 /// 播放页下方的视频信息区.
 class VideoInfoPanel extends StatelessWidget {
@@ -39,7 +39,11 @@ class VideoInfoPanel extends StatelessWidget {
               height: 1.3,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
+          if (video.typeId > 0) ...[
+            VideoStatsBar(video: video),
+            const SizedBox(height: 6),
+          ],
           _buildMeta(context, video),
           if (video.userName.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -97,16 +101,6 @@ class VideoInfoPanel extends StatelessWidget {
       spacing: 10,
       runSpacing: 4,
       children: [
-        _metaItem(
-          Icons.play_circle_outline,
-          Utils.formatCount(video.playCount),
-          style,
-        ),
-        _metaItem(
-          Icons.subtitles_outlined,
-          '${Utils.formatCount(video.danmakuCount)} 弹幕',
-          style,
-        ),
         if (video.createTime > 0)
           _metaItem(Icons.schedule, DateUtil.relative(video.createTime), style),
         if (video.typeName.isNotEmpty)

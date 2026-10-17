@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:tucao/common/constants.dart';
+import 'package:tucao/http/api_path.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/utils/http_util.dart';
 
@@ -25,7 +26,7 @@ abstract final class FavoriteHttp {
         'url': '/play/h${video.hid}/',
         'contentid': video.hid,
         // 官网视频内容模型固定为 11, ccatid 才是视频分区.
-        'modelid': 11,
+        'modelid': ApiPath.videoModelId,
         'ccatid': video.typeId,
         'cusername': video.userName,
         'cdescription': video.description,

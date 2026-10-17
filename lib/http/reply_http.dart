@@ -35,6 +35,23 @@ abstract final class ReplyHttp {
     return ReplyPage.fromJson(HttpUtil.decodeJson(raw));
   }
 
+  /// 评论总数.
+  ///
+  /// 只取一条评论, 页面用不到内容, 省流量.
+  static Future<int> count({
+    required int typeId,
+    required String hid,
+    CancelToken? cancelToken,
+  }) async {
+    final page = await list(
+      typeId: typeId,
+      hid: hid,
+      pageSize: 1,
+      cancelToken: cancelToken,
+    );
+    return page.total;
+  }
+
   /// 发送评论或回复.
   ///
   /// 参数位置与官方 sendReply 一致: commentid, id 与 replyuid 是查询参数,

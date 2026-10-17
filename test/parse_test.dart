@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:tucao/http/rank_http.dart';
 import 'package:tucao/http/user_rank_http.dart';
+import 'package:tucao/http/video_stats_http.dart';
 import 'package:tucao/http/week_http.dart';
 
 void main() {
@@ -186,6 +187,23 @@ void main() {
           .map((e) => e.querySelector('.time_title')?.text.trim())
           .toList();
       expect(titles, ['今天', '本周', '本月', '今年']);
+    });
+  });
+
+  group('播放统计脚本解析', () {
+    test('解析出在线与播放数据', () {
+      final values = VideoStatsHttp.parseScript(
+        r"$('#olAll').html('983');$('#olALL_player').html('547');"
+        r"$('#olThis').html('22');$('#hits').html('163,565');",
+      );
+      expect(values['olAll'], '983');
+      expect(values['olALL_player'], '547');
+      expect(values['olThis'], '22');
+      expect(values['hits'], '163,565');
+    });
+
+    test('非统计脚本返回空表', () {
+      expect(VideoStatsHttp.parseScript('console.log(1);'), isEmpty);
     });
   });
 }
