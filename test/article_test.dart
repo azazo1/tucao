@@ -57,6 +57,11 @@ void main() {
       expect(detail.hid, '7301');
     });
 
+    test('解析出分类与发布时间', () {
+      expect(detail.category, '情报');
+      expect(detail.publishedAt, startsWith('2026-10-11'));
+    });
+
     test('正文有内容', () {
       expect(detail.paragraphs, isNotEmpty);
       final texts = detail.paragraphs
@@ -66,6 +71,9 @@ void main() {
       expect(texts, isNotEmpty);
       // 正文段落应当有一定长度, 说明取到了正确的容器.
       expect(texts.any((e) => e.length > 50), isTrue);
+      // 取的是 .show_content, 不应混入页头的面包屑.
+      expect(texts.any((e) => e.contains('岸本')), isTrue);
+      expect(texts.any((e) => e.contains('档案 / 情报')), isFalse);
     });
 
     test('图片地址补全为绝对地址', () {

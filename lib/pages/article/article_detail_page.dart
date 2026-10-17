@@ -89,6 +89,19 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
                 height: 1.4,
               ),
             ),
+            if (detail.category.isNotEmpty ||
+                detail.publishedAt.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                [
+                  detail.category,
+                  detail.publishedAt,
+                ].where((e) => e.isNotEmpty).join(' / '),
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
             if (detail.tags.isNotEmpty) ...[
               const SizedBox(height: 10),
               Wrap(
