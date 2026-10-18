@@ -145,58 +145,62 @@ class _SearchPageState extends State<SearchPage> {
       // 这里先取一次快照, 否则数据回来之后界面不会刷新.
       final hotKeywords = _controller.hotSearch.toList();
       final scheme = Theme.of(context).colorScheme;
-      return ListView(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        children: [
-          Padding(
-            padding: Style.pagePadding,
-            child: Row(
-              children: [
-                const Text('搜索历史', style: TextStyle(fontSize: 13)),
-                const Spacer(),
-                if (items.isNotEmpty)
-                  TextButton(
-                    onPressed: _controller.clearHistory,
-                    child: const Text('清空'),
-                  ),
-              ],
-            ),
-          ),
-          if (items.isEmpty)
+      return RefreshIndicator(
+        onRefresh: _controller.loadHotSearch,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          children: [
             Padding(
               padding: Style.pagePadding,
-              child: Text(
-                '还没有搜索记录',
-                style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
-              ),
-            )
-          else
-            Padding(
-              padding: Style.pagePadding,
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 2,
+              child: Row(
                 children: [
-                  for (final keyword in items)
-                    InputChip(
-                      label: Text(keyword),
-                      labelStyle: const TextStyle(fontSize: 13),
-                      visualDensity: VisualDensity.compact,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      onPressed: () => _submit(keyword),
-                      deleteIcon: const Icon(Icons.close, size: 15),
-                      onDeleted: () => _controller.removeHistory(keyword),
+                  const Text('搜索历史', style: TextStyle(fontSize: 13)),
+                  const Spacer(),
+                  if (items.isNotEmpty)
+                    TextButton(
+                      onPressed: _controller.clearHistory,
+                      child: const Text('清空'),
                     ),
                 ],
               ),
             ),
-          const SizedBox(height: 8),
-          HotSearchSection(
-            items: hotKeywords,
-            onKeyword: _submit,
-            onMore: () => Get.toNamed(Routes.hotSearch),
-          ),
-        ],
+            if (items.isEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 12, 0),
+                child: Text(
+                  '还没有搜索记录',
+                  style: TextStyle(fontSize: 13, color: scheme.outline),
+                ),
+              )
+            else
+              Padding(
+                padding: Style.pagePadding,
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 2,
+                  children: [
+                    for (final keyword in items)
+                      InputChip(
+                        label: Text(keyword),
+                        labelStyle: const TextStyle(fontSize: 13),
+                        visualDensity: VisualDensity.compact,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        onPressed: () => _submit(keyword),
+                        deleteIcon: const Icon(Icons.close, size: 15),
+                        onDeleted: () => _controller.removeHistory(keyword),
+                      ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 8),
+            HotSearchSection(
+              items: hotKeywords,
+              onKeyword: _submit,
+              onMore: () => Get.toNamed(Routes.hotSearch),
+            ),
+          ],
+        ),
       );
     });
   }
