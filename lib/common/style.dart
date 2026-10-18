@@ -55,7 +55,9 @@ abstract final class Style {
     return ThemeData(
       colorScheme: scheme,
       useMaterial3: true,
-      splashFactory: InkSparkle.splashFactory,
+      // InkSparkle 会用到运行时片元着色器, Adreno 的 Vulkan 驱动在编译
+      // 这类着色器时偶发空指针崩溃, 这里改用普通水波纹规避.
+      splashFactory: InkRipple.splashFactory,
       appBarTheme: AppBarTheme(
         centerTitle: false,
         scrolledUnderElevation: 0,
