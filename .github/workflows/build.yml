@@ -501,8 +501,9 @@ jobs:
               "${prerelease_args[@]}"
           fi
 
-  # 每次 push 都把同一个滚动 tag 的预发布 release 重建成最新产物,
-  # 因此仓库里始终只有最新一次 push 的预发布.
+  # 分支 push 都更新同一个预发布 release: tag 只在首次创建时落位, 之后不再移动,
+  # 每次 push 只替换该 release 的说明与产物, 因此本地 git fetch 不会遇到同名 tag
+  # 指向变化. 代价是 release 页的 Commit 链接停在首次构建, 最新构建以说明里的提交为准.
   prerelease:
     name: 发布预发布 Release
     needs: [version, analyze, test, android, cli, cli-test]
@@ -514,7 +515,7 @@ jobs:
     env:
       # gh release 靠本地 git 远端推断仓库, 而这个 job 不检出代码, 所以直接指定仓库.
       GH_REPO: ${{ github.repository }}
-    # 所有分支共用同一个滚动 release, 必须串行: 正在发布的那次跑完,
+    # 所有分支共用同一个预发布 release, 必须串行: 正在发布的那次跑完,
     # 队列里只留下最后排上的一个, 更早的待跑项会被取消.
     concurrency:
       group: rolling-prerelease
@@ -570,7 +571,7 @@ jobs:
 
           sha256sum "${apks[@]}" "${archives[@]}" > SHA256SUMS
 
-      - name: 重建预发布 Release
+      - name: 更新预发布 Release
         if: steps.freshness.outputs.is_latest == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -581,9 +582,11 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          # 滚动 tag 必须保持轻量 tag 且不带 v 前缀: 版本解析 (scripts/build-version.py
+          # tag 必须保持轻量 tag 且不带 v 前缀: 版本解析 (scripts/build-version.py
           # 与 cli/scripts/release) 都按 v 前缀过滤, 而 git describe 不带 --tags 时只看
           # 附注 tag, 两道过滤叠起来才不会把它误当成版本号.
+          # 这个 tag 只在 release 首次创建时落位, 之后不再移动, 本地 fetch 因此不会
+          # 遇到同名 tag 指向变化.
           tag="dev-latest"
           assets=(
             prerelease-artifacts/tucao-*.apk
@@ -597,26 +600,57 @@ jobs:
             exit 1
           fi
 
-          # 先清掉上一轮的 release 与 tag 再按本次提交重建, 于是滚动 tag 总是指向
-          # 最新一次 push 的提交, 产物也不会残留上一轮的 apk.
-          if gh release view "$tag" >/dev/null 2>&1; then
-            gh release delete "$tag" --yes --cleanup-tag
-          fi
-          # tag 还在但 release 已被删掉时, 沿用旧 tag 建 release 会指到旧提交, 这里补齐.
-          gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/$tag" >/dev/null 2>&1 || true
-
           {
-            echo "分支 \`$BRANCH\` 最新一次 push 的预发布, 会被后续 push 覆盖, 只保留最新的一次."
+            echo "分支 \`$BRANCH\` 最新一次 push 的预发布, 产物会被后续 push 覆盖."
             echo
             echo "- 提交: [\`${COMMIT:0:7}\`](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${COMMIT})"
             echo "- 构建版本: \`v$BUILD_VERSION\`"
             echo
+            echo "这个 release 的 tag 固定在首次创建时的提交, 页面上的 Commit 链接不代表本次构建,"
+            echo "最新的产物与提交以上面的内容为准."
+            echo
             echo "安卓端按设备架构下载 \`tucao-*.apk\`, 命令行工具按平台下载 \`tucao-cli-*\`, 校验和见 \`SHA256SUMS\`."
           } > prerelease-notes.md
 
-          gh release create "$tag" "${assets[@]}" \
-            --target "$COMMIT" \
-            --title "吐槽 最新构建 v$BUILD_VERSION" \
-            --notes-file prerelease-notes.md \
-            --prerelease \
-            --latest=false
+          if gh release view "$tag" >/dev/null 2>&1; then
+            # release 已存在: 只更新说明与产物, tag 与 release 本身保持不动.
+            gh release edit "$tag" \
+              --title "吐槽 最新构建 v$BUILD_VERSION" \
+              --notes-file prerelease-notes.md \
+              --prerelease \
+              --latest=false
+          else
+            # 首次创建: 清掉可能残留的旧 tag, 让 tag 落在本次提交上.
+            # tag 不存在时 API 返回 404, 这里先查一次, 免得把 404 和真正的失败混在一起.
+            if gh api "repos/$GITHUB_REPOSITORY/git/refs/tags/$tag" >/dev/null 2>&1; then
+              gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/$tag"
+            fi
+            gh release create "$tag" \
+              --target "$COMMIT" \
+              --title "吐槽 最新构建 v$BUILD_VERSION" \
+              --notes-file prerelease-notes.md \
+              --prerelease \
+              --latest=false
+          fi
+
+          gh release upload "$tag" "${assets[@]}" --clobber
+
+          # 产物名带构建版本号, 每轮都不同, 不清理会越积越多;
+          # 上面先传新的再删旧的, 上传失败时仍能下载到上一轮的完整产物.
+          current_names=()
+          for asset_path in "${assets[@]}"; do
+            current_names+=("$(basename "$asset_path")")
+          done
+          while IFS= read -r asset; do
+            [[ -n "$asset" ]] || continue
+            keep=false
+            for name in "${current_names[@]}"; do
+              if [[ "$asset" == "$name" ]]; then
+                keep=true
+                break
+              fi
+            done
+            if [[ "$keep" == "false" ]]; then
+              gh release delete-asset "$tag" "$asset" --yes
+            fi
+          done < <(gh release view "$tag" --json assets --jq '.assets[].name')

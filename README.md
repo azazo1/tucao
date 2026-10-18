@@ -121,10 +121,12 @@ just android build-debug    # 调试构建
 安卓构建, 以及命令行工具的构建与测试. 命令行工具是纯 Go 代码, 全部平台的产物由
 一个 runner 交叉编译完成, 测试则在 Linux, Windows 与 macOS 上各跑一遍.
 
-分支推送会重建同一个滚动的预发布 `dev-latest`, 里面同时提供按架构拆分的 apk 与
-`tucao-cli-*` 命令行归档, 会被后续推送覆盖. 正式发布由 `vX.Y.Z` tag 触发, 工作流校验
-tag 与说明文件一致后, 把 apk 与 CLI 归档一并发布到该 tag 的 GitHub Release,
-校验和都在 `SHA256SUMS` 里.
+分支推送会更新同一个预发布 `dev-latest`: tag 只在首次创建时落位, 之后不再移动,
+每次推送只替换该 release 的说明与按架构拆分的 apk 和 `tucao-cli-*` 命令行归档,
+因此本地 `git fetch` 不会遇到同名 tag 指向变化. 页面上的 Commit 链接停留在首次
+构建, 最新构建以 release 说明里的提交与版本为准. 正式发布由 `vX.Y.Z` tag 触发,
+工作流校验 tag 与说明文件一致后, 把 apk 与 CLI 归档一并发布到该 tag 的 GitHub
+Release, 校验和都在 `SHA256SUMS` 里.
 
 ## 接口
 
