@@ -7,21 +7,6 @@ import 'package:tucao/pages/reply/reply_thread.dart';
 import 'package:tucao/services/account_service.dart';
 import 'package:tucao/utils/logger.dart';
 
-/// 清洗评论内容.
-///
-/// 站点返回的正文里混有 html 标签与转义实体, 这里做最基本的还原,
-/// 不做完整的 html 解析.
-String cleanReplyContent(String raw) {
-  final text = raw
-      .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
-      .replaceAll(RegExp(r'<[^>]+>'), '');
-  var result = text;
-  for (final entry in _entities.entries) {
-    result = result.replaceAll(entry.key, entry.value);
-  }
-  return result.trim();
-}
-
 /// 去掉异常前缀, 让提示可读.
 String? cleanReplyError(String? raw) {
   if (raw == null) {
@@ -44,16 +29,6 @@ String? cleanReplyError(String? raw) {
   }
   return text.isEmpty ? null : text;
 }
-
-/// `&amp;` 放在最后替换, 避免二次解码.
-const _entities = <String, String>{
-  '&lt;': '<',
-  '&gt;': '>',
-  '&quot;': '"',
-  '&#39;': "'",
-  '&nbsp;': ' ',
-  '&amp;': '&',
-};
 
 /// 评论页控制器.
 ///

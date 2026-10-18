@@ -1,4 +1,6 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:tucao/pages/reply/reply_smiles.dart';
 
 /// 评论输入弹层.
 class ReplyInputSheet extends StatefulWidget {
@@ -14,6 +16,9 @@ class ReplyInputSheet extends StatefulWidget {
 class _ReplyInputSheetState extends State<ReplyInputSheet> {
   final _controller = TextEditingController();
 
+  /// 是否展开站点表情面板.
+  bool _showSmiles = false;
+
   @override
   void dispose() {
     _controller.dispose();
@@ -26,6 +31,19 @@ class _ReplyInputSheetState extends State<ReplyInputSheet> {
       return;
     }
     Navigator.of(context).pop(text);
+  }
+
+  /// 在光标处插入表情代码, 与站点输入框的行为一致.
+  void _insertSmile(String code) {
+    final value = _controller.value;
+    final selection = value.selection;
+    final start = selection.isValid ? selection.start : value.text.length;
+    final end = selection.isValid ? selection.end : value.text.length;
+    final text = value.text.replaceRange(start, end, code);
+    _controller.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: start + code.length),
+    );
   }
 
   @override
@@ -88,7 +106,18 @@ class _ReplyInputSheetState extends State<ReplyInputSheet> {
                       style: const TextStyle(fontSize: 14),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  IconButton(
+                    tooltip: _showSmiles ? '收起表情' : '表情',
+                    onPressed: () =>
+                        setState(() => _showSmiles = !_showSmiles),
+                    icon: Icon(
+                      _showSmiles
+                          ? Icons.keyboard_outlined
+                          : Icons.emoji_emotions_outlined,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  const SizedBox(width: 4),
                   ValueListenableBuilder<TextEditingValue>(
                     valueListenable: _controller,
                     builder: (context, value, child) {
@@ -101,6 +130,36 @@ class _ReplyInputSheetState extends State<ReplyInputSheet> {
                   ),
                 ],
               ),
+              if (_showSmiles) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final smile in replySmiles)
+                      Tooltip(
+                        message: smile.code,
+                        child: InkWell(
+                          onTap: () => _insertSmile(smile.code),
+                          borderRadius: BorderRadius.circular(4),
+                          child: Padding(
+                            padding: const EdgeInsets.all(2),
+                            child: CachedNetworkImage(
+                              imageUrl: smile.url,
+                              width: 24,
+                              height: 24,
+                              fit: BoxFit.contain,
+                              errorWidget: (context, url, error) => Text(
+                                smile.code,
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),

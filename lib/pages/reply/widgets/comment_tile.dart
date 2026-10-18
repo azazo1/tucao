@@ -2,7 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:tucao/common/constants.dart';
 import 'package:tucao/models/reply.dart';
-import 'package:tucao/pages/reply/reply_controller.dart';
+import 'package:tucao/pages/reply/reply_content.dart';
 
 /// 单条评论.
 ///
@@ -91,11 +91,11 @@ class CommentTile extends StatelessWidget {
       height: 1.4,
       color: scheme.onSurface,
     );
-    final text = cleanReplyContent(comment.content);
+    final content = parseReplyContent(comment.content);
     final mention = dense && comment.replyUserName.isNotEmpty
         ? comment.replyUserName
         : null;
-    if (text.isEmpty) {
+    if (content.isEmpty) {
       return Text(
         '内容不可见',
         style: style.copyWith(
@@ -104,21 +104,34 @@ class CommentTile extends StatelessWidget {
         ),
       );
     }
-    if (mention == null) {
-      return Text(text, style: style);
-    }
-    return Text.rich(
-      TextSpan(
-        children: [
-          TextSpan(
-            text: '回复 @$mention: ',
-            style: TextStyle(color: scheme.primary),
+    final spans = <InlineSpan>[
+      if (mention != null)
+        TextSpan(
+          text: '回复 @$mention: ',
+          style: TextStyle(color: scheme.primary),
+        ),
+      for (final part in content.parts)
+        if (part is ReplyTextPart)
+          TextSpan(text: part.text)
+        else if (part is ReplyEmojiPart)
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 1),
+              child: CachedNetworkImage(
+                imageUrl: part.url,
+                width: dense ? 16 : 18,
+                height: dense ? 16 : 18,
+                fit: BoxFit.contain,
+                errorWidget: (context, url, error) => Text(
+                  part.name,
+                  style: style.copyWith(fontSize: dense ? 12 : 13),
+                ),
+              ),
+            ),
           ),
-          TextSpan(text: text),
-        ],
-      ),
-      style: style,
-    );
+    ];
+    return Text.rich(TextSpan(children: spans), style: style);
   }
 
   Widget _buildActions(BuildContext context) {
