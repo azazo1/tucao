@@ -1,10 +1,11 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:tucao/common/constants.dart';
 import 'package:tucao/common/widgets/paging_list.dart';
 import 'package:tucao/models/reply.dart';
 import 'package:tucao/pages/reply/reply_controller.dart';
+import 'package:tucao/pages/reply/widgets/comment_tile.dart';
+import 'package:tucao/pages/reply/widgets/reply_input_sheet.dart';
+import 'package:tucao/pages/reply/widgets/reply_thread_view.dart';
 import 'package:tucao/services/account_service.dart';
 
 /// 独立评论入口, 视频页直接使用 [ReplyPanel].
@@ -109,22 +110,24 @@ class _ReplyPanelState extends State<ReplyPanel>
         return Column(
           children: [
             Expanded(
-              child: Obx(
-                () => PagingList<ReplyModel>(
+              child: Obx(() {
+                // toList 会读取响应式列表, 让刷新与分页结果重建列表.
+                final comments = controller.list.toList();
+                return PagingList<ReplyModel>(
                   key: ValueKey(controller),
-                  list: controller.list,
+                  list: comments,
                   itemBuilder: _buildItem,
                   onRefresh: controller.refresh,
                   onLoadMore: controller.loadMore,
                   hasMore: controller.hasMore,
                   loading: controller.loading.value,
                   firstLoading: controller.firstLoading.value,
-                  error: _cleanError(controller.error.value),
+                  error: cleanReplyError(controller.error.value),
                   onRetry: controller.loadFirst,
                   emptyMessage: '还没有评论, 来说点什么吧',
                   separator: const Divider(),
-                ),
-              ),
+                );
+              }),
             ),
             SizedBox(
               height: inputHeight,
@@ -138,44 +141,45 @@ class _ReplyPanelState extends State<ReplyPanel>
 
   Widget _buildItem(BuildContext context, ReplyModel comment, int index) {
     return Obx(() {
+      final thread = controller.threadOf(comment.id);
       final expanded = controller.expanded.contains(comment.id);
-      final loading = controller.loadingReplies.contains(comment.id);
-      final count = comment.replyCount > comment.replies.length
-          ? comment.replyCount
-          : comment.replies.length;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _CommentTile(
-            comment: comment,
-            supportCount: controller.supportCount(comment),
-            supported: controller.isSupported(comment.id),
-            onSupport: () => _support(comment),
-            onReply: () => _openInput(replyTo: comment),
-          ),
-          if (count > 0 || expanded) ...[
-            const SizedBox(height: 4),
-            _ExpandBar(
-              count: count,
-              expanded: expanded,
-              loading: loading,
-              onTap: () => _toggle(comment),
-            ),
-          ],
-          if (expanded)
-            for (final reply in comment.replies)
-              Padding(
-                padding: const EdgeInsets.only(left: 44, top: 8),
-                child: _CommentTile(
-                  comment: reply,
-                  dense: true,
-                  supportCount: controller.supportCount(reply),
-                  supported: controller.isSupported(reply.id),
-                  onSupport: () => _support(reply),
-                  onReply: () => _openInput(replyTo: reply),
-                ),
-              ),
-        ],
+      final count = controller.replyCount(comment);
+      final Widget? footer;
+      if (expanded) {
+        footer = ReplyThreadView(
+          commentId: comment.id,
+          thread: thread,
+          count: count,
+          hasMore: controller.hasMoreReplies(comment),
+          supportCountOf: controller.supportCount,
+          isSupported: (reply) => controller.isSupported(reply.id),
+          onCollapse: () => _collapse(comment),
+          onLoadMore: () => _loadMore(comment),
+          onRetry: () => _retry(comment),
+          onSupport: _support,
+          onReply: (reply) => _openInput(replyTo: reply),
+        );
+      } else if (count > 0 || thread.error != null) {
+        footer = ReplyExpandButton(
+          commentId: comment.id,
+          count: count,
+          loading: thread.loading,
+          failed: thread.error != null,
+          onTap: () => _toggle(comment),
+        );
+      } else {
+        footer = null;
+      }
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: CommentTile(
+          comment: comment,
+          supportCount: controller.supportCount(comment),
+          supported: controller.isSupported(comment.id),
+          onSupport: () => _support(comment),
+          onReply: () => _openInput(replyTo: comment),
+          footer: footer,
+        ),
       );
     });
   }
@@ -251,7 +255,30 @@ class _ReplyPanelState extends State<ReplyPanel>
     try {
       await controller.toggleReplies(comment);
     } catch (e) {
-      _toast(_cleanError(e.toString()) ?? '加载回复失败');
+      _toast(cleanReplyError(e.toString()) ?? '加载回复失败');
+    }
+  }
+
+  /// 收起楼中楼, 不丢弃已加载的数据, 再次展开时直接显示.
+  void _collapse(ReplyModel comment) {
+    controller.collapseReplies(comment);
+  }
+
+  /// 加载楼中楼的后续页.
+  Future<void> _loadMore(ReplyModel comment) async {
+    try {
+      await controller.loadMoreReplies(comment);
+    } catch (e) {
+      _toast(cleanReplyError(e.toString()) ?? '加载更多回复失败');
+    }
+  }
+
+  /// 失败后重试当前楼中楼.
+  Future<void> _retry(ReplyModel comment) async {
+    try {
+      await controller.retryReplies(comment);
+    } catch (e) {
+      _toast(cleanReplyError(e.toString()) ?? '加载回复失败');
     }
   }
 
@@ -259,7 +286,7 @@ class _ReplyPanelState extends State<ReplyPanel>
     try {
       await controller.support(comment);
     } catch (e) {
-      _toast(_cleanError(e.toString()) ?? '点赞失败');
+      _toast(cleanReplyError(e.toString()) ?? '点赞失败');
     }
   }
 
@@ -273,9 +300,8 @@ class _ReplyPanelState extends State<ReplyPanel>
     final text = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => _InputSheet(
-        hint: replyTo == null ? '说点什么' : '回复 @${replyTo.userName}',
-      ),
+      showDragHandle: true,
+      builder: (context) => ReplyInputSheet(replyToName: replyTo?.userName),
     );
     if (!mounted ||
         !identical(controller, inputController) ||
@@ -288,7 +314,7 @@ class _ReplyPanelState extends State<ReplyPanel>
       await inputController.send(text, replyTo: replyTo);
       _toast(replyTo == null ? '评论成功' : '回复成功');
     } catch (e) {
-      _toast(_cleanError(e.toString()) ?? '发送失败');
+      _toast(cleanReplyError(e.toString()) ?? '发送失败');
     }
   }
 
@@ -302,331 +328,4 @@ class _ReplyPanelState extends State<ReplyPanel>
         SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
       );
   }
-}
-
-/// 单条评论.
-class _CommentTile extends StatelessWidget {
-  const _CommentTile({
-    required this.comment,
-    required this.supportCount,
-    required this.supported,
-    required this.onSupport,
-    required this.onReply,
-    this.dense = false,
-  });
-
-  final ReplyModel comment;
-  final int supportCount;
-  final bool supported;
-  final VoidCallback onSupport;
-  final VoidCallback onReply;
-
-  /// 楼中楼里的紧凑样式.
-  final bool dense;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final size = dense ? 26.0 : 36.0;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _Avatar(url: comment.avatar, size: size),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Wrap(
-                spacing: 6,
-                runSpacing: 2,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Text(
-                    comment.userName.isEmpty ? '匿名' : comment.userName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: dense ? 12 : 13,
-                      fontWeight: FontWeight.w500,
-                      color: scheme.onSurface,
-                    ),
-                  ),
-                  Text(
-                    comment.createAt,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 3),
-              Text(
-                _content(comment),
-                style: TextStyle(
-                  fontSize: dense ? 13 : 14,
-                  height: 1.35,
-                  color: scheme.onSurface,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Wrap(
-                spacing: 16,
-                runSpacing: 2,
-                children: [
-                  _ActionButton(
-                    icon: supported ? Icons.thumb_up : Icons.thumb_up_outlined,
-                    label: supportCount > 0 ? '$supportCount' : '赞',
-                    color: supported ? scheme.primary : scheme.onSurfaceVariant,
-                    onTap: onSupport,
-                  ),
-                  _ActionButton(
-                    icon: Icons.chat_bubble_outline,
-                    label: '回复',
-                    color: scheme.onSurfaceVariant,
-                    onTap: onReply,
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// 回复他人时在正文前带上被回复人.
-  String _content(ReplyModel comment) {
-    final text = cleanReplyContent(comment.content);
-    if (dense && comment.replyUserName.isNotEmpty) {
-      return '回复 @${comment.replyUserName}: $text';
-    }
-    return text;
-  }
-}
-
-/// 楼中楼的展开条.
-class _ExpandBar extends StatelessWidget {
-  const _ExpandBar({
-    required this.count,
-    required this.expanded,
-    required this.loading,
-    required this.onTap,
-  });
-
-  final int count;
-  final bool expanded;
-  final bool loading;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return InkWell(
-      onTap: loading ? null : onTap,
-      borderRadius: BorderRadius.circular(4),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (loading)
-              SizedBox(
-                width: 12,
-                height: 12,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: scheme.primary,
-                ),
-              )
-            else
-              Icon(
-                expanded ? Icons.expand_less : Icons.expand_more,
-                size: 15,
-                color: scheme.primary,
-              ),
-            const SizedBox(width: 4),
-            Text(
-              expanded ? '收起回复' : '共 $count 条回复',
-              style: TextStyle(fontSize: 12, color: scheme.primary),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ActionButton extends StatelessWidget {
-  const _ActionButton({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(4),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: 4),
-            Text(label, style: TextStyle(fontSize: 12, color: color)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Avatar extends StatelessWidget {
-  const _Avatar({required this.url, required this.size});
-
-  final String url;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final fallback = ColoredBox(
-      color: scheme.surfaceContainerHighest,
-      child: Icon(
-        Icons.person_outline,
-        size: size * 0.6,
-        color: scheme.onSurfaceVariant,
-      ),
-    );
-    final image = _resolve(url);
-    return ClipOval(
-      child: SizedBox(
-        width: size,
-        height: size,
-        child: image.isEmpty
-            ? fallback
-            : CachedNetworkImage(
-                imageUrl: image,
-                fit: BoxFit.cover,
-                fadeInDuration: const Duration(milliseconds: 150),
-                placeholder: (context, url) =>
-                    ColoredBox(color: scheme.surfaceContainerHighest),
-                errorWidget: (context, url, error) => fallback,
-              ),
-      ),
-    );
-  }
-}
-
-/// 评论输入弹层.
-class _InputSheet extends StatefulWidget {
-  const _InputSheet({this.hint});
-
-  final String? hint;
-
-  @override
-  State<_InputSheet> createState() => _InputSheetState();
-}
-
-class _InputSheetState extends State<_InputSheet> {
-  final _controller = TextEditingController();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    final text = _controller.text.trim();
-    if (text.isEmpty) {
-      return;
-    }
-    Navigator.of(context).pop(text);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _controller,
-                autofocus: true,
-                minLines: 1,
-                maxLines: 4,
-                maxLength: 500,
-                buildCounter:
-                    (
-                      context, {
-                      required currentLength,
-                      required isFocused,
-                      maxLength,
-                    }) => null,
-                decoration: InputDecoration(hintText: widget.hint ?? '说点什么'),
-                style: const TextStyle(fontSize: 14),
-              ),
-            ),
-            const SizedBox(width: 8),
-            FilledButton(onPressed: _submit, child: const Text('发送')),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 头像地址补全, 站点偶尔返回相对路径.
-String _resolve(String raw) {
-  if (raw.isEmpty) {
-    return '';
-  }
-  if (raw.startsWith('http://') || raw.startsWith('https://')) {
-    return raw;
-  }
-  if (raw.startsWith('//')) {
-    return 'https:$raw';
-  }
-  final path = raw.startsWith('/') ? raw.substring(1) : raw;
-  return '${Constants.baseUrl}$path';
-}
-
-/// 去掉异常前缀, 让提示可读.
-String? _cleanError(String? raw) {
-  if (raw == null) {
-    return null;
-  }
-  var text = raw.trim();
-  if (text.isEmpty) {
-    return null;
-  }
-  for (final prefix in ['Exception: ', 'DioException ', 'FormatException: ']) {
-    if (text.startsWith(prefix)) {
-      text = text.substring(prefix.length);
-    }
-  }
-  if (text.startsWith('[')) {
-    final end = text.indexOf(']');
-    if (end > 0) {
-      text = text.substring(end + 1).trim();
-    }
-  }
-  return text.isEmpty ? null : text;
 }
