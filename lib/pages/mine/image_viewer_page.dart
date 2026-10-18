@@ -29,8 +29,49 @@ class ImageViewerPage extends StatefulWidget {
   State<ImageViewerPage> createState() => _ImageViewerPageState();
 }
 
+/// 图片查看页能做的事.
+enum _ViewerAction { save }
+
 class _ImageViewerPageState extends State<ImageViewerPage> {
   bool _saving = false;
+
+  /// 长按图片时弹出可选操作, 而不是直接保存.
+  Future<void> _showActions() async {
+    final action = await showModalBottomSheet<_ViewerAction>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (widget.title != null && widget.title!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                child: Text(
+                  widget.title!,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ListTile(
+              leading: const Icon(Icons.download_outlined),
+              title: const Text('保存到相册'),
+              onTap: () => Navigator.of(sheetContext).pop(_ViewerAction.save),
+            ),
+            ListTile(
+              leading: const Icon(Icons.close),
+              title: const Text('取消'),
+              onTap: () => Navigator.of(sheetContext).pop(),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (action == _ViewerAction.save) {
+      await _save();
+    }
+  }
 
   Future<void> _save() async {
     if (_saving) {
@@ -81,7 +122,7 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
         ],
       ),
       body: GestureDetector(
-        onLongPress: _saving ? null : _save,
+        onLongPress: _saving ? null : _showActions,
         child: Stack(
           children: [
             Positioned.fill(
@@ -111,8 +152,7 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
               bottom: 24,
               child: Text(
                 '长按图片可保存到相册',
-                textAlign: TextAlign.center,
-                style: TextStyle(
+                textAlign: TextAlign.center,                style: TextStyle(
                   fontSize: 12,
                   color: Colors.white.withValues(alpha: 0.7),
                 ),
