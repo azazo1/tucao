@@ -16,6 +16,10 @@ build/
 secrets/
 dist/
 
+# Go CLI 的构建产物
+cli/bin/
+cli/*.test
+
 # Python 发布脚本的缓存
 __pycache__/
 *.pyc

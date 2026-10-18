@@ -1,0 +1,62 @@
+# 吐槽弹幕网 CLI 配置模板.
+#
+# 复制到 ~/.config/tucao/config.toml, 也可以用 tucao config init 生成,
+# 或者用 tucao config set <字段> <值> 修改单个字段.
+version = 1
+
+[output]
+# auto, rich, json, yaml.
+format = "auto"
+# 表格在交互终端里是否按终端宽度截断.
+truncate = true
+
+[network]
+# 单次请求超时, 单位秒.
+timeout_seconds = 30
+# 只读请求的重试次数, 写操作不重试.
+retries = 1
+
+[site]
+# 站点域名, 站点更换域名时改这里.
+host = "www.tucao.my"
+
+[download]
+# 多分P下载的并发数.
+threads = 4
+# 默认输出目录, 留空表示当前目录.
+output_dir = ""
+# 目标文件已存在时是否覆盖.
+overwrite = false
+
+[danmaku]
+# 导出 ass 时使用的字体.
+font = "sans-serif"
+font_size = 25
+# 滚动弹幕在屏幕上停留的秒数.
+duration_seconds = 8
+# 固定弹幕停留的秒数.
+static_duration_seconds = 5
+# 弹幕显示区域占画面高度的比例.
+area = 1.0
+opacity = 1.0
+stroke_width = 1.5
+line_height = 1.6
+hide_scroll = false
+hide_top = false
+hide_bottom = false
+
+[history]
+# 本地播放历史的条数上限.
+limit = 500
+
+[search]
+# 本地搜索历史的条数上限.
+history_limit = 20
+
+[safety]
+# 拒绝全部账号侧写操作, 只读查询与下载仍可用.
+read_only = false
+# 允许新增类写操作, 拒绝删除与清空类操作.
+non_destructive = false
+# 删除与清空类操作需要显式确认.
+confirm_dangerous_actions = true

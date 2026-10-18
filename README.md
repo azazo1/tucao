@@ -85,6 +85,19 @@ just mock tv
 
 投屏相关功能可以先用 mock 电视联调, 用法见 [docs/mock-tv.md](docs/mock-tv.md).
 
+## 命令行工具
+
+仓库里的 `cli/` 是一个 Go 写的命令行客户端, 覆盖浏览, 搜索, 榜单, 番组, 档案,
+私信, 评论, 弹幕下载导出, 离线下载与账号管理, 输出支持 json 与 yaml, 便于脚本调用.
+
+```shell
+just cli build              # 构建到 cli/bin/tucao
+just cli run --json rank    # 直接运行
+just cli test               # 运行 Go 测试
+```
+
+用法, 配置位置与退出码见 [cli/README.md](cli/README.md).
+
 ## 构建
 
 安卓构建依赖 JDK 17 与 Flutter stable.

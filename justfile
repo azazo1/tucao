@@ -3,6 +3,7 @@ default:
     @just --list --list-submodules
 
 mod android
+mod cli
 mod mock
 
 # 显示项目信息.
