@@ -31,13 +31,17 @@ const (
 )
 
 var (
-	semverPattern  = regexp.MustCompile(`^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$`)
-	versionPattern = regexp.MustCompile(`^[0-9A-Za-z][0-9A-Za-z.+-]*$`)
+	semverPattern = regexp.MustCompile(`^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$`)
+	// 版本里允许 ^: 工作区有改动时, 规则用 ^ 连接短 hash (与安卓端口径一致).
+	versionPattern = regexp.MustCompile(`^[0-9A-Za-z][0-9A-Za-z.+-]*\^?[0-9A-Za-z]*$`)
 	dirNamePattern = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
 )
 
-// versionTagMatch 是版本 tag 的匹配模式, 与安卓端构建版本脚本的 TAG_PREFIX 保持一致.
-const versionTagMatch = "v[0-9]*"
+// versionTagPrefix 是版本 tag 的前缀, 与安卓端构建版本脚本的 TAG_PREFIX 保持一致.
+const versionTagPrefix = "v"
+
+// versionTagMatch 是版本 tag 的匹配模式, 用于过滤掉预发布之类不带前缀的 tag.
+const versionTagMatch = versionTagPrefix + "[0-9]*"
 
 // target 是一次构建的目标平台.
 type target struct {
@@ -116,22 +120,27 @@ func resolveTarget(goos, goarch string) (target, error) {
 }
 
 func resolveMetadata(resolved target) (metadata, error) {
-	version := strings.TrimSpace(os.Getenv("TUCAO_BUILD_VERSION"))
+	display := strings.TrimSpace(os.Getenv("TUCAO_BUILD_VERSION"))
 	release := strings.TrimSpace(os.Getenv("TUCAO_RELEASE_VERSION"))
-	if version == "" || release == "" {
-		tag, describeVersion, err := gitVersion()
+	if display == "" || release == "" {
+		info, err := gitVersion()
 		if err != nil {
 			return metadata{}, err
 		}
-		if version == "" {
-			version = tag
+		if display == "" {
+			display = info.Display
 		}
 		if release == "" {
-			release = describeVersion
+			release = info.Release
 		}
 	}
+	// 产物名统一不带 tag 前缀, 传进来的值带 v 时剥掉, 免得产出 tucao-cli-v1.3.0-....
+	release = strings.TrimPrefix(release, versionTagPrefix)
 	if !versionPattern.MatchString(release) {
 		return metadata{}, fmt.Errorf("版本号含非法字符: %s", release)
+	}
+	if display == "" {
+		display = versionTagPrefix + release
 	}
 	binaryName := "tucao"
 	if resolved.GOOS == "windows" {
@@ -143,78 +152,110 @@ func resolveMetadata(resolved target) (metadata, error) {
 	}
 	archiveName := fmt.Sprintf("%s-%s-%s-%s%s", projectName, release, resolved.Platform, resolved.Arch, archiveExtension)
 	return metadata{
-		BuildVersion: version,
+		BuildVersion: display,
 		ArchiveName:  archiveName,
 		BinaryPath:   filepath.Join(binaryDir, binaryName),
 		ArchivePath:  filepath.Join(distDirectory, archiveName),
 	}, nil
 }
 
-// gitVersion 取最近版本 tag 与按 tag 推导的版本.
-func gitVersion() (tag string, describe string, err error) {
+// versionInfo 是同一次构建里的两个版本号.
+//
+// 两者样式不同是刻意的, 与安卓端的构建版本脚本保持一致:
+// 二进制里显示的版本跟随 tag 样式 (带前缀), 产物名里用剥掉前缀的那个.
+type versionInfo struct {
+	// Display 注入二进制, 例如 v1.3.0 或 v1.3.0-1e63ec9.
+	Display string
+	// Release 进产物名, 例如 1.3.0 或 1.3.0-1e63ec9.
+	Release string
+}
+
+// gitVersion 按当前仓库计算版本.
+func gitVersion() (versionInfo, error) {
 	return gitVersionIn("")
 }
 
-// gitVersionIn 在指定目录里解析版本, 目录为空时用当前目录.
+// gitVersionIn 在指定目录里计算版本, 目录为空时用当前目录.
 //
-// 必须带 --match: 预发布用的滚动 tag (dev-latest) 也指向分支上的提交,
-// 不加过滤就会被 describe 挑成"最近的 tag", 于是版本号变成 dev-latest 直接失败.
-// 它的名字不带版本前缀, 同时又是轻量 tag, 这里再加一层前缀过滤双保险.
-func gitVersionIn(dir string) (tag string, describe string, err error) {
-	tagBytes, err := gitDescribe(dir, "--tags", "--abbrev=0", "--match", versionTagMatch)
-	if err != nil {
-		// 没有任何版本 tag 时用 devel 作为基础版本.
-		return "devel", "devel", nil
-	}
-	tag = strings.TrimSpace(string(tagBytes))
-	if !semverPattern.MatchString(tag) {
-		return "", "", fmt.Errorf("最近的版本 tag 不是 vX.Y.Z 形式: %s", tag)
-	}
-	// 不带 --long: HEAD 正好在版本 tag 上时只输出 tag, 与安卓端的版本规则一致.
-	describeBytes, err := gitDescribe(dir, "--tags", "--always", "--dirty", "--match", versionTagMatch)
-	describe = tag
-	if err == nil {
-		describe = strings.TrimSpace(string(describeBytes))
-	}
-	describe = sanitizeVersion(describe)
-	return tag, describe, nil
-}
-
-// gitDescribe 执行 git describe.
-func gitDescribe(dir string, args ...string) ([]byte, error) {
-	command := exec.Command("git", append([]string{"describe"}, args...)...)
-	command.Dir = dir
-	return command.Output()
-}
-
-// sanitizeVersion 把 git describe 的输出整理成合法的版本字符串.
-func sanitizeVersion(raw string) string {
-	text := strings.TrimSpace(raw)
-	text = strings.ReplaceAll(text, " ", ".")
-	text = strings.ReplaceAll(text, "~", ".")
-	if text == "" {
-		return "devel"
-	}
-	var builder strings.Builder
-	for _, symbol := range text {
-		switch {
-		case symbol >= '0' && symbol <= '9':
-			builder.WriteRune(symbol)
-		case symbol >= 'a' && symbol <= 'z':
-			builder.WriteRune(symbol)
-		case symbol >= 'A' && symbol <= 'Z':
-			builder.WriteRune(symbol)
-		case symbol == '.' || symbol == '-' || symbol == '+':
-			builder.WriteRune(symbol)
-		default:
-			builder.WriteRune('.')
+// 规则与安卓端的 scripts/build-version.py 一致:
+// HEAD 正好在版本 tag 上时只给 tag, 否则追加 - 与 7 位短 hash,
+// 工作区有未提交改动时改用 ^ 分隔. 仓库里没有版本 tag 时回落到 devel.
+//
+// 找 tag 必须带前缀过滤: 预发布用的滚动 tag (dev-latest) 也指向分支上的提交,
+// 不过滤就会被当成版本号.
+func gitVersionIn(dir string) (versionInfo, error) {
+	tag := exactVersionTag(dir)
+	if tag == "" {
+		latest, err := gitOutput(dir, "describe", "--tags", "--abbrev=0", "--match", versionTagMatch)
+		if err == nil {
+			candidate := strings.TrimSpace(latest)
+			if semverPattern.MatchString(candidate) {
+				tag = candidate
+			}
 		}
 	}
-	result := strings.Trim(builder.String(), ".-+")
-	if result == "" {
-		return "devel"
+	if tag == "" {
+		// 没有任何版本 tag 时没有可用的基础版本.
+		return versionInfo{Display: "devel", Release: "devel"}, nil
 	}
-	return result
+
+	commit, err := gitOutput(dir, "rev-parse", "--short=7", "HEAD")
+	if err != nil {
+		return versionInfo{}, fmt.Errorf("读取当前提交失败: %w", err)
+	}
+	shortHash := strings.TrimSpace(commit)
+
+	display := tag
+	switch {
+	case gitDirty(dir):
+		display = tag + "^" + shortHash
+	case tag != exactVersionTag(dir):
+		// 不在 tag 上时才追加短 hash.
+		display = tag + "-" + shortHash
+	}
+	return versionInfo{
+		Display: display,
+		Release: strings.TrimPrefix(display, versionTagPrefix),
+	}, nil
+}
+
+// exactVersionTag 返回当前 HEAD 上的版本 tag, 没有时返回空.
+func exactVersionTag(dir string) string {
+	output, err := gitOutput(dir, "tag", "--points-at", "HEAD")
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(output, "\n") {
+		candidate := strings.TrimSpace(line)
+		if candidate != "" && semverPattern.MatchString(candidate) {
+			return candidate
+		}
+	}
+	return ""
+}
+
+// gitDirty 判断工作区是否有未提交的改动.
+func gitDirty(dir string) bool {
+	command := exec.Command("git", "diff-index", "--quiet", "HEAD", "--")
+	command.Dir = dir
+	err := command.Run()
+	if err == nil {
+		return false
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		// diff-index 用退出码 1 表示有差异.
+		return exitErr.ExitCode() == 1
+	}
+	return false
+}
+
+// gitOutput 执行 git 命令并返回标准输出.
+func gitOutput(dir string, args ...string) (string, error) {
+	command := exec.Command("git", args...)
+	command.Dir = dir
+	output, err := command.Output()
+	return string(output), err
 }
 
 func buildBinary(build metadata, resolved target, logger *slog.Logger) error {

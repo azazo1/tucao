@@ -241,9 +241,10 @@ jobs:
       - name: 计算产物路径
         id: artifact
         env:
-          # 正式发布用 tag, 分支构建用与 apk 一致的构建版本.
-          TUCAO_BUILD_VERSION: ${{ needs.version.outputs.tag_name || needs.version.outputs.build_version }}
-          TUCAO_RELEASE_VERSION: ${{ needs.version.outputs.version || needs.version.outputs.build_version }}
+          # 与安卓端口径一致: 二进制里的版本跟随 tag 样式 (分支构建补 v 前缀),
+          # 产物名用剥掉前缀的那个.
+          TUCAO_BUILD_VERSION: ${{ needs.version.outputs.is_release == 'true' && needs.version.outputs.tag_name || format('v{0}', needs.version.outputs.build_version) }}
+          TUCAO_RELEASE_VERSION: ${{ needs.version.outputs.is_release == 'true' && needs.version.outputs.version || needs.version.outputs.build_version }}
         shell: bash
         run: |
           set -euo pipefail
@@ -253,8 +254,8 @@ jobs:
 
       - name: 构建并打包归档
         env:
-          TUCAO_BUILD_VERSION: ${{ needs.version.outputs.tag_name || needs.version.outputs.build_version }}
-          TUCAO_RELEASE_VERSION: ${{ needs.version.outputs.version || needs.version.outputs.build_version }}
+          TUCAO_BUILD_VERSION: ${{ needs.version.outputs.is_release == 'true' && needs.version.outputs.tag_name || format('v{0}', needs.version.outputs.build_version) }}
+          TUCAO_RELEASE_VERSION: ${{ needs.version.outputs.is_release == 'true' && needs.version.outputs.version || needs.version.outputs.build_version }}
         shell: bash
         run: |
           set -euo pipefail
