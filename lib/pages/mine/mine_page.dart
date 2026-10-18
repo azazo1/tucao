@@ -27,7 +27,6 @@ class MinePage extends StatefulWidget {
 
 class _MinePageState extends State<MinePage> {
   String _version = '';
-  bool _loggingOut = false;
 
   @override
   void initState() {
@@ -51,41 +50,6 @@ class _MinePageState extends State<MinePage> {
       });
     } catch (e) {
       Log.w('读取版本号失败: $e');
-    }
-  }
-
-  Future<void> _logout() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('退出登录'),
-        content: const Text('退出后需要重新输入账号密码, 确定退出吗?'),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(result: false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Get.back(result: true),
-            child: const Text('退出'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) {
-      return;
-    }
-    setState(() => _loggingOut = true);
-    try {
-      await AccountService.instance.logout();
-      Get.snackbar('已退出登录', '本地登录信息与 cookie 已清除');
-    } catch (e, stackTrace) {
-      Log.e('退出登录失败', error: e, stackTrace: stackTrace);
-      Get.snackbar('退出登录失败', '$e');
-    } finally {
-      if (mounted) {
-        setState(() => _loggingOut = false);
-      }
     }
   }
 
@@ -161,40 +125,6 @@ class _MinePageState extends State<MinePage> {
             trailing: const Icon(Icons.chevron_right),
             onTap: _showAbout,
           ),
-          const SizedBox(height: 16),
-          Obx(() {
-            if (!AccountService.instance.isLogin) {
-              return const SizedBox.shrink();
-            }
-            return ListTile(
-              leading: const Icon(Icons.password_outlined),
-              title: const Text('修改密码'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Get.toNamed(Routes.changePassword),
-            );
-          }),
-          Obx(() {
-            if (!AccountService.instance.isLogin) {
-              return const SizedBox.shrink();
-            }
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: OutlinedButton(
-                onPressed: _loggingOut ? null : _logout,
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(44),
-                  foregroundColor: Theme.of(context).colorScheme.error,
-                ),
-                child: _loggingOut
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('退出登录'),
-              ),
-            );
-          }),
         ],
       ),
     );
@@ -211,52 +141,62 @@ class _UserHeader extends StatelessWidget {
     return Obx(() {
       final user = AccountService.instance.user.value;
       return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              _Avatar(user: user),
-              const SizedBox(width: 14),
-              Expanded(
-                child: user == null
-                    ? Text(
-                        '未登录, 登录后可同步站点账号信息',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            user.displayName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '用户 id: ${user.userId}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: scheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-              ),
-              if (user == null) ...[
-                const SizedBox(width: 8),
-                FilledButton.tonal(
-                  onPressed: () => Get.toNamed(Routes.login),
-                  child: const Text('点击登录'),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: user == null
+              ? null
+              : () => Get.toNamed(
+                  Routes.space,
+                  parameters: {'uid': user.userId.toString()},
                 ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                _Avatar(user: user),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: user == null
+                      ? Text(
+                          '未登录, 登录后可同步站点账号信息',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              user.displayName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '用户 id: ${user.userId}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+                if (user == null) ...[
+                  const SizedBox(width: 8),
+                  FilledButton.tonal(
+                    onPressed: () => Get.toNamed(Routes.login),
+                    child: const Text('点击登录'),
+                  ),
+                ] else
+                  Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
               ],
-            ],
+            ),
           ),
         ),
       );

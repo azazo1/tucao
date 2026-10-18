@@ -5,6 +5,9 @@ import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/common/widgets/video_card.dart';
 import 'package:tucao/http/space_http.dart';
 import 'package:tucao/pages/space/space_controller.dart';
+import 'package:tucao/router/routes.dart';
+import 'package:tucao/services/account_service.dart';
+import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/utils.dart';
 
 /// 用户空间页, 即投稿人主页.
@@ -27,12 +30,61 @@ class _SpacePageState extends State<SpacePage> {
     tag: _tag,
   );
 
+  bool _loggingOut = false;
+
+  /// 只有查看自己的空间时才显示账号操作.
+  bool get _isOwnProfile {
+    final user = AccountService.instance.user.value;
+    return user != null && user.userId > 0 && user.userId == widget.userId;
+  }
+
   @override
   void dispose() {
     if (Get.isRegistered<SpaceController>(tag: _tag)) {
       Get.delete<SpaceController>(tag: _tag);
     }
     super.dispose();
+  }
+
+  Future<void> _logout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('退出登录'),
+        content: const Text('退出后需要重新输入账号密码, 确定退出吗?'),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Get.back(result: true),
+            child: const Text('退出'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    setState(() => _loggingOut = true);
+    try {
+      await AccountService.instance.logout();
+      if (!mounted) {
+        return;
+      }
+      Get.back();
+      Get.snackbar('已退出登录', '本地登录信息与 cookie 已清除');
+    } catch (e, stackTrace) {
+      Log.e('退出登录失败', error: e, stackTrace: stackTrace);
+      if (mounted) {
+        Get.snackbar('退出登录失败', '$e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _loggingOut = false);
+      }
+    }
   }
 
   @override
@@ -69,6 +121,7 @@ class _SpacePageState extends State<SpacePage> {
                 ),
               ),
               SliverToBoxAdapter(child: _buildStats(context, info)),
+              SliverToBoxAdapter(child: _buildAccountActions(context)),
               if (_controller.list.isEmpty)
                 const SliverFillRemaining(
                   hasScrollBody: false,
@@ -132,6 +185,43 @@ class _SpacePageState extends State<SpacePage> {
         ),
       ],
     );
+  }
+
+  /// 自己的主页上显示账号操作, 别人的主页不显示.
+  Widget _buildAccountActions(BuildContext context) {
+    return Obx(() {
+      if (!_isOwnProfile) {
+        return const SizedBox.shrink();
+      }
+      final scheme = Theme.of(context).colorScheme;
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            OutlinedButton.icon(
+              onPressed: () => Get.toNamed(Routes.changePassword),
+              icon: const Icon(Icons.password_outlined, size: 18),
+              label: const Text('修改密码'),
+            ),
+            TextButton.icon(
+              onPressed: _loggingOut ? null : _logout,
+              style: TextButton.styleFrom(foregroundColor: scheme.error),
+              icon: _loggingOut
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.logout, size: 18),
+              label: const Text('退出登录'),
+            ),
+          ],
+        ),
+      );
+    });
   }
 
   Widget _buildStats(BuildContext context, SpaceInfo? info) {
