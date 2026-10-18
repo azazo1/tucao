@@ -34,6 +34,12 @@ class _SearchPageState extends State<SearchPage> {
   final _inputController = TextEditingController();
   final _focusNode = FocusNode();
 
+  /// 当前关键词是否由路由参数带入.
+  ///
+  /// 从热搜榜点进来的搜索, 返回时应回到热搜榜;
+  /// 在搜索页点热搜或手动搜索, 返回时先回到热搜与历史.
+  bool _fromRouteKeyword = false;
+
   @override
   void initState() {
     super.initState();
@@ -42,7 +48,7 @@ class _SearchPageState extends State<SearchPage> {
     if (keyword != null && keyword.trim().isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          _submit(keyword);
+          _submit(keyword, fromRoute: true);
         }
       });
     }
@@ -58,7 +64,10 @@ class _SearchPageState extends State<SearchPage> {
     super.dispose();
   }
 
-  Future<void> _submit(String value) async {
+  Future<void> _submit(String value, {bool fromRoute = false}) async {
+    if (_fromRouteKeyword != fromRoute && mounted) {
+      setState(() => _fromRouteKeyword = fromRoute);
+    }
     final keyword = value.trim();
     if (keyword.isEmpty) {
       _controller.clearKeyword();
@@ -81,19 +90,33 @@ class _SearchPageState extends State<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: !widget.embedded,
-        titleSpacing: widget.embedded ? 12 : 4,
-        title: _buildInput(),
-      ),
-      body: Obx(() {
-        if (_controller.hasSearched) {
-          return _buildResult();
-        }
-        return _buildIdle();
-      }),
-    );
+    return Obx(() {
+      // 结果页的返回先回到热搜与历史, 再按一次才退出搜索页.
+      // 带路由关键词进来的搜索保持原来的返回行为.
+      final backToIdle =
+          _controller.hasSearched && !_fromRouteKeyword && !widget.embedded;
+      return PopScope(
+        canPop: !backToIdle,
+        onPopInvokedWithResult: (didPop, result) {
+          if (!didPop && backToIdle) {
+            _clearInput();
+          }
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            automaticallyImplyLeading: !widget.embedded,
+            titleSpacing: widget.embedded ? 12 : 4,
+            title: _buildInput(),
+          ),
+          body: Obx(() {
+            if (_controller.hasSearched) {
+              return _buildResult();
+            }
+            return _buildIdle();
+          }),
+        ),
+      );
+    });
   }
 
   Widget _buildInput() {
