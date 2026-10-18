@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:tucao/common/constants.dart';
+import 'package:tucao/common/vip.dart';
 import 'package:tucao/http/api_path.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/utils/http_util.dart';
@@ -16,6 +17,7 @@ class SpaceInfo {
     this.sign = '',
     this.meta = '',
     this.total = 0,
+    this.isVip = false,
   });
 
   final int userId;
@@ -35,6 +37,12 @@ class SpaceInfo {
 
   /// 投稿总数.
   final int total;
+
+  /// 空间主人是否是站点破会员.
+  ///
+  /// 站点给破会员的昵称写了 `#c07c32` 的颜色, 普通用户没有这段 style,
+  /// 判定规则见 [Vip.hasNicknameColor].
+  final bool isVip;
 }
 
 /// 用户空间的一页数据.
@@ -81,6 +89,7 @@ abstract final class SpaceHttp {
   static SpacePage parseSpaceHtml(String raw, int userId, int page) {
     final document = html_parser.parse(raw);
     final header = document.querySelector('.sheader');
+    final nameNode = header?.querySelector('h1');
 
     final avatar = header?.querySelector('img.avatar')?.attributes['src'] ?? '';
     final bannerNode = header?.querySelector('img.banner');
@@ -136,12 +145,13 @@ abstract final class SpaceHttp {
     return SpacePage(
       info: SpaceInfo(
         userId: userId,
-        userName: header?.querySelector('h1')?.text.trim() ?? '',
+        userName: nameNode?.text.trim() ?? '',
         avatar: _absolute(avatar),
         banner: _absolute(banner),
         sign: sign,
         meta: meta,
         total: total,
+        isVip: Vip.hasNicknameColor(nameNode?.attributes['style']),
       ),
       list: list,
       hasMore: hasMore,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:tucao/models/reply.dart';
 import 'package:tucao/pages/reply/reply_thread.dart';
 import 'package:tucao/pages/reply/widgets/comment_tile.dart';
@@ -95,6 +96,7 @@ class ReplyThreadView extends StatelessWidget {
     required this.hasMore,
     required this.supportCountOf,
     required this.isSupported,
+    required this.isVipOf,
     required this.onCollapse,
     required this.onLoadMore,
     required this.onRetry,
@@ -108,6 +110,10 @@ class ReplyThreadView extends StatelessWidget {
   final bool hasMore;
   final int Function(ReplyModel reply) supportCountOf;
   final bool Function(ReplyModel reply) isSupported;
+
+  /// 回复者是否是已知的破会员, 楼中楼没有会员信息, 只能靠已知的 uid 判断.
+  final bool Function(int uid) isVipOf;
+
   final VoidCallback onCollapse;
   final VoidCallback onLoadMore;
   final VoidCallback onRetry;
@@ -147,13 +153,18 @@ class ReplyThreadView extends StatelessWidget {
                   horizontal: 10,
                   vertical: 8,
                 ),
-                child: CommentTile(
-                  comment: thread.items[i],
-                  dense: true,
-                  supportCount: supportCountOf(thread.items[i]),
-                  supported: isSupported(thread.items[i]),
-                  onSupport: () => onSupport(thread.items[i]),
-                  onReply: () => onReply(thread.items[i]),
+                child: Obx(
+                  () => CommentTile(
+                    comment: thread.items[i],
+                    dense: true,
+                    isVip:
+                        thread.items[i].isVip ||
+                        isVipOf(thread.items[i].userId),
+                    supportCount: supportCountOf(thread.items[i]),
+                    supported: isSupported(thread.items[i]),
+                    onSupport: () => onSupport(thread.items[i]),
+                    onReply: () => onReply(thread.items[i]),
+                  ),
                 ),
               ),
             ],

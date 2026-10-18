@@ -8,6 +8,7 @@ import 'package:tucao/build_config.dart';
 import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/common/constants.dart';
 import 'package:tucao/common/style.dart';
+import 'package:tucao/common/vip.dart';
 import 'package:tucao/models/user.dart';
 import 'package:tucao/router/routes.dart';
 import 'package:tucao/services/account_service.dart';
@@ -88,6 +89,7 @@ class _MinePageState extends State<MinePage> {
         ),
         children: [
           const Padding(padding: Style.pagePadding, child: _UserHeader()),
+          const _VipCard(),
           const SizedBox(height: 16),
           ListTile(
             leading: const Icon(Icons.mail_outline),
@@ -171,9 +173,11 @@ class _UserHeader extends StatelessWidget {
                               user.displayName,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
+                                // 破会员的昵称与网页端一样用站点金色.
+                                color: user.isVip ? Vip.nicknameColor : null,
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -195,6 +199,68 @@ class _UserHeader extends StatelessWidget {
                   ),
                 ] else
                   Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
+              ],
+            ),
+          ),
+        ),
+      );
+    });
+  }
+}
+
+/// 破会员身份卡.
+///
+/// 会员身份来自站点 `api.php?op=user` 的 vip 字段, 非会员时整块不显示.
+class _VipCard extends StatelessWidget {
+  const _VipCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Obx(() {
+      final user = AccountService.instance.user.value;
+      if (user == null || !user.isVip) {
+        return const SizedBox.shrink();
+      }
+      return Padding(
+        padding: Style.pagePadding,
+        child: Card(
+          color: Vip.nicknameColor.withValues(alpha: 0.1),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: Vip.nicknameColor.withValues(alpha: 0.4),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Icon(Icons.workspace_premium, color: Vip.nicknameColor),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '破会员',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Vip.nicknameColor,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '站点会员头衔, 昵称在评论区显示金色. 特权: 无广告, 亮眼, 图评.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),

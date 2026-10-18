@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/common/constants.dart';
+import 'package:tucao/common/vip.dart';
 import 'package:tucao/models/reply.dart';
 import 'package:tucao/pages/reply/reply_content.dart';
 import 'package:tucao/router/routes.dart';
@@ -18,6 +19,7 @@ class CommentTile extends StatelessWidget {
     required this.supported,
     required this.onSupport,
     required this.onReply,
+    this.isVip = false,
     this.dense = false,
     this.footer,
   });
@@ -27,6 +29,9 @@ class CommentTile extends StatelessWidget {
   final bool supported;
   final VoidCallback onSupport;
   final VoidCallback onReply;
+
+  /// 评论者是否是站点破会员, 是的话昵称用站点金色, 与网页端一致.
+  final bool isVip;
 
   /// 楼中楼里的紧凑样式.
   final bool dense;
@@ -89,7 +94,7 @@ class CommentTile extends StatelessWidget {
       style: TextStyle(
         fontSize: dense ? 12 : 13,
         fontWeight: FontWeight.w500,
-        color: scheme.onSurface,
+        color: isVip ? Vip.nicknameColor : scheme.onSurface,
       ),
     );
     return Wrap(

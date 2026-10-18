@@ -8,6 +8,7 @@ import 'package:tucao/pages/reply/widgets/comment_tile.dart';
 import 'package:tucao/pages/reply/widgets/reply_input_sheet.dart';
 import 'package:tucao/pages/reply/widgets/reply_thread_view.dart';
 import 'package:tucao/services/account_service.dart';
+import 'package:tucao/services/vip_service.dart';
 
 /// 独立评论入口, 视频页直接使用 [ReplyPanel].
 class ReplyPage extends StatelessWidget {
@@ -161,6 +162,7 @@ class _ReplyPanelState extends State<ReplyPanel>
           onRetry: () => _retry(comment),
           onSupport: _support,
           onReply: (reply) => _openInput(replyTo: reply),
+          isVipOf: _isVipOf,
         );
       } else if (count > 0 || thread.error != null) {
         footer = ReplyExpandButton(
@@ -177,6 +179,9 @@ class _ReplyPanelState extends State<ReplyPanel>
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: CommentTile(
           comment: comment,
+          // 会员标记来自两处: 评论 json 里评论者没设昵称时连带返回的用户记录,
+          // 以及按页抓回来的评论页颜色, 见 VipService.
+          isVip: comment.isVip || _isVipOf(comment.userId),
           supportCount: controller.supportCount(comment),
           supported: controller.isSupported(comment.id),
           onSupport: () => _support(comment),
@@ -252,6 +257,11 @@ class _ReplyPanelState extends State<ReplyPanel>
       ),
     );
   }
+
+  /// 评论者是否是已知的破会员.
+  ///
+  /// 在 Obx 里调用, 标记到位后昵称颜色会自己更新.
+  bool _isVipOf(int uid) => VipService.maybe?.isVip(uid) ?? false;
 
   /// 展开或收起楼中楼.
   Future<void> _toggle(ReplyModel comment) async {

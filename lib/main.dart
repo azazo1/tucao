@@ -12,6 +12,7 @@ import 'package:tucao/services/download/download_transport.dart';
 import 'package:tucao/services/history_service.dart';
 import 'package:tucao/services/favorite_service.dart';
 import 'package:tucao/services/theme_service.dart';
+import 'package:tucao/services/vip_service.dart';
 import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/http_util.dart';
 import 'package:tucao/utils/storage.dart';
@@ -32,6 +33,8 @@ Future<void> main() async {
   Get.put(AccountService());
   Get.put(AdService());
   Get.put(HistoryService());
+  // 评论区的破会员标记, 只在内存里攒, 不做持久化.
+  Get.put(VipService());
   Get.put(FavoriteService(), permanent: true);
   final downloads = Get.put(
     DownloadService(transport: DioDownloadTransport(HttpUtil.dio)),

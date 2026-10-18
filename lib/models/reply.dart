@@ -1,3 +1,5 @@
+import 'package:tucao/common/vip.dart';
+
 /// 评论条目.
 class ReplyModel {
   const ReplyModel({
@@ -13,6 +15,7 @@ class ReplyModel {
     this.replyId = 0,
     this.replyUserId = 0,
     this.replyUserName = '',
+    this.isVip = false,
     this.replies = const [],
   });
 
@@ -41,6 +44,12 @@ class ReplyModel {
   final int replyUserId;
   final String replyUserName;
 
+  /// 评论者是否是站点破会员.
+  ///
+  /// 只有站点把整条用户记录塞进 `nickname` 时才有值 (评论者没设昵称的情况),
+  /// 其它评论者的会员标记由评论页的昵称颜色补齐, 见 `VipService`.
+  final bool isVip;
+
   /// 楼中楼回复, 仅在展开时填充.
   final List<ReplyModel> replies;
 
@@ -48,12 +57,21 @@ class ReplyModel {
 
   factory ReplyModel.fromJson(Map<String, dynamic> json) {
     final rawReplies = json['replies'];
+    // 站点在评论者没有设置昵称时会把整条用户记录写进 nickname,
+    // 直接取字符串会得到一长串 map 文本, 因此这里单独处理.
+    final rawNickname = json['nickname'];
+    final user = rawNickname is Map
+        ? rawNickname.cast<String, dynamic>()
+        : const <String, dynamic>{};
+    final nickname = user.isNotEmpty
+        ? _nameOfUser(user)
+        : rawNickname?.toString().trim() ?? '';
     return ReplyModel(
       id: json['id']?.toString() ?? '',
       commentId: json['commentid']?.toString() ?? '',
       userId: int.tryParse(json['userid']?.toString() ?? '') ?? 0,
-      userName: json['nickname']?.toString().isNotEmpty == true
-          ? json['nickname'].toString()
+      userName: nickname.isNotEmpty
+          ? nickname
           : json['username']?.toString() ?? '',
       content: json['content']?.toString() ?? '',
       avatar: json['avatar']?.toString() ?? '',
@@ -63,6 +81,7 @@ class ReplyModel {
       replyId: int.tryParse(json['replyid']?.toString() ?? '') ?? 0,
       replyUserId: int.tryParse(json['replyuid']?.toString() ?? '') ?? 0,
       replyUserName: json['rusername']?.toString() ?? '',
+      isVip: Vip.fromApiValue(user['vip']),
       replies: rawReplies is List
           ? rawReplies
                 .whereType<Map>()
@@ -70,6 +89,15 @@ class ReplyModel {
                 .toList()
           : const [],
     );
+  }
+
+  /// 用户记录里的显示名: 昵称为空时退回用户名.
+  static String _nameOfUser(Map<String, dynamic> user) {
+    final nickname = user['nickname']?.toString().trim() ?? '';
+    if (nickname.isNotEmpty) {
+      return nickname;
+    }
+    return user['username']?.toString().trim() ?? '';
   }
 
   ReplyModel copyWith({List<ReplyModel>? replies}) => ReplyModel(
@@ -85,6 +113,7 @@ class ReplyModel {
     replyId: replyId,
     replyUserId: replyUserId,
     replyUserName: replyUserName,
+    isVip: isVip,
     replies: replies ?? this.replies,
   );
 }
