@@ -2,11 +2,11 @@ package model
 
 // User 是站点账号信息.
 type User struct {
-	UserID    int    `json:"userid" yaml:"userid"`
-	UserName  string `json:"username" yaml:"username"`
+	UserID    int    `json:"user_id" yaml:"user_id"`
+	UserName  string `json:"user_name" yaml:"user_name"`
 	Nickname  string `json:"nickname,omitempty" yaml:"nickname,omitempty"`
 	Avatar    string `json:"avatar,omitempty" yaml:"avatar,omitempty"`
-	GroupName string `json:"groupname,omitempty" yaml:"groupname,omitempty"`
+	GroupName string `json:"group_name,omitempty" yaml:"group_name,omitempty"`
 	Credit    int    `json:"credit,omitempty" yaml:"credit,omitempty"`
 }
 
@@ -20,8 +20,8 @@ func (u User) DisplayName() string {
 
 // Space 是用户空间页的头部信息.
 type Space struct {
-	UserID   int    `json:"userid" yaml:"userid"`
-	UserName string `json:"username" yaml:"username"`
+	UserID   int    `json:"user_id" yaml:"user_id"`
+	UserName string `json:"user_name" yaml:"user_name"`
 	Avatar   string `json:"avatar,omitempty" yaml:"avatar,omitempty"`
 	Banner   string `json:"banner,omitempty" yaml:"banner,omitempty"`
 	Sign     string `json:"sign,omitempty" yaml:"sign,omitempty"`

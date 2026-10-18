@@ -29,7 +29,8 @@ func (c *Client) OnlineCount(ctx context.Context, hid string, modelID int) (*int
 	}
 	query := buildQuery(
 		"cid", OnlineCID(hid, modelID),
-		"v", 0,
+		// v=0 只返回数字, 用字符串传是因为查询构造会跳过零值.
+		"v", "0",
 		"t", strconv.FormatInt(time.Now().UnixMilli(), 10),
 	)
 	values, err := c.fetchStatsScript(ctx, PathOnline, query)
@@ -45,7 +46,7 @@ func (c *Client) OnlineCount(ctx context.Context, hid string, modelID int) (*int
 func (c *Client) SiteOnline(ctx context.Context) (online *int, players *int, err error) {
 	query := buildQuery(
 		"cid", "",
-		"v", 0,
+		"v", "0",
 		"t", strconv.FormatInt(time.Now().UnixMilli(), 10),
 	)
 	values, err := c.fetchStatsScript(ctx, PathOnline, query)
