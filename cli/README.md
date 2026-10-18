@@ -243,7 +243,18 @@ just cli test          # go test ./...
 just cli lint          # go vet ./...
 just cli fmt           # gofmt
 just cli run --help
+
+# 交叉编译全部六个平台并校验产物
+just cli dist-all
 ```
+
+代码是纯 Go, 不依赖 cgo, 因此任一平台都能产出全部目标的二进制, 发布产物在
+一个 linux runner 上就能做完. 交叉编译出来的产物跑不起来, 所以 `verify`
+改用文件头与编译期注入的版本串核对: 归档里只有一个预期文件, ELF / Mach-O / PE
+的架构与目标一致, 二进制里带着本次构建的版本号.
+
+`go test` 必须在本机跑, 交叉编译不能替代, 因此 CI 里另有一组按系统 (Linux,
+Windows, macOS) 各跑一遍的测试任务.
 
 解析测试直接复用仓库根目录 `test/fixtures/` 里的真实页面样本,
 因此 `go test` 需要在仓库内运行.

@@ -170,53 +170,70 @@ jobs:
         run: flutter test
 
   cli:
-    name: 构建 CLI ${{ matrix.platform }} ${{ matrix.arch }}
+    name: 构建 CLI 全部平台
     needs: version
-    runs-on: ${{ matrix.runner }}
+    # Go 的纯 Go 代码不依赖 cgo, 一个 runner 上交叉编译就能产出全部目标,
+    # 不必按平台拆 job; 跑不了的交叉产物由 verify 用文件头与版本串核对.
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+      - name: 检出目标提交
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.version.outputs.source_ref }}
+
+      - name: 设置 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: cli/go.mod
+          cache: true
+          cache-dependency-path: cli/go.sum
+
+      - name: 构建并打包全部平台
+        env:
+          # 与安卓端口径一致: 二进制里的版本跟随 tag 样式 (分支构建补 v 前缀),
+          # 产物名用剥掉前缀的那个.
+          TUCAO_BUILD_VERSION: ${{ needs.version.outputs.is_release == 'true' && needs.version.outputs.tag_name || format('v{0}', needs.version.outputs.build_version) }}
+          TUCAO_RELEASE_VERSION: ${{ needs.version.outputs.is_release == 'true' && needs.version.outputs.version || needs.version.outputs.build_version }}
+        run: go run ./scripts/release -mode dist-all
+
+      - name: 校验全部产物
+        env:
+          TUCAO_BUILD_VERSION: ${{ needs.version.outputs.is_release == 'true' && needs.version.outputs.tag_name || format('v{0}', needs.version.outputs.build_version) }}
+          TUCAO_RELEASE_VERSION: ${{ needs.version.outputs.is_release == 'true' && needs.version.outputs.version || needs.version.outputs.build_version }}
+        run: go run ./scripts/release -mode verify
+
+      - name: 运行版本 smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          # 本机就是 Linux x86_64, 只有这个产物能真正执行.
+          actual="$(./bin/tucao --version)"
+          expected="v${{ needs.version.outputs.is_release == 'true' && needs.version.outputs.version || needs.version.outputs.build_version }}"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "版本输出为 $actual, 预期为 $expected" >&2
+            exit 1
+          fi
+
+      - name: 上传发布归档
+        uses: actions/upload-artifact@v4
+        with:
+          name: tucao-cli-${{ needs.version.outputs.build_version }}
+          path: cli/dist/tucao-cli-*
+          if-no-files-found: error
+          retention-days: 14
+
+  cli-test:
+    name: CLI 测试 ${{ matrix.os }}
+    needs: version
+    # 交叉编译能产出别的平台的二进制, 但跑不了它们的测试, 所以按系统各跑一遍.
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - platform: linux
-            arch: x86_64
-            goos: linux
-            goarch: amd64
-            runner: ubuntu-24.04
-            can_execute: true
-            format_pattern: 'ELF.*x86-64'
-          - platform: linux
-            arch: aarch64
-            goos: linux
-            goarch: arm64
-            runner: ubuntu-24.04
-            can_execute: false
-            format_pattern: 'ELF.*ARM aarch64'
-          - platform: windows
-            arch: x86_64
-            goos: windows
-            goarch: amd64
-            runner: windows-2025
-            can_execute: true
-          - platform: windows
-            arch: aarch64
-            goos: windows
-            goarch: arm64
-            runner: windows-2025
-            can_execute: false
-          - platform: macos
-            arch: x86_64
-            goos: darwin
-            goarch: amd64
-            runner: macos-15-intel
-            can_execute: true
-            format_pattern: 'Mach-O.*x86_64'
-          - platform: macos
-            arch: aarch64
-            goos: darwin
-            goarch: arm64
-            runner: macos-15
-            can_execute: true
-            format_pattern: 'Mach-O.*arm64'
+        os: [ubuntu-24.04, windows-2025, macos-15]
     defaults:
       run:
         working-directory: cli
@@ -237,119 +254,6 @@ jobs:
         run: |
           go vet ./...
           go test ./...
-
-      - name: 计算产物路径
-        id: artifact
-        env:
-          # 与安卓端口径一致: 二进制里的版本跟随 tag 样式 (分支构建补 v 前缀),
-          # 产物名用剥掉前缀的那个.
-          TUCAO_BUILD_VERSION: ${{ needs.version.outputs.is_release == 'true' && needs.version.outputs.tag_name || format('v{0}', needs.version.outputs.build_version) }}
-          TUCAO_RELEASE_VERSION: ${{ needs.version.outputs.is_release == 'true' && needs.version.outputs.version || needs.version.outputs.build_version }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          go run ./scripts/release -mode metadata \
-            -target-os "${{ matrix.goos }}" \
-            -target-arch "${{ matrix.goarch }}" >> "$GITHUB_OUTPUT"
-
-      - name: 构建并打包归档
-        env:
-          TUCAO_BUILD_VERSION: ${{ needs.version.outputs.is_release == 'true' && needs.version.outputs.tag_name || format('v{0}', needs.version.outputs.build_version) }}
-          TUCAO_RELEASE_VERSION: ${{ needs.version.outputs.is_release == 'true' && needs.version.outputs.version || needs.version.outputs.build_version }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          go run ./scripts/release -mode dist \
-            -target-os "${{ matrix.goos }}" \
-            -target-arch "${{ matrix.goarch }}"
-
-      - name: 运行版本 smoke test
-        if: matrix.can_execute
-        env:
-          BINARY_PATH: ${{ steps.artifact.outputs.binary_path }}
-          BUILD_VERSION: ${{ steps.artifact.outputs.build_version }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          actual_version="$("./${BINARY_PATH}" --version)"
-          if [[ "$actual_version" != "$BUILD_VERSION" ]]; then
-            echo "版本输出为 $actual_version, 预期为 $BUILD_VERSION" >&2
-            exit 1
-          fi
-
-      - name: 检查 Linux 与 macOS 二进制格式
-        if: matrix.platform != 'windows'
-        env:
-          BINARY_PATH: ${{ steps.artifact.outputs.binary_path }}
-          FORMAT_PATTERN: ${{ matrix.format_pattern }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          format="$(file "$BINARY_PATH")"
-          echo "$format"
-          if [[ ! "$format" =~ $FORMAT_PATTERN ]]; then
-            echo "目标二进制格式不匹配: $BINARY_PATH" >&2
-            exit 1
-          fi
-
-      - name: 检查 Windows 二进制格式
-        if: matrix.platform == 'windows'
-        env:
-          BINARY_PATH: ${{ steps.artifact.outputs.binary_path }}
-          TARGET_ARCH: ${{ matrix.arch }}
-        shell: pwsh
-        run: |
-          $binary = Resolve-Path -LiteralPath $env:BINARY_PATH -ErrorAction Stop
-          $header = [System.IO.File]::ReadAllBytes($binary)
-          if ($header.Length -lt 64 -or $header[0] -ne 0x4d -or $header[1] -ne 0x5a) {
-            throw "PE 文件头无效: $binary"
-          }
-          $peOffset = [BitConverter]::ToInt32($header, 0x3c)
-          if ($header.Length -lt ($peOffset + 6) -or $header[$peOffset] -ne 0x50 -or $header[$peOffset + 1] -ne 0x45) {
-            throw "PE 签名无效: $binary"
-          }
-          $machine = [BitConverter]::ToUInt16($header, $peOffset + 4)
-          $expectedMachine = if ($env:TARGET_ARCH -eq "x86_64") { 0x8664 } else { 0xAA64 }
-          if ($machine -ne $expectedMachine) {
-            throw "PE 架构不匹配: $machine"
-          }
-
-      - name: 检查 tar.gz 归档
-        if: matrix.platform != 'windows'
-        env:
-          ARCHIVE_PATH: ${{ steps.artifact.outputs.archive_path }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          entries="$(tar -tzf "$ARCHIVE_PATH")"
-          if [[ "$entries" != "tucao" ]]; then
-            echo "归档内容不正确: $ARCHIVE_PATH" >&2
-            exit 1
-          fi
-
-      - name: 检查 zip 归档
-        if: matrix.platform == 'windows'
-        env:
-          ARCHIVE_PATH: ${{ steps.artifact.outputs.archive_path }}
-        shell: pwsh
-        run: |
-          $archivePath = Resolve-Path -LiteralPath $env:ARCHIVE_PATH -ErrorAction Stop
-          $archive = [System.IO.Compression.ZipFile]::OpenRead($archivePath)
-          try {
-            if ($archive.Entries.Count -ne 1 -or $archive.Entries[0].FullName -ne "tucao.exe") {
-              throw "ZIP 归档内容不正确: $archivePath"
-            }
-          } finally {
-            $archive.Dispose()
-          }
-
-      - name: 上传发布归档
-        uses: actions/upload-artifact@v4
-        with:
-          name: tucao-cli-${{ needs.version.outputs.build_version }}-${{ matrix.platform }}-${{ matrix.arch }}
-          path: cli/${{ steps.artifact.outputs.archive_path }}
-          if-no-files-found: error
-          retention-days: 14
 
   android:
     name: 构建 Android
@@ -443,7 +347,7 @@ jobs:
   release:
     name: 发布 Release
     if: needs.version.outputs.is_release == 'true'
-    needs: [version, analyze, test, android, cli]
+    needs: [version, analyze, test, android, cli, cli-test]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -600,7 +504,7 @@ jobs:
   # 因此仓库里始终只有最新一次 push 的预发布.
   prerelease:
     name: 发布预发布 Release
-    needs: [version, analyze, test, android, cli]
+    needs: [version, analyze, test, android, cli, cli-test]
     # tag push 走上面的正式 release; pull_request 的 token 是只读的, 也不该改写预发布.
     if: needs.version.outputs.is_release != 'true' && startsWith(github.ref, 'refs/heads/')
     runs-on: ubuntu-latest

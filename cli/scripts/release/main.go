@@ -60,12 +60,22 @@ type metadata struct {
 }
 
 func main() {
-	mode := flag.String("mode", "build", "执行模式: metadata, build 或 dist")
-	targetOS := flag.String("target-os", runtime.GOOS, "目标系统")
-	targetArch := flag.String("target-arch", runtime.GOARCH, "目标架构")
+	mode := flag.String("mode", "build", "执行模式: metadata, build, dist, dist-all 或 verify")
+	targetOS := flag.String("target-os", runtime.GOOS, "目标系统, 仅 build 与 dist 使用")
+	targetArch := flag.String("target-arch", runtime.GOARCH, "目标架构, 仅 build 与 dist 使用")
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+
+	// dist-all 与 verify 面向全部平台, 不走单目标解析.
+	if *mode == "dist-all" || *mode == "verify" {
+		if err := runAllPlatforms(*mode, logger); err != nil {
+			logger.Error("命令失败", "mode", *mode, "error", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	resolved, err := resolveTarget(*targetOS, *targetArch)
 	if err != nil {
 		logger.Error("解析构建目标失败", "error", err)
@@ -97,8 +107,42 @@ func main() {
 			os.Exit(1)
 		}
 	default:
-		logger.Error("未知模式", "mode", *mode)
+		logger.Error("未知模式", "mode", *mode, "可选值", "metadata, build, dist, dist-all, verify")
 		os.Exit(2)
+	}
+}
+
+// runAllPlatforms 处理 cross 编译全部平台的两个模式.
+//
+// Go 的纯 Go 代码不依赖 cgo, 一个 runner 就能产出全部目标, 因此不需要按平台
+// 拆 job; 交叉编译出来跑不了的部分由 verify 用文件头与版本串来核对.
+func runAllPlatforms(mode string, logger *slog.Logger) error {
+	versions, err := resolveVersions()
+	if err != nil {
+		return fmt.Errorf("解析构建版本失败: %w", err)
+	}
+	if err := validateVersions(versions); err != nil {
+		return err
+	}
+	release := strings.TrimPrefix(versions.Release, versionTagPrefix)
+
+	switch mode {
+	case "dist-all":
+		for _, resolved := range allTargets() {
+			build := metadataFor(resolved, versions.Display, release)
+			if err := buildBinary(build, resolved, logger); err != nil {
+				return err
+			}
+			if err := createArchive(build, resolved, logger); err != nil {
+				return err
+			}
+		}
+		logger.Info("全部平台的产物已生成", "count", len(allTargets()), "version", versions.Display)
+		return nil
+	case "verify":
+		return verifyArtifacts(release, versions.Display)
+	default:
+		return fmt.Errorf("未知模式: %s", mode)
 	}
 }
 
@@ -119,29 +163,43 @@ func resolveTarget(goos, goarch string) (target, error) {
 	return target{GOOS: goos, GOARCH: goarch, Platform: platform, Arch: arch}, nil
 }
 
-func resolveMetadata(resolved target) (metadata, error) {
-	display := strings.TrimSpace(os.Getenv("TUCAO_BUILD_VERSION"))
-	release := strings.TrimSpace(os.Getenv("TUCAO_RELEASE_VERSION"))
-	if display == "" || release == "" {
-		info, err := gitVersion()
-		if err != nil {
-			return metadata{}, err
-		}
-		if display == "" {
-			display = info.Display
-		}
-		if release == "" {
-			release = info.Release
-		}
+// resolveVersions 取本次构建的两个版本号: 优先用环境变量, 缺的按 git 推导.
+func resolveVersions() (versionInfo, error) {
+	info := versionInfo{
+		Display: strings.TrimSpace(os.Getenv("TUCAO_BUILD_VERSION")),
+		Release: strings.TrimSpace(os.Getenv("TUCAO_RELEASE_VERSION")),
 	}
+	if info.Display != "" && info.Release != "" {
+		return info, nil
+	}
+	derived, err := gitVersion()
+	if err != nil {
+		return versionInfo{}, err
+	}
+	if info.Display == "" {
+		info.Display = derived.Display
+	}
+	if info.Release == "" {
+		info.Release = derived.Release
+	}
+	return info, nil
+}
+
+func resolveMetadata(resolved target) (metadata, error) {
+	versions, err := resolveVersions()
+	if err != nil {
+		return metadata{}, err
+	}
+	if err := validateVersions(versions); err != nil {
+		return metadata{}, err
+	}
+	return metadataFor(resolved, versions.Display, versions.Release), nil
+}
+
+// metadataFor 按给定版本号算出产物路径, 不做 git 推断.
+func metadataFor(resolved target, display, release string) metadata {
 	// 产物名统一不带 tag 前缀, 传进来的值带 v 时剥掉, 免得产出 tucao-cli-v1.3.0-....
 	release = strings.TrimPrefix(release, versionTagPrefix)
-	if !versionPattern.MatchString(release) {
-		return metadata{}, fmt.Errorf("版本号含非法字符: %s", release)
-	}
-	if display == "" {
-		display = versionTagPrefix + release
-	}
 	binaryName := "tucao"
 	if resolved.GOOS == "windows" {
 		binaryName += ".exe"
@@ -156,7 +214,19 @@ func resolveMetadata(resolved target) (metadata, error) {
 		ArchiveName:  archiveName,
 		BinaryPath:   filepath.Join(binaryDir, binaryName),
 		ArchivePath:  filepath.Join(distDirectory, archiveName),
-	}, nil
+	}
+}
+
+// validateVersions 校验版本号能安全地拼进产物名.
+func validateVersions(versions versionInfo) error {
+	release := strings.TrimPrefix(versions.Release, versionTagPrefix)
+	if !versionPattern.MatchString(release) {
+		return fmt.Errorf("版本号含非法字符: %s", versions.Release)
+	}
+	if !versionPattern.MatchString(strings.TrimPrefix(versions.Display, versionTagPrefix)) {
+		return fmt.Errorf("显示版本号含非法字符: %s", versions.Display)
+	}
+	return nil
 }
 
 // versionInfo 是同一次构建里的两个版本号.

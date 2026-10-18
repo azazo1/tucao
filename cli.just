@@ -13,6 +13,13 @@ build:
 dist:
     go run ./scripts/release -mode dist
 
+# 交叉编译全部六个平台到 cli/bin/ 与 cli/dist/, 并校验产物.
+# 纯 Go 代码不依赖 cgo, 一个平台就能产出全部目标.
+[working-directory('cli')]
+dist-all:
+    go run ./scripts/release -mode dist-all
+    go run ./scripts/release -mode verify
+
 # just cli test [args...]
 # 运行 Go 测试.
 [working-directory('cli')]
