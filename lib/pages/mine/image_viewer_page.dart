@@ -104,22 +104,6 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
         elevation: 0,
         foregroundColor: Colors.white,
         title: widget.title == null ? null : Text(widget.title!),
-        actions: [
-          IconButton(
-            tooltip: '保存到相册',
-            onPressed: _saving ? null : _save,
-            icon: _saving
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Icon(Icons.download_outlined),
-          ),
-        ],
       ),
       body: GestureDetector(
         onLongPress: _saving ? null : _showActions,
@@ -151,8 +135,9 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
               right: 0,
               bottom: 24,
               child: Text(
-                '长按图片可保存到相册',
-                textAlign: TextAlign.center,                style: TextStyle(
+                '长按图片保存到相册',
+                textAlign: TextAlign.center,
+                style: TextStyle(
                   fontSize: 12,
                   color: Colors.white.withValues(alpha: 0.7),
                 ),
