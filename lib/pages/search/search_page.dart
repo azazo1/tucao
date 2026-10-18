@@ -167,7 +167,7 @@ class _SearchPageState extends State<SearchPage> {
             ),
             if (items.isEmpty)
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 12, 0),
+                padding: const EdgeInsets.fromLTRB(24, 8, 12, 8),
                 child: Text(
                   '还没有搜索记录',
                   style: TextStyle(fontSize: 13, color: scheme.outline),
