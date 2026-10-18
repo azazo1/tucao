@@ -19,6 +19,7 @@ abstract final class Pref {
   static const _kSearchHistoryLimit = 'search_history_limit';
   static const _kShowAdEntry = 'show_ad_entry';
   static const _kPlayerSeekStep = 'player_seek_step';
+  static const _kSkippedUpdateVersion = 'skipped_update_version';
 
   /// 跳转按钮的秒数下限.
   static const playerSeekStepMin = 80.0;
@@ -169,6 +170,12 @@ abstract final class Pref {
     final clamped = value.clamp(playerSeekStepMin, playerSeekStepMax);
     return (clamped * 10).roundToDouble() / 10;
   }
+
+  /// 用户跳过的版本号, 自动检查时不再提示同一个版本.
+  static String get skippedUpdateVersion =>
+      GStorage.setting.get(_kSkippedUpdateVersion, defaultValue: '') as String;
+  static set skippedUpdateVersion(String value) =>
+      GStorage.setting.put(_kSkippedUpdateVersion, value);
 
   /// 请求使用的站点地址.
   static String get baseUrl => Constants.baseUrl;

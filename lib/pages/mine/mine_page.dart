@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -8,6 +10,7 @@ import 'package:tucao/common/style.dart';
 import 'package:tucao/models/user.dart';
 import 'package:tucao/router/routes.dart';
 import 'package:tucao/services/account_service.dart';
+import 'package:tucao/services/update_service.dart';
 import 'package:tucao/utils/logger.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -88,8 +91,25 @@ class _MinePageState extends State<MinePage> {
   void _showAbout() {
     showDialog<void>(
       context: context,
-      builder: (context) => _AboutDialog(version: _version),
+      builder: (dialogContext) => _AboutDialog(
+        version: _version,
+        onCheckUpdate: () {
+          Navigator.pop(dialogContext);
+          unawaited(_checkUpdate());
+        },
+      ),
     );
+  }
+
+  /// 手动检查更新, 关于对话框关闭后调用, 因此可以正常弹出提示.
+  Future<void> _checkUpdate() async {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('正在检查更新...'), duration: Duration(seconds: 2)),
+    );
+    await UpdateService.checkManually(context);
   }
 
   @override
@@ -285,9 +305,10 @@ class _Avatar extends StatelessWidget {
 
 /// 关于对话框.
 class _AboutDialog extends StatelessWidget {
-  const _AboutDialog({required this.version});
+  const _AboutDialog({required this.version, required this.onCheckUpdate});
 
   final String version;
+  final VoidCallback onCheckUpdate;
 
   @override
   Widget build(BuildContext context) {
@@ -314,6 +335,7 @@ class _AboutDialog extends StatelessWidget {
         ],
       ),
       actions: [
+        TextButton(onPressed: onCheckUpdate, child: const Text('检查更新')),
         TextButton(onPressed: () => Get.back(), child: const Text('关闭')),
       ],
     );

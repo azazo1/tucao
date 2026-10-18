@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/common/style.dart';
@@ -11,8 +13,9 @@ import 'package:tucao/pages/home/home_controller.dart';
 import 'package:tucao/pages/home/widgets/ad_entry_button.dart';
 import 'package:tucao/pages/home/widgets/site_online_badge.dart';
 import 'package:tucao/pages/home/week_view.dart';
-import 'package:tucao/services/ad_service.dart';
 import 'package:tucao/router/routes.dart';
+import 'package:tucao/services/ad_service.dart';
+import 'package:tucao/services/update_service.dart';
 
 /// 首页.
 ///
@@ -40,6 +43,12 @@ class _HomePageState extends State<HomePage>
       length: ChannelData.list.length + 2,
       vsync: this,
     );
+    // 首帧之后检查更新, 不与首页的内容请求争抢启动时的网络.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        unawaited(UpdateService.checkOnStartup(context));
+      }
+    });
   }
 
   @override
