@@ -53,7 +53,7 @@ func allTargets() []target {
 func verifyArtifacts(release, display string) error {
 	var problems []string
 	for _, resolved := range allTargets() {
-		build := metadataFor(resolved, display, release)
+		build := metadataFor(resolved, display, release, true)
 		if err := verifyArchive(build, resolved); err != nil {
 			problems = append(problems, fmt.Sprintf("%s: %v", filepath.Base(build.ArchivePath), err))
 			continue

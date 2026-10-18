@@ -209,8 +209,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # 本机就是 Linux x86_64, 只有这个产物能真正执行.
-          actual="$(./bin/tucao --version)"
+          # runner 是 Linux x86_64, 只有这个目标的产物能真正执行.
+          # 必须用该目标自己的 staging 目录 (平台-架构 token), 不能用共用的 bin/tucao.
+          actual="$(./bin/linux-x86_64/tucao --version)"
           expected="v${{ needs.version.outputs.is_release == 'true' && needs.version.outputs.version || needs.version.outputs.build_version }}"
           if [[ "$actual" != "$expected" ]]; then
             echo "版本输出为 $actual, 预期为 $expected" >&2

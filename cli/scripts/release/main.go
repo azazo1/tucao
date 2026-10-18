@@ -129,7 +129,7 @@ func runAllPlatforms(mode string, logger *slog.Logger) error {
 	switch mode {
 	case "dist-all":
 		for _, resolved := range allTargets() {
-			build := metadataFor(resolved, versions.Display, release)
+			build := metadataFor(resolved, versions.Display, release, true)
 			if err := buildBinary(build, resolved, logger); err != nil {
 				return err
 			}
@@ -193,11 +193,15 @@ func resolveMetadata(resolved target) (metadata, error) {
 	if err := validateVersions(versions); err != nil {
 		return metadata{}, err
 	}
-	return metadataFor(resolved, versions.Display, versions.Release), nil
+	return metadataFor(resolved, versions.Display, versions.Release, false), nil
 }
 
 // metadataFor 按给定版本号算出产物路径, 不做 git 推断.
-func metadataFor(resolved target, display, release string) metadata {
+//
+// 每个目标用独立的 staging 子目录: 六个平台如果共用一个 bin/tucao, 后一个目标会覆盖
+// 前一个, 最后留下的那个平台二进制会被误当成"本机产物"去执行, 于是 smoke test 报
+// Exec format error. 单目标模式保留 bin/tucao 这个便于本地使用的路径.
+func metadataFor(resolved target, display, release string, staged bool) metadata {
 	// 产物名统一不带 tag 前缀, 传进来的值带 v 时剥掉, 免得产出 tucao-cli-v1.3.0-....
 	release = strings.TrimPrefix(release, versionTagPrefix)
 	binaryName := "tucao"
@@ -209,10 +213,14 @@ func metadataFor(resolved target, display, release string) metadata {
 		archiveExtension = ".zip"
 	}
 	archiveName := fmt.Sprintf("%s-%s-%s-%s%s", projectName, release, resolved.Platform, resolved.Arch, archiveExtension)
+	binaryPath := filepath.Join(binaryDir, binaryName)
+	if staged {
+		binaryPath = filepath.Join(binaryDir, resolved.Platform+"-"+resolved.Arch, binaryName)
+	}
 	return metadata{
 		BuildVersion: display,
 		ArchiveName:  archiveName,
-		BinaryPath:   filepath.Join(binaryDir, binaryName),
+		BinaryPath:   binaryPath,
 		ArchivePath:  filepath.Join(distDirectory, archiveName),
 	}
 }

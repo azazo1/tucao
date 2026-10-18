@@ -207,3 +207,34 @@ func TestResolveMetadataStripsPrefixFromArchiveName(t *testing.T) {
 		t.Fatalf("二进制版本应保留前缀: %s", build.BuildVersion)
 	}
 }
+
+func TestMetadataForStagedPathsAreDistinct(t *testing.T) {
+	// 六个目标共用一个 bin/tucao 时, 后一个目标会覆盖前一个, 最后留下的那份
+	// 会被当成宿主平台产物去执行, 于是 smoke test 报 Exec format error.
+	seen := map[string]bool{}
+	for _, resolved := range allTargets() {
+		build := metadataFor(resolved, "v1.3.0", "1.3.0", true)
+		if seen[build.BinaryPath] {
+			t.Fatalf("staging 路径重复: %s", build.BinaryPath)
+		}
+		seen[build.BinaryPath] = true
+		if want := filepath.Join("bin", resolved.Platform+"-"+resolved.Arch); filepath.Dir(build.BinaryPath) != want {
+			t.Fatalf("staging 目录为 %s, 期望 %s", filepath.Dir(build.BinaryPath), want)
+		}
+	}
+	if len(seen) != len(allTargets()) {
+		t.Fatalf("staging 路径数 %d 与目标数 %d 不一致", len(seen), len(allTargets()))
+	}
+}
+
+func TestMetadataForSingleTargetKeepsSimplePath(t *testing.T) {
+	// 单目标模式保留 bin/tucao, 本地与文档里的路径不用变.
+	resolved, err := resolveTarget("linux", "amd64")
+	if err != nil {
+		t.Fatalf("解析目标失败: %v", err)
+	}
+	build := metadataFor(resolved, "v1.3.0", "1.3.0", false)
+	if build.BinaryPath != filepath.Join("bin", "tucao") {
+		t.Fatalf("单目标路径为 %s", build.BinaryPath)
+	}
+}
