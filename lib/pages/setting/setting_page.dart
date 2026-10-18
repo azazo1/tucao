@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:tucao/common/style.dart';
 import 'package:tucao/pages/video/widgets/danmaku_settings_sheet.dart';
 import 'package:tucao/services/account_service.dart';
+import 'package:tucao/services/ad_service.dart';
 import 'package:tucao/services/history_service.dart';
 import 'package:tucao/services/pip_service.dart';
 import 'package:tucao/services/theme_service.dart';
@@ -268,6 +269,14 @@ class _SettingPageState extends State<SettingPage> {
           ),
 
           const _SectionTitle('其他'),
+          Obx(
+            () => SwitchListTile(
+              title: const Text('显示广告入口'),
+              subtitle: const Text('关闭后首页标题栏不再显示广告按钮'),
+              value: AdService.instance.enabled.value,
+              onChanged: (value) => AdService.instance.setEnabled(value),
+            ),
+          ),
           ListTile(
             title: const Text('搜索历史条数上限'),
             trailing: SegmentedButton<int>(

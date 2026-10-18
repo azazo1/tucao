@@ -17,6 +17,7 @@ abstract final class Pref {
   static const _kPlayerPipAuto = 'player_pip_auto';
   static const _kHardwareDecode = 'player_hardware_decode';
   static const _kSearchHistoryLimit = 'search_history_limit';
+  static const _kShowAdEntry = 'show_ad_entry';
   static const _kPlayerSeekStep = 'player_seek_step';
 
   /// 跳转按钮的秒数下限.
@@ -140,6 +141,12 @@ abstract final class Pref {
       GStorage.setting.get(_kSearchHistoryLimit, defaultValue: 20) as int;
   static set searchHistoryLimit(int value) =>
       GStorage.setting.put(_kSearchHistoryLimit, value);
+
+  /// 是否在首页显示广告入口.
+  static bool get showAdEntry =>
+      GStorage.setting.get(_kShowAdEntry, defaultValue: true) as bool;
+  static set showAdEntry(bool value) =>
+      GStorage.setting.put(_kShowAdEntry, value);
 
   /// 播放器跳转按钮一次前进的秒数.
   ///

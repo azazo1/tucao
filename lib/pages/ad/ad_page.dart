@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:tucao/services/ad_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -91,6 +93,33 @@ class _AdPageState extends State<AdPage> {
     }
   }
 
+  /// 关闭广告入口, 二次确认后立即退出广告页.
+  Future<void> _cancelAd() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('关闭广告入口'),
+        content: const Text('关闭后首页标题栏不再显示广告按钮, 可在设置中重新开启.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('关闭'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    AdService.instance.setEnabled(false);
+    Get.back();
+    Get.snackbar('已关闭广告入口', '可在设置中重新开启');
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -104,6 +133,10 @@ class _AdPageState extends State<AdPage> {
         appBar: AppBar(
           title: const Text('广告'),
           actions: [
+            TextButton(
+              onPressed: _cancelAd,
+              child: const Text('取消广告'),
+            ),
             IconButton(
               onPressed: _openInBrowser,
               tooltip: '在浏览器打开',

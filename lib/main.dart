@@ -5,6 +5,7 @@ import 'package:tucao/router/routes.dart';
 import 'package:tucao/common/style.dart';
 import 'package:tucao/http/init.dart';
 import 'package:tucao/services/account_service.dart';
+import 'package:tucao/services/ad_service.dart';
 import 'package:tucao/services/download/download_service.dart';
 import 'package:tucao/services/download/download_transport.dart';
 import 'package:tucao/services/history_service.dart';
@@ -25,6 +26,7 @@ Future<void> main() async {
   await HttpInit.init();
   Get.put(ThemeService());
   Get.put(AccountService());
+  Get.put(AdService());
   Get.put(HistoryService());
   Get.put(FavoriteService(), permanent: true);
   final downloads = Get.put(

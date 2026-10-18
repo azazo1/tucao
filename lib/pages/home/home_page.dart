@@ -11,6 +11,7 @@ import 'package:tucao/pages/home/home_controller.dart';
 import 'package:tucao/pages/home/widgets/ad_entry_button.dart';
 import 'package:tucao/pages/home/widgets/site_online_badge.dart';
 import 'package:tucao/pages/home/week_view.dart';
+import 'package:tucao/services/ad_service.dart';
 import 'package:tucao/router/routes.dart';
 
 /// 首页.
@@ -67,7 +68,11 @@ class _HomePageState extends State<HomePage>
         ),
         titleSpacing: 16,
         actions: [
-          const AdEntryButton(),
+          Obx(
+            () => AdService.instance.enabled.value
+                ? const AdEntryButton()
+                : const SizedBox.shrink(),
+          ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.calendar_month_outlined),
             tooltip: '新番',
