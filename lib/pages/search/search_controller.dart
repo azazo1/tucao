@@ -134,11 +134,20 @@ class SearchPageController extends PagingController<VideoModel> {
 
   /// 拉取热搜用于推荐区.
   ///
-  /// 热搜只是搜索页的补充内容, 失败时保留空列表, 不打断手动搜索.
+  /// 只取今天这一组, 热搜只是搜索页的补充内容, 失败时保留空列表,
+  /// 不打断手动搜索.
   Future<void> loadHotSearch() async {
     try {
-      final list = await RankHttp.fetchHotSearch();
-      hotSearch.assignAll(list.take(hotSearchLimit).toList());
+      final groups = await RankHttp.fetchHotSearch();
+      if (groups.isEmpty) {
+        hotSearch.clear();
+        return;
+      }
+      final today = groups.firstWhere(
+        (group) => group.title == '今天',
+        orElse: () => groups.first,
+      );
+      hotSearch.assignAll(today.list.take(hotSearchLimit).toList());
     } catch (e, stackTrace) {
       Log.e('加载热搜失败', error: e, stackTrace: stackTrace);
     }

@@ -1,17 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/common/widgets/channel_bar.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/http/rank_http.dart';
 import 'package:tucao/router/routes.dart';
 import 'package:tucao/utils/logger.dart';
 
 /// 热搜榜页面控制器.
+///
+/// 站点把热搜按今天 / 本周 / 本月 / 今年分组, 每组各自从 1 排名.
 class HotSearchController extends GetxController {
-  final list = <HotKeyword>[].obs;
+  /// 按页面顺序保存的全部分组.
+  final groups = <HotSearchGroup>[].obs;
+
+  /// 当前选中的分组下标.
+  final selected = 0.obs;
 
   final firstLoading = true.obs;
 
   final error = RxnString();
+
+  /// 当前分组的条目, 分组为空时返回空列表.
+  List<HotKeyword> get currentList =>
+      selected.value < groups.length ? groups[selected.value].list : const [];
 
   @override
   void onInit() {
@@ -26,10 +37,22 @@ class HotSearchController extends GetxController {
 
   Future<void> refreshList() => _fetch();
 
+  /// 切换分组, 下标越界时忽略.
+  void selectGroup(int index) {
+    if (index < 0 || index >= groups.length || index == selected.value) {
+      return;
+    }
+    selected.value = index;
+  }
+
   Future<void> _fetch() async {
     error.value = null;
     try {
-      list.assignAll(await RankHttp.fetchHotSearch());
+      final data = await RankHttp.fetchHotSearch();
+      groups.assignAll(data);
+      if (selected.value >= data.length) {
+        selected.value = 0;
+      }
     } catch (e, stackTrace) {
       Log.e('加载热搜榜失败', error: e, stackTrace: stackTrace);
       error.value = e.toString();
@@ -77,27 +100,70 @@ class _HotSearchPageState extends State<HotSearchPage> {
         if (error != null) {
           return ErrorWidgetView(message: error, onRetry: _controller.load);
         }
-        final list = _controller.list;
-        return RefreshIndicator(
-          onRefresh: _controller.refreshList,
-          child: list.isEmpty
-              ? ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: const [
-                    SizedBox(height: 120),
-                    EmptyWidget(message: '暂时没有热搜'),
-                  ],
-                )
-              : ListView.separated(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  itemCount: list.length,
-                  separatorBuilder: (context, index) => const Divider(),
-                  itemBuilder: (context, index) =>
-                      _HotItem(item: list[index]),
-                ),
+        final groups = _controller.groups;
+        if (groups.isEmpty) {
+          return _buildEmpty();
+        }
+        final list = _controller.currentList;
+        return Column(
+          children: [
+            if (groups.length > 1)
+              SortBar(
+                options: [
+                  for (var index = 0; index < groups.length; index++)
+                    SortOption(
+                      label: groups[index].title,
+                      value: index.toString(),
+                    ),
+                ],
+                current: _controller.selected.value.toString(),
+                onChanged: (value) {
+                  final index = int.tryParse(value ?? '');
+                  if (index != null) {
+                    _controller.selectGroup(index);
+                  }
+                },
+              ),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _controller.refreshList,
+                child: list.isEmpty
+                    ? const _EmptyHotSearch()
+                    : ListView.separated(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        itemCount: list.length,
+                        separatorBuilder: (context, index) => const Divider(),
+                        itemBuilder: (context, index) =>
+                            _HotItem(item: list[index]),
+                      ),
+              ),
+            ),
+          ],
         );
       }),
+    );
+  }
+
+  Widget _buildEmpty() {
+    return RefreshIndicator(
+      onRefresh: _controller.refreshList,
+      child: const _EmptyHotSearch(),
+    );
+  }
+}
+
+class _EmptyHotSearch extends StatelessWidget {
+  const _EmptyHotSearch();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: const [
+        SizedBox(height: 120),
+        EmptyWidget(message: '暂时没有热搜'),
+      ],
     );
   }
 }

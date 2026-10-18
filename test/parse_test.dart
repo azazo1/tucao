@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:html/parser.dart' as html_parser;
 import 'package:tucao/http/rank_http.dart';
 import 'package:tucao/http/user_rank_http.dart';
 import 'package:tucao/http/video_stats_http.dart';
@@ -164,7 +163,9 @@ void main() {
 
     test('热搜榜解析出关键词与搜索次数', () {
       final raw = File('test/fixtures/rank_hot_search.html').readAsStringSync();
-      final list = RankHttp.parseHotSearchHtml(raw);
+      final groups = RankHttp.parseHotSearchHtml(raw);
+      expect(groups, isNotEmpty);
+      final list = groups.first.list;
       expect(list, isNotEmpty);
       for (final item in list) {
         expect(item.keyword, isNotEmpty);
@@ -187,7 +188,9 @@ void main() {
         </div>
       </div>
       ''';
-      final list = RankHttp.parseHotSearchHtml(raw);
+      final groups = RankHttp.parseHotSearchHtml(raw);
+      expect(groups, hasLength(1));
+      final list = groups.single.list;
       expect(list, hasLength(1));
       expect(list.single.rank, 6);
       expect(list.single.count, 38);
@@ -196,13 +199,19 @@ void main() {
 
     test('热搜榜按时间维度分组, 每组各自从 1 排名', () {
       final raw = File('test/fixtures/rank_hot_search.html').readAsStringSync();
-      final document = html_parser.parse(raw);
-      final groups = document.querySelectorAll('.time_item');
-      expect(groups, hasLength(4));
-      final titles = groups
-          .map((e) => e.querySelector('.time_title')?.text.trim())
-          .toList();
-      expect(titles, ['今天', '本周', '本月', '今年']);
+      final groups = RankHttp.parseHotSearchHtml(raw);
+      expect(groups.map((group) => group.title).toList(), [
+        '今天',
+        '本周',
+        '本月',
+        '今年',
+      ]);
+      for (final group in groups) {
+        expect(group.list, isNotEmpty);
+        for (var index = 0; index < group.list.length; index++) {
+          expect(group.list[index].rank, index + 1);
+        }
+      }
     });
   });
 

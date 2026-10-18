@@ -36,6 +36,19 @@ class HotKeyword {
   final int count;
 }
 
+/// 热搜榜的一个时间分组.
+///
+/// 站点把热搜按 今天 / 本周 / 本月 / 今年 分成几组, 每组各自从 1 排名.
+class HotSearchGroup {
+  const HotSearchGroup({required this.title, this.list = const []});
+
+  /// 分组标题, 取页面上的原文, 如 今天.
+  final String title;
+
+  /// 该分组的热搜, 顺序即排名.
+  final List<HotKeyword> list;
+}
+
 /// 站点榜单类型.
 ///
 /// 除排行榜外, 站点还有几个同结构的榜单页, 它们只有分组维度不同.
@@ -99,8 +112,9 @@ abstract final class RankHttp {
 
   /// 拉取热搜榜.
   ///
-  /// 该页面结构与其他榜单不同, 是关键词列表而不是视频列表.
-  static Future<List<HotKeyword>> fetchHotSearch({
+  /// 该页面结构与其他榜单不同, 是关键词列表而不是视频列表,
+  /// 并且按 今天 / 本周 / 本月 / 今年 分组.
+  static Future<List<HotSearchGroup>> fetchHotSearch({
     CancelToken? cancelToken,
   }) async {
     final response = await HttpUtil.dio.get(
@@ -113,13 +127,28 @@ abstract final class RankHttp {
 
   /// 解析热搜榜页面.
   ///
-  /// 每条链接的结构是 `<span>112次</span><b>1</b>无修`,
+  /// 页面按 `div.time_item` 分组, 每组有 `div.time_title` 与若干 `div.item`,
+  /// 每个 item 的链接结构是 `<span>112次</span><b>1</b>无修`.
   /// 次数与排名在独立标签里, 关键词紧跟排名. 关键词本身可能以数字开头
   /// (例如 1月), 因此不能用一个正则整体切分, 否则开头的数字会被并进排名.
-  static List<HotKeyword> parseHotSearchHtml(String raw) {
+  static List<HotSearchGroup> parseHotSearchHtml(String raw) {
     final document = html_parser.parse(raw);
+    final groups = <HotSearchGroup>[];
+    for (final section in document.querySelectorAll('.time_item')) {
+      final title = section.querySelector('.time_title')?.text.trim() ?? '';
+      final list = _parseHotItems(section);
+      if (list.isEmpty) {
+        continue;
+      }
+      groups.add(HotSearchGroup(title: title, list: list));
+    }
+    return groups;
+  }
+
+  /// 解析一个分组里的热搜条目.
+  static List<HotKeyword> _parseHotItems(dynamic node) {
     final list = <HotKeyword>[];
-    for (final item in document.querySelectorAll('.time_item .item')) {
+    for (final item in node.querySelectorAll('.item')) {
       final link = item.querySelector('a');
       if (link == null) {
         continue;
