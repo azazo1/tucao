@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:tucao/pages/ad/ad_actions.dart';
+import 'package:tucao/pages/ad/ad_disclaimer.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -119,11 +120,18 @@ class _AdPageState extends State<AdPage> {
             ),
           ],
         ),
-        body: Stack(
+        body: Column(
           children: [
-            WebViewWidget(controller: _controller),
-            if (_loading)
-              const LinearProgressIndicator(minHeight: 2),
+            Expanded(
+              child: Stack(
+                children: [
+                  WebViewWidget(controller: _controller),
+                  if (_loading)
+                    const LinearProgressIndicator(minHeight: 2),
+                ],
+              ),
+            ),
+            const SafeArea(top: false, child: AdDisclaimer()),
           ],
         ),
       ),

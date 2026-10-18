@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/http/ad_http.dart';
 import 'package:tucao/pages/ad/ad_actions.dart';
+import 'package:tucao/pages/ad/ad_disclaimer.dart';
 import 'package:tucao/pages/ad/ad_page.dart';
 
 /// 应用内广告列表.
@@ -60,9 +61,12 @@ class _AdListPageState extends State<AdListPage> {
           }
           return ListView.separated(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: ads.length,
+            itemCount: ads.length + 1,
             separatorBuilder: (context, index) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
+              if (index == ads.length) {
+                return const AdDisclaimer();
+              }
               final ad = ads[index];
               return InkWell(
                 onTap: () => Get.to(() => AdPage(url: ad.linkUrl)),
