@@ -113,7 +113,9 @@ abstract final class RankHttp {
 
   /// 解析热搜榜页面.
   ///
-  /// 每条是一段形如 `45次1无修` 的文本, 依次是搜索次数, 排名与关键词.
+  /// 每条链接的结构是 `<span>112次</span><b>1</b>无修`,
+  /// 次数与排名在独立标签里, 关键词紧跟排名. 关键词本身可能以数字开头
+  /// (例如 1月), 因此不能用一个正则整体切分, 否则开头的数字会被并进排名.
   static List<HotKeyword> parseHotSearchHtml(String raw) {
     final document = html_parser.parse(raw);
     final list = <HotKeyword>[];
@@ -122,19 +124,24 @@ abstract final class RankHttp {
       if (link == null) {
         continue;
       }
-      final match = RegExp(
-        r'^(\d+)次(\d+)(.+)$',
-      ).firstMatch(link.text.trim());
-      if (match == null) {
+      final countText = link.querySelector('span')?.text.trim() ?? '';
+      final rankText = link.querySelector('b')?.text.trim() ?? '';
+      final count = int.tryParse(
+        RegExp(r'^\d+').firstMatch(countText)?.group(0) ?? '',
+      );
+      final rank = int.tryParse(rankText);
+      if (count == null || rank == null) {
         continue;
       }
-      list.add(
-        HotKeyword(
-          count: int.tryParse(match.group(1)!) ?? 0,
-          rank: int.tryParse(match.group(2)!) ?? 0,
-          keyword: match.group(3)!.trim(),
-        ),
-      );
+      final keyword = link.text
+          .trim()
+          .replaceFirst(countText, '')
+          .replaceFirst(rankText, '')
+          .trim();
+      if (keyword.isEmpty) {
+        continue;
+      }
+      list.add(HotKeyword(count: count, rank: rank, keyword: keyword));
     }
     return list;
   }

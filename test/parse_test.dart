@@ -178,6 +178,22 @@ void main() {
       expect(list.first.keyword, '无修');
     });
 
+    test('热搜关键词以数字开头时不会被并进排名', () {
+      const raw = '''
+      <div class="time_item">
+        <div class="time_title">今天</div>
+        <div class="hot_search_list">
+          <div class="item"><a href="/html/hot_search.html"><span>38次</span><b>6</b>1月</a></div>
+        </div>
+      </div>
+      ''';
+      final list = RankHttp.parseHotSearchHtml(raw);
+      expect(list, hasLength(1));
+      expect(list.single.rank, 6);
+      expect(list.single.count, 38);
+      expect(list.single.keyword, '1月');
+    });
+
     test('热搜榜按时间维度分组, 每组各自从 1 排名', () {
       final raw = File('test/fixtures/rank_hot_search.html').readAsStringSync();
       final document = html_parser.parse(raw);
