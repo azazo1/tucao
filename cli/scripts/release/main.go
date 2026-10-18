@@ -36,6 +36,9 @@ var (
 	dirNamePattern = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
 )
 
+// versionTagMatch 是版本 tag 的匹配模式, 与安卓端构建版本脚本的 TAG_PREFIX 保持一致.
+const versionTagMatch = "v[0-9]*"
+
 // target 是一次构建的目标平台.
 type target struct {
 	GOOS     string
@@ -147,24 +150,41 @@ func resolveMetadata(resolved target) (metadata, error) {
 	}, nil
 }
 
-// gitVersion 取最近 tag 与当前描述的版本.
+// gitVersion 取最近版本 tag 与按 tag 推导的版本.
 func gitVersion() (tag string, describe string, err error) {
-	tagBytes, err := exec.Command("git", "describe", "--tags", "--abbrev=0").Output()
+	return gitVersionIn("")
+}
+
+// gitVersionIn 在指定目录里解析版本, 目录为空时用当前目录.
+//
+// 必须带 --match: 预发布用的滚动 tag (dev-latest) 也指向分支上的提交,
+// 不加过滤就会被 describe 挑成"最近的 tag", 于是版本号变成 dev-latest 直接失败.
+// 它的名字不带版本前缀, 同时又是轻量 tag, 这里再加一层前缀过滤双保险.
+func gitVersionIn(dir string) (tag string, describe string, err error) {
+	tagBytes, err := gitDescribe(dir, "--tags", "--abbrev=0", "--match", versionTagMatch)
 	if err != nil {
-		// 还没有任何 tag 时用 devel 作为基础版本.
+		// 没有任何版本 tag 时用 devel 作为基础版本.
 		return "devel", "devel", nil
 	}
 	tag = strings.TrimSpace(string(tagBytes))
 	if !semverPattern.MatchString(tag) {
-		return "", "", fmt.Errorf("最近的 tag 不是 vX.Y.Z 形式: %s", tag)
+		return "", "", fmt.Errorf("最近的版本 tag 不是 vX.Y.Z 形式: %s", tag)
 	}
-	describeBytes, err := exec.Command("git", "describe", "--tags", "--always", "--dirty", "--long").Output()
+	// 不带 --long: HEAD 正好在版本 tag 上时只输出 tag, 与安卓端的版本规则一致.
+	describeBytes, err := gitDescribe(dir, "--tags", "--always", "--dirty", "--match", versionTagMatch)
 	describe = tag
 	if err == nil {
 		describe = strings.TrimSpace(string(describeBytes))
 	}
 	describe = sanitizeVersion(describe)
 	return tag, describe, nil
+}
+
+// gitDescribe 执行 git describe.
+func gitDescribe(dir string, args ...string) ([]byte, error) {
+	command := exec.Command("git", append([]string{"describe"}, args...)...)
+	command.Dir = dir
+	return command.Output()
 }
 
 // sanitizeVersion 把 git describe 的输出整理成合法的版本字符串.

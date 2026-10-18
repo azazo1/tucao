@@ -45,8 +45,9 @@ cd cli
 go run ./cmd/tucao home
 ```
 
-`tucao --version` 显示构建时的 git tag, 与安卓端共用同一套版本号;
-没有 tag 时显示 `devel`.
+`tucao --version` 显示的版本来自构建时注入的版本号: 正式发布用 tag (`v1.3.0`),
+分支构建与 apk 用同一个构建版本 (`1.3.0-7e33cd3`). 本地直接构建时按版本 tag 推导,
+没有版本 tag 时显示 `devel`.
 
 ## 配置
 

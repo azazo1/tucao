@@ -675,6 +675,9 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
+          # 滚动 tag 必须保持轻量 tag 且不带 v 前缀: 版本解析 (scripts/build-version.py
+          # 与 cli/scripts/release) 都按 v 前缀过滤, 而 git describe 不带 --tags 时只看
+          # 附注 tag, 两道过滤叠起来才不会把它误当成版本号.
           tag="dev-latest"
           assets=(
             prerelease-artifacts/tucao-*.apk
