@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# 吐槽客户端的发布产物打包脚本, 由 just dist 与 ci 调用.
+# 吐槽客户端的发布产物打包脚本, 由 just android dist 与 ci 调用.
 #
 # Flutter 不在技能的既有语言模块内, 这里按技能的同一套槽位自行推导:
 #   分发判定  二进制应用, 用户从 GitHub Release 取 apk

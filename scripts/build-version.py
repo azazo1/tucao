@@ -97,7 +97,7 @@ def diagnose_missing_tag():
 def read_package_version():
     """仓库还没有任何版本 tag 时的兜底基础版本号, 由调用方提供.
 
-    各语言模块给出该生态的结构化 metadata 读取命令, 在 just dist 或 CI 里先算出包版本,
+    各语言模块给出该生态的结构化 metadata 读取命令, 在 just android dist 或 CI 里先算出包版本,
     再用 PROJECT_PACKAGE_VERSION 传进来; 不要在本脚本里正则扫清单文件.
     """
     reason = diagnose_missing_tag()

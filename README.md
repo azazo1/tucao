@@ -57,26 +57,27 @@ Flutter 重建的吐槽弹幕网 (`tucao.my`) 第三方安卓客户端.
 
 ## 开发
 
-项目使用 [just](https://github.com/casey/just) 编排常用命令.
+项目使用 [just](https://github.com/casey/just) 编排常用命令, 按产品分子模块:
+`just android ...` 是安卓应用, `just cli ...` 是命令行工具, `just mock ...` 是本地联调服务.
 
 ```shell
 # 查看全部可用命令
 just
 
 # 获取依赖
-just check deps
+just android deps
 
 # 静态检查
-just check analyze
+just android analyze
 
 # 运行测试
-just check test
+just android test
 
 # 本地构建
-just build android
+just android build
 
 # 在设备上运行
-just device run
+just android run
 
 # 启动 mock 电视, 投屏联调用
 just mock tv
@@ -89,9 +90,9 @@ just mock tv
 安卓构建依赖 JDK 17 与 Flutter stable.
 
 ```shell
-just build android          # 构建 Release APK
-just build android-split    # 按 ABI 拆分
-just build android-debug    # 调试构建
+just android build          # 构建 Release APK
+just android build-split    # 按 ABI 拆分
+just android build-debug    # 调试构建
 ```
 
 发布构建的签名配置见 `android/key.properties.example`, 本地没有该文件时回落到调试签名.

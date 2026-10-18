@@ -1,6 +1,6 @@
 [private]
 default:
-    @just --list
+    @just --list --justfile {{justfile_directory()}}/mock.just
 
 # just mock tv / just mock tv --play
 # 需要在能访问局域网的终端里运行, 沙箱内组播发不出去.
