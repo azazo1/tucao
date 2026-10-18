@@ -180,6 +180,15 @@ void main() {
     expect(box.data.containsKey('user'), isFalse);
   });
 
+  test('登录表单带上 dosubmit, 站点才会处理登录', () async {
+    adapter.respond = (request) =>
+        request.method == 'POST' ? success() : info();
+    await account.login('current-user', 'password');
+    final form = Uri.splitQueryString(adapter.payloads.first);
+    expect(form['username'], 'current-user');
+    expect(form['dosubmit'], '1');
+  });
+
   test('登录缓存只保存本次确认的用户信息, 不保存密码', () async {
     adapter.respond = (request) =>
         request.method == 'POST' ? success() : info();

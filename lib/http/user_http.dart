@@ -47,6 +47,7 @@ abstract final class UserHttp {
   /// 登录.
   ///
   /// 站点是 discuz 表单登录, 成功后由 cookie 维持会话.
+  /// 必须带 dosubmit, 否则站点把请求当成没点登录按钮, 直接返回登录页.
   static Future<String> login({
     required String username,
     required String password,
@@ -62,6 +63,7 @@ abstract final class UserHttp {
         'questionid': ?questionId,
         'answer': ?answer,
         'cookietime': '2592000',
+        'dosubmit': '1',
       },
       options: Options(
         contentType: Headers.formUrlEncodedContentType,
