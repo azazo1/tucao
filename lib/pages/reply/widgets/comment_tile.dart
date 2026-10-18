@@ -1,8 +1,10 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:tucao/common/constants.dart';
 import 'package:tucao/models/reply.dart';
 import 'package:tucao/pages/reply/reply_content.dart';
+import 'package:tucao/router/routes.dart';
 
 /// 单条评论.
 ///
@@ -38,7 +40,7 @@ class CommentTile extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        CommentAvatar(url: comment.avatar, size: avatarSize),
+        _buildAvatar(avatarSize),
         const SizedBox(width: 8),
         Expanded(
           child: Column(
@@ -57,24 +59,52 @@ class CommentTile extends StatelessWidget {
     );
   }
 
+  /// 打开评论者主页, 匿名评论没有 uid 时不跳转.
+  void _openUser() {
+    if (comment.userId <= 0) {
+      return;
+    }
+    Get.toNamed(Routes.space, parameters: {'uid': comment.userId.toString()});
+  }
+
+  Widget _buildAvatar(double size) {
+    final avatar = CommentAvatar(url: comment.avatar, size: size);
+    if (comment.userId <= 0) {
+      return avatar;
+    }
+    return InkWell(
+      onTap: _openUser,
+      customBorder: const CircleBorder(),
+      child: avatar,
+    );
+  }
+
   Widget _buildHeader(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final name = comment.userName.isEmpty ? '匿名' : comment.userName;
+    final nameText = Text(
+      name,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: dense ? 12 : 13,
+        fontWeight: FontWeight.w500,
+        color: scheme.onSurface,
+      ),
+    );
     return Wrap(
       spacing: 6,
       runSpacing: 2,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        Text(
-          name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: dense ? 12 : 13,
-            fontWeight: FontWeight.w500,
-            color: scheme.onSurface,
-          ),
-        ),
+        if (comment.userId > 0)
+          InkWell(
+            onTap: _openUser,
+            borderRadius: BorderRadius.circular(4),
+            child: nameText,
+          )
+        else
+          nameText,
         if (comment.createAt.isNotEmpty)
           Text(
             comment.createAt,
