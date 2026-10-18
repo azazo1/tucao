@@ -58,8 +58,11 @@ class ArticlePage {
 abstract final class ArticleHttp {
   static const _pageSize = 20;
 
-  /// 分类筛选项, 与页面上的标签一致.
-  static const categories = ['档案', '情报', '公告', '年鉴', 'anime', '动漫'];
+  /// 分类筛选项, 对应页面上的分类链接.
+  ///
+  /// 站点上的 `档案` 本身就是未筛选的列表, 由界面里的 `全部` 表示,
+  /// 这里不再重复列出.
+  static const categories = ['情报', '公告', '年鉴', 'anime', '动漫'];
 
   /// 拉取一页档案.
   ///
