@@ -9,7 +9,15 @@ plugins {
 android {
     namespace = "com.azazo1.tucao"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // ci 上用镜像预装的 NDK (24.04 与 26.04 都是 27.3.13750724), 免得每个任务现下约 600MB;
+    // 本地沿用 Flutter 默认版本, 不为了构建再装一份 NDK.
+    // app 模块没有自己的 native 源码, 这里只用于 strip 预编译 so; 唯一自编译 native 的
+    // jni 插件已自带 16KB 对齐链接参数, 因此 ci 上降到 27.3 不影响产物.
+    ndkVersion = if (providers.environmentVariable("CI").isPresent) {
+        providers.gradleProperty("tucao.ndkVersion").get()
+    } else {
+        flutter.ndkVersion
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
