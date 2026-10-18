@@ -60,7 +60,7 @@ class _SiteOnlineBadgeState extends State<SiteOnlineBadge> {
     final scheme = Theme.of(context).colorScheme;
     final parts = <String>[
       if (_online != null) '在线 ${Utils.formatCount(_online!)}',
-      if (_players != null) '播放器 ${Utils.formatCount(_players!)}',
+      if (_players != null) '观看 ${Utils.formatCount(_players!)}',
     ];
     return Text(
       parts.join(' · '),

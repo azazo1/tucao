@@ -235,18 +235,22 @@ void main() {
   });
 
   group('首页广告位解析', () {
-    test('取广告位里的第一条外链', () {
+    test('解析广告位里的全部广告', () {
       const raw = '''
       <div class="header_rmb">
-        <div id="t1"><a href="https://equity.tmall.com/tm?x=1">广告</a></div>
-        <div id="t2"><a href="/play/h1/">其他</a></div>
+        <div id="t1"><a href="https://equity.tmall.com/tm?x=1"><img src="/uploadfile/a.gif"></a></div>
+        <div id="t2"><a href="https://tf8.example/"><img src="https://cdn.example/b.jpg"></a></div>
       </div>
       ''';
-      expect(AdHttp.parseHomeAdLink(raw), 'https://equity.tmall.com/tm?x=1');
+      final ads = AdHttp.parseHomeAds(raw);
+      expect(ads, hasLength(2));
+      expect(ads.first.linkUrl, 'https://equity.tmall.com/tm?x=1');
+      expect(ads.first.imageUrl, endsWith('/uploadfile/a.gif'));
+      expect(ads.last.imageUrl, 'https://cdn.example/b.jpg');
     });
 
     test('没有广告位时返回空', () {
-      expect(AdHttp.parseHomeAdLink('<div class="other"></div>'), isNull);
+      expect(AdHttp.parseHomeAds('<div class="other"></div>'), isEmpty);
     });
   });
 
