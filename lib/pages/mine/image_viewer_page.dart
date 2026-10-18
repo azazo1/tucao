@@ -206,24 +206,7 @@ class _ImageViewerPageState extends State<ImageViewerPage>
         onPointerDown: (_) => _stopZoomAnimation(),
         child: GestureDetector(
           onLongPress: _saving ? null : _showActions,
-          child: Stack(
-            children: [
-              Positioned.fill(child: _buildImage()),
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 24,
-                child: Text(
-                  '双击放大, 长按保存到相册',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white.withValues(alpha: 0.7),
-                  ),
-                ),
-              ),
-            ],
-          ),
+          child: _buildImage(),
         ),
       ),
     );

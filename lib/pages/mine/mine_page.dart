@@ -368,16 +368,18 @@ class _UserHeaderState extends State<_UserHeader> {
   }
 
   Widget _placeholderAvatar(ColorScheme scheme) {
-    return SizedBox(
+    return Container(
       width: _avatarSize,
       height: _avatarSize,
-      child: ColoredBox(
+      // 占位也要是圆形, 未登录时头像是单独出现的, 没有外层裁剪.
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
         color: scheme.surfaceContainerHighest,
-        child: Icon(
-          Icons.person,
-          size: _avatarSize * 0.6,
-          color: scheme.onSurfaceVariant,
-        ),
+      ),
+      child: Icon(
+        Icons.person,
+        size: _avatarSize * 0.6,
+        color: scheme.onSurfaceVariant,
       ),
     );
   }
