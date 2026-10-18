@@ -20,6 +20,7 @@ abstract final class Pref {
   static const _kShowAdEntry = 'show_ad_entry';
   static const _kPlayerSeekStep = 'player_seek_step';
   static const _kSkippedUpdateVersion = 'skipped_update_version';
+  static const _kSiteHost = 'site_host';
 
   /// 跳转按钮的秒数下限.
   static const playerSeekStepMin = 80.0;
@@ -176,6 +177,13 @@ abstract final class Pref {
       GStorage.setting.get(_kSkippedUpdateVersion, defaultValue: '') as String;
   static set skippedUpdateVersion(String value) =>
       GStorage.setting.put(_kSkippedUpdateVersion, value);
+
+  /// 用户设置的主站域名, 为空表示使用构建时或默认域名.
+  ///
+  /// 只在启动时读入 SiteHost, 修改后需要重启应用才生效.
+  static String get siteHost =>
+      GStorage.setting.get(_kSiteHost, defaultValue: '') as String;
+  static set siteHost(String value) => GStorage.setting.put(_kSiteHost, value);
 
   /// 请求使用的站点地址.
   static String get baseUrl => Constants.baseUrl;
