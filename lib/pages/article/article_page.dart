@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/common/widgets/channel_bar.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/common/widgets/video_card.dart';
@@ -40,7 +41,7 @@ class _ArticlePageState extends State<ArticlePage> {
 
   @override
   Widget build(BuildContext context) {
-    final body = _buildBody();
+    final body = AdaptiveBody(child: _buildBody());
     if (widget.embedded) {
       return Column(
         children: [

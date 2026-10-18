@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/models/download_task.dart';
 import 'package:tucao/pages/download/cached_video_page.dart';
 import 'package:tucao/services/download/download_service.dart';
@@ -99,12 +100,19 @@ class _DownloadPageState extends State<DownloadPage> {
     Get.to(() => CachedVideoPage(task: task, file: file));
   });
 
-  Widget _list(List<DownloadTask> tasks, {required bool completed}) {
+  Widget _list(
+    BuildContext context,
+    List<DownloadTask> tasks, {
+    required bool completed,
+  }) {
     if (tasks.isEmpty) {
       return Center(child: Text(completed ? '还没有已缓存的视频' : '还没有缓存任务'));
     }
     return ListView.separated(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: EdgeInsets.symmetric(
+        horizontal: Adaptive.sidePadding(context),
+        vertical: 4,
+      ),
       itemCount: tasks.length,
       separatorBuilder: (context, index) =>
           const Divider(height: 1, indent: 16),
@@ -189,6 +197,7 @@ class _DownloadPageState extends State<DownloadPage> {
                 return TabBarView(
                   children: [
                     _list(
+                      context,
                       items
                           .where(
                             (task) => task.status != DownloadStatus.completed,
@@ -197,6 +206,7 @@ class _DownloadPageState extends State<DownloadPage> {
                       completed: false,
                     ),
                     _list(
+                      context,
                       items
                           .where(
                             (task) => task.status == DownloadStatus.completed,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/common/widgets/video_card.dart';
 import 'package:tucao/models/favorite.dart';
@@ -67,6 +68,10 @@ class _FavoritePageState extends State<FavoritePage> {
   @override
   Widget build(BuildContext context) {
     final service = FavoriteService.instance;
+    final side = Adaptive.sidePadding(
+      context,
+      maxWidth: Adaptive.listMaxWidth,
+    );
     return Scaffold(
       appBar: AppBar(title: const Text('本地收藏')),
       body: Column(
@@ -90,7 +95,7 @@ class _FavoritePageState extends State<FavoritePage> {
                 );
               }
               return ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
+                padding: EdgeInsets.symmetric(horizontal: side + 12),
                 itemCount: service.list.length,
                 separatorBuilder: (_, _) => const Divider(height: 1),
                 itemBuilder: (context, index) {

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/http/user_http.dart';
 
 /// 找回密码页.
@@ -120,13 +121,18 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    // 表单在宽屏下收窄居中, 输入框不横跨整个屏幕.
+    final side = Adaptive.sidePadding(
+      context,
+      maxWidth: Adaptive.formMaxWidth,
+    );
     return Scaffold(
       appBar: AppBar(title: const Text('找回密码')),
       body: SafeArea(
         child: Form(
           key: _formKey,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            padding: EdgeInsets.fromLTRB(side + 20, 16, side + 20, 24),
             children: [
               TextFormField(
                 controller: _emailController,

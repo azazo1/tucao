@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/common/style.dart';
 import 'package:tucao/pages/video/widgets/danmaku_settings_sheet.dart';
 import 'package:tucao/services/account_service.dart';
@@ -170,7 +171,12 @@ class _SettingPageState extends State<SettingPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
       body: ListView(
-        padding: const EdgeInsets.only(bottom: 24),
+        padding: EdgeInsets.fromLTRB(
+          Adaptive.sidePadding(context),
+          0,
+          Adaptive.sidePadding(context),
+          24,
+        ),
         children: [
           const _SectionTitle('外观'),
           RadioGroup<int>(

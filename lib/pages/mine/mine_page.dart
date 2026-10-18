@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:tucao/build_config.dart';
+import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/common/constants.dart';
 import 'package:tucao/common/style.dart';
 import 'package:tucao/models/user.dart';
@@ -117,7 +118,10 @@ class _MinePageState extends State<MinePage> {
     return Scaffold(
       appBar: AppBar(title: const Text('我的')),
       body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: EdgeInsets.symmetric(
+          horizontal: Adaptive.sidePadding(context),
+          vertical: 12,
+        ),
         children: [
           const Padding(padding: Style.pagePadding, child: _UserHeader()),
           const SizedBox(height: 16),

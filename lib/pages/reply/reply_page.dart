@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/common/widgets/paging_list.dart';
 import 'package:tucao/models/reply.dart';
 import 'package:tucao/pages/reply/reply_controller.dart';
@@ -107,33 +108,35 @@ class _ReplyPanelState extends State<ReplyPanel>
         final scale = MediaQuery.textScalerOf(context).scale(13) / 13;
         final inputHeight = (56 * scale + MediaQuery.paddingOf(context).bottom)
             .clamp(0.0, constraints.maxHeight / 2);
-        return Column(
-          children: [
-            Expanded(
-              child: Obx(() {
-                // toList 会读取响应式列表, 让刷新与分页结果重建列表.
-                final comments = controller.list.toList();
-                return PagingList<ReplyModel>(
-                  key: ValueKey(controller),
-                  list: comments,
-                  itemBuilder: _buildItem,
-                  onRefresh: controller.refresh,
-                  onLoadMore: controller.loadMore,
-                  hasMore: controller.hasMore,
-                  loading: controller.loading.value,
-                  firstLoading: controller.firstLoading.value,
-                  error: cleanReplyError(controller.error.value),
-                  onRetry: controller.loadFirst,
-                  emptyMessage: '还没有评论, 来说点什么吧',
-                  separator: const Divider(),
-                );
-              }),
-            ),
-            SizedBox(
-              height: inputHeight,
-              child: SingleChildScrollView(child: _buildInputBar(context)),
-            ),
-          ],
+        return AdaptiveBody(
+          child: Column(
+            children: [
+              Expanded(
+                child: Obx(() {
+                  // toList 会读取响应式列表, 让刷新与分页结果重建列表.
+                  final comments = controller.list.toList();
+                  return PagingList<ReplyModel>(
+                    key: ValueKey(controller),
+                    list: comments,
+                    itemBuilder: _buildItem,
+                    onRefresh: controller.refresh,
+                    onLoadMore: controller.loadMore,
+                    hasMore: controller.hasMore,
+                    loading: controller.loading.value,
+                    firstLoading: controller.firstLoading.value,
+                    error: cleanReplyError(controller.error.value),
+                    onRetry: controller.loadFirst,
+                    emptyMessage: '还没有评论, 来说点什么吧',
+                    separator: const Divider(),
+                  );
+                }),
+              ),
+              SizedBox(
+                height: inputHeight,
+                child: SingleChildScrollView(child: _buildInputBar(context)),
+              ),
+            ],
+          ),
         );
       },
     );

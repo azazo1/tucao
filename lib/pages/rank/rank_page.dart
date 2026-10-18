@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/common/style.dart';
 import 'package:tucao/common/widgets/channel_bar.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
@@ -119,13 +120,13 @@ class _RankPageState extends State<RankPage> {
                   )
                 : const SizedBox.shrink(),
           ),
-          Expanded(child: Obx(_buildBody)),
+          Expanded(child: Obx(() => _buildBody(context))),
         ],
       ),
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(BuildContext context) {
     if (_controller.firstLoading.value) {
       return const LoadingWidget();
     }
@@ -134,6 +135,11 @@ class _RankPageState extends State<RankPage> {
       return ErrorWidgetView(message: error, onRetry: _controller.load);
     }
     final list = _controller.list;
+    // 平板与横屏下把榜单收窄居中, 避免一行文字过长.
+    final side = Adaptive.sidePadding(
+      context,
+      maxWidth: Adaptive.listMaxWidth,
+    );
     return RefreshIndicator(
       onRefresh: _controller.refreshList,
       child: list.isEmpty
@@ -146,7 +152,7 @@ class _RankPageState extends State<RankPage> {
             )
           : ListView.separated(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(12, 2, 12, 12),
+              padding: EdgeInsets.fromLTRB(side + 12, 2, side + 12, 12),
               itemCount: list.length,
               separatorBuilder: (context, index) => const Divider(),
               itemBuilder: (context, index) =>

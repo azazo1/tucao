@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/common/widgets/channel_bar.dart';
 import 'package:tucao/common/widgets/paging_list.dart';
 import 'package:tucao/common/widgets/video_card.dart';
@@ -48,6 +49,10 @@ class _ChannelPageState extends State<ChannelPage> {
 
   @override
   Widget build(BuildContext context) {
+    final side = Adaptive.sidePadding(
+      context,
+      maxWidth: Adaptive.listMaxWidth,
+    );
     return Scaffold(
       appBar: AppBar(title: Text(_name)),
       body: Column(
@@ -70,8 +75,8 @@ class _ChannelPageState extends State<ChannelPage> {
                 error: _controller.error.value,
                 onRetry: _controller.loadFirst,
                 emptyMessage: '这个分区还没有视频',
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
+                padding: EdgeInsets.symmetric(
+                  horizontal: side + 12,
                   vertical: 4,
                 ),
                 separator: const Divider(height: 1, indent: 158),

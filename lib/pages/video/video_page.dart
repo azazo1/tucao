@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/pages/video/widgets/video_content_tabs.dart';
@@ -68,6 +69,9 @@ class _VideoPageState extends State<VideoPage>
   /// 播放器区域的位置, 进入小窗时作为动画起点.
   final _playerKey = GlobalKey();
 
+  /// 简介与评论区的位置, 宽屏分栏与全屏切换时搬动而不重建.
+  final _contentKey = GlobalKey();
+
   /// 上一次同步给系统的自动进入条件, 避免每个进度回调都过一次通道.
   (bool, int, int)? _autoEnterState;
 
@@ -108,7 +112,7 @@ class _VideoPageState extends State<VideoPage>
       Get.delete<PlayerPageController>(tag: _tag);
     }
     if (_fullscreen) {
-      _restorePortrait();
+      _restoreOrientation();
     }
     super.dispose();
   }
@@ -217,17 +221,18 @@ class _VideoPageState extends State<VideoPage>
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
-  /// 退出全屏: 恢复竖屏与系统栏.
+  /// 退出全屏: 交还方向控制, 恢复系统栏.
   Future<void> _exitFullscreen() async {
     setState(() => _fullscreen = false);
-    await _restorePortrait();
+    await _restoreOrientation();
   }
 
-  Future<void> _restorePortrait() async {
-    await SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
+  /// 全屏结束后不再锁定竖屏.
+  ///
+  /// 全屏只是播放页的临时状态, 回到普通界面时要跟随设备旋转,
+  /// 否则看完一个视频后整个应用都会卡在竖屏, 平板上尤其明显.
+  Future<void> _restoreOrientation() async {
+    await SystemChrome.setPreferredOrientations(const []);
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
 
@@ -253,6 +258,10 @@ class _VideoPageState extends State<VideoPage>
         appBar: playerFill ? _emptyAppBar : _buildAppBar(),
         body: LayoutBuilder(
           builder: (context, constraints) {
+            // 横屏手机与平板把播放器放到左侧, 简介与评论在右侧独立滚动.
+            if (!playerFill && Adaptive.useSplitVideoLayout(context)) {
+              return _buildSplitLayout();
+            }
             // 高度有限时为下方内容留下空间, 全屏仍铺满播放器.
             final inlinePlayerHeight = (constraints.maxWidth * 9 / 16).clamp(
               0.0,
@@ -334,14 +343,41 @@ class _VideoPageState extends State<VideoPage>
     );
   }
 
+  /// 宽屏布局: 播放器靠左并按 16:9 居中, 简介与评论在右侧独立滚动.
+  ///
+  /// 两栏都带固定 key, 旋转屏幕或进出全屏时搬到新的位置, 不重新挂载.
+  Widget _buildSplitLayout() {
+    return Row(
+      children: [
+        Expanded(
+          flex: 3,
+          child: ColoredBox(
+            color: Colors.black,
+            child: Center(
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: _buildPlayerView(),
+              ),
+            ),
+          ),
+        ),
+        const VerticalDivider(width: 0.5),
+        Expanded(flex: 2, child: _buildContentArea()),
+      ],
+    );
+  }
+
   Widget _buildContentArea() {
-    return Obx(() {
-      final error = _controller.error.value;
-      if (error != null && _controller.video.value == null) {
-        return ErrorWidgetView(message: error, onRetry: _controller.load);
-      }
-      return _buildContent();
-    });
+    return KeyedSubtree(
+      key: _contentKey,
+      child: Obx(() {
+        final error = _controller.error.value;
+        if (error != null && _controller.video.value == null) {
+          return ErrorWidgetView(message: error, onRetry: _controller.load);
+        }
+        return _buildContent();
+      }),
+    );
   }
 
   Widget _buildContent() {

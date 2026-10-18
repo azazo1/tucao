@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/common/style.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/common/widgets/video_card.dart';
@@ -65,42 +66,38 @@ class _WeekViewState extends State<WeekView>
             onChanged: _controller.changeIndex,
           ),
           Expanded(
-            child: RefreshIndicator(
-              onRefresh: _controller.refreshList,
-              child: current.list.isEmpty
-                  ? ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      children: const [
-                        SizedBox(height: 120),
-                        EmptyWidget(message: '这一天还没有更新'),
-                      ],
-                    )
-                  : GridView.builder(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
-                      gridDelegate: _gridDelegate(context),
-                      itemCount: current.list.length,
-                      itemBuilder: (context, i) =>
-                          _WeekCard(video: current.list[i]),
-                    ),
+            child: AdaptiveBody(
+              maxWidth: Adaptive.gridMaxWidth,
+              child: LayoutBuilder(
+                builder: (context, constraints) => RefreshIndicator(
+                  onRefresh: _controller.refreshList,
+                  child: current.list.isEmpty
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: const [
+                            SizedBox(height: 120),
+                            EmptyWidget(message: '这一天还没有更新'),
+                          ],
+                        )
+                      : GridView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
+                          gridDelegate: Style.videoGrid(
+                            context,
+                            constraints.maxWidth,
+                          ),
+                          itemCount: current.list.length,
+                          itemBuilder: (context, i) =>
+                              _WeekCard(video: current.list[i]),
+                        ),
+                ),
+              ),
             ),
           ),
         ],
       );
     });
   }
-}
-
-/// 两列等宽网格, 卡片高度由 [Style.verticalCardExtent] 统一给出.
-SliverGridDelegate _gridDelegate(BuildContext context) {
-  final width = MediaQuery.sizeOf(context).width;
-  final itemWidth = (width - 24 - 10) / 2;
-  return SliverGridDelegateWithFixedCrossAxisCount(
-    crossAxisCount: 2,
-    crossAxisSpacing: 10,
-    mainAxisSpacing: 12,
-    mainAxisExtent: Style.verticalCardExtent(context, itemWidth),
-  );
 }
 
 /// 分组切换条, 当天用主色标出.

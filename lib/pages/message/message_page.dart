@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/http/message_http.dart';
 import 'package:tucao/models/message.dart';
@@ -118,12 +119,14 @@ class _MessagePageState extends State<MessagePage> {
       appBar: AppBar(
         title: Text(widget.userName.isEmpty ? '私信' : widget.userName),
       ),
-      body: Column(
-        children: [
-          Expanded(child: _buildBody()),
-          // 未登录时不给输入框, 避免发送必然失败.
-          if (AccountService.instance.isLogin) _buildInput(context),
-        ],
+      body: AdaptiveBody(
+        child: Column(
+          children: [
+            Expanded(child: _buildBody()),
+            // 未登录时不给输入框, 避免发送必然失败.
+            if (AccountService.instance.isLogin) _buildInput(context),
+          ],
+        ),
       ),
     );
   }

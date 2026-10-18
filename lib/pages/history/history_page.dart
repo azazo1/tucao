@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/common/widgets/video_card.dart';
 import 'package:tucao/router/routes.dart';
@@ -122,7 +123,13 @@ class _HistoryPageState extends State<HistoryPage> {
           return const EmptyWidget(message: '还没有播放记录', icon: Icons.history);
         }
         return ListView.separated(
-          padding: const EdgeInsets.symmetric(vertical: 4),
+          padding: EdgeInsets.symmetric(
+            horizontal: Adaptive.sidePadding(
+              context,
+              maxWidth: Adaptive.listMaxWidth,
+            ),
+            vertical: 4,
+          ),
           itemCount: list.length,
           separatorBuilder: (context, index) =>
               const Divider(height: 1, indent: 158),

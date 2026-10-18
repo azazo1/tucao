@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/common/style.dart';
 import 'package:tucao/common/widgets/channel_bar.dart';
 import 'package:tucao/common/widgets/paging_list.dart';
@@ -108,12 +109,15 @@ class _SearchPageState extends State<SearchPage> {
             titleSpacing: widget.embedded ? 12 : 4,
             title: _buildInput(),
           ),
-          body: Obx(() {
-            if (_controller.hasSearched) {
-              return _buildResult();
-            }
-            return _buildIdle();
-          }),
+          body: AdaptiveBody(
+            maxWidth: Adaptive.listMaxWidth,
+            child: Obx(() {
+              if (_controller.hasSearched) {
+                return _buildResult();
+              }
+              return _buildIdle();
+            }),
+          ),
         ),
       );
     });

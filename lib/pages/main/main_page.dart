@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/pages/home/home_page.dart';
 import 'package:tucao/pages/mine/mine_page.dart';
 import 'package:tucao/pages/rank/rank_page.dart';
@@ -6,6 +7,7 @@ import 'package:tucao/pages/rank/rank_page.dart';
 /// 应用主框架.
 ///
 /// 三个常驻页面保持状态, 切换时不重建. 搜索从首页右上角进入, 不占底部 tab.
+/// 手机竖屏用底部导航, 横屏与平板改用左侧导航栏, 让内容区拿到更多宽度.
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
 
@@ -16,14 +18,26 @@ class MainPage extends StatefulWidget {
 class _MainPageState extends State<MainPage> {
   int _index = 0;
 
+  /// 旋转屏幕时主框架在底部导航与侧边导航之间切换,
+  /// 页面栈用同一个 key 搬到新位置, 保留各页的滚动与分页状态.
+  final _pagesKey = GlobalKey();
+
   static const _pages = [
     HomePage(),
     RankPage(embedded: true),
     MinePage(),
   ];
 
+  /// 图标, 选中图标与标签.
+  static const _items = [
+    (Icons.home_outlined, Icons.home, '首页'),
+    (Icons.leaderboard_outlined, Icons.leaderboard, '排行'),
+    (Icons.person_outline, Icons.person, '我的'),
+  ];
+
   @override
   Widget build(BuildContext context) {
+    final wide = Adaptive.isWide(context);
     return PopScope(
       canPop: _index == 0,
       onPopInvokedWithResult: (didPop, result) {
@@ -32,29 +46,48 @@ class _MainPageState extends State<MainPage> {
         }
       },
       child: Scaffold(
-        body: IndexedStack(index: _index, children: _pages),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _index,
-          onDestinationSelected: (value) => setState(() => _index = value),
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home),
-              label: '首页',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.leaderboard_outlined),
-              selectedIcon: Icon(Icons.leaderboard),
-              label: '排行',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.person_outline),
-              selectedIcon: Icon(Icons.person),
-              label: '我的',
-            ),
-          ],
-        ),
+        body: wide
+            ? Row(
+                children: [
+                  NavigationRail(
+                    selectedIndex: _index,
+                    onDestinationSelected: _select,
+                    labelType: NavigationRailLabelType.all,
+                    destinations: [
+                      for (final item in _items)
+                        NavigationRailDestination(
+                          icon: Icon(item.$1),
+                          selectedIcon: Icon(item.$2),
+                          label: Text(item.$3),
+                        ),
+                    ],
+                  ),
+                  const VerticalDivider(width: 0.5),
+                  Expanded(child: _buildPages()),
+                ],
+              )
+            : _buildPages(),
+        bottomNavigationBar: wide
+            ? null
+            : NavigationBar(
+                selectedIndex: _index,
+                onDestinationSelected: _select,
+                destinations: [
+                  for (final item in _items)
+                    NavigationDestination(
+                      icon: Icon(item.$1),
+                      selectedIcon: Icon(item.$2),
+                      label: item.$3,
+                    ),
+                ],
+              ),
       ),
     );
+  }
+
+  void _select(int value) => setState(() => _index = value);
+
+  Widget _buildPages() {
+    return IndexedStack(key: _pagesKey, index: _index, children: _pages);
   }
 }

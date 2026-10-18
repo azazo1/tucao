@@ -39,6 +39,49 @@ abstract final class Style {
     return itemWidth / coverAspectRatio + contentHeight;
   }
 
+  /// 网格水平内边距, 与页面其他部分的留白一致.
+  static const horizontalPadding = 12.0;
+
+  /// 网格内卡片之间的间距.
+  static const gridSpacing = 10.0;
+
+  /// 网格内卡片的最小宽度, 再窄标题就会挤成两三个字.
+  static const minCardWidth = 165.0;
+
+  /// 网格列数上限, 防止超宽屏下卡片被拉得过大.
+  static const maxGridColumns = 6;
+
+  /// 竖版卡片网格的列数.
+  ///
+  /// 按卡片最小宽度均分可用宽度: 手机竖屏两列, 横屏与平板随宽度增加列数.
+  static int gridColumns(double availableWidth) {
+    final usable = availableWidth - horizontalPadding * 2;
+    if (usable <= 0) {
+      return 2;
+    }
+    final columns =
+        ((usable + gridSpacing) / (minCardWidth + gridSpacing)).floor();
+    return columns.clamp(2, maxGridColumns).toInt();
+  }
+
+  /// 竖版卡片的网格代理, 列数与卡片高度都跟随可用宽度.
+  ///
+  /// [availableWidth] 是网格容器自身的宽度, 水平内边距从这里扣除.
+  static SliverGridDelegate videoGrid(
+    BuildContext context,
+    double availableWidth,
+  ) {
+    final columns = gridColumns(availableWidth);
+    final usable = availableWidth - horizontalPadding * 2;
+    final itemWidth = (usable - gridSpacing * (columns - 1)) / columns;
+    return SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: columns,
+      crossAxisSpacing: gridSpacing,
+      mainAxisSpacing: 12,
+      mainAxisExtent: verticalCardExtent(context, itemWidth),
+    );
+  }
+
   static ThemeData light(ColorScheme? dynamicScheme) => _build(
     dynamicScheme ?? ColorScheme.fromSeed(seedColor: seedColor),
   );

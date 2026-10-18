@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/common/style.dart';
 import 'package:tucao/common/widgets/channel_bar.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
@@ -224,6 +225,13 @@ class _ChannelTabViewState extends State<_ChannelTabView>
   }
 
   Widget _buildBody() {
+    return AdaptiveBody(
+      maxWidth: Adaptive.gridMaxWidth,
+      child: _buildGrid(),
+    );
+  }
+
+  Widget _buildGrid() {
     return LayoutBuilder(
       builder: (context, constraints) => Obx(() {
         final error = _controller.error.value;
@@ -260,7 +268,7 @@ class _ChannelTabViewState extends State<_ChannelTabView>
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
                     sliver: SliverGrid(
-                      gridDelegate: _gridDelegate(
+                      gridDelegate: Style.videoGrid(
                         context,
                         constraints.maxWidth,
                       ),
@@ -283,17 +291,6 @@ class _ChannelTabViewState extends State<_ChannelTabView>
           ),
         );
       }),
-    );
-  }
-
-  /// 两列等宽网格, 卡片高度由 [Style.verticalCardExtent] 统一给出.
-  SliverGridDelegate _gridDelegate(BuildContext context, double maxWidth) {
-    final itemWidth = (maxWidth - 24 - 10) / 2;
-    return SliverGridDelegateWithFixedCrossAxisCount(
-      crossAxisCount: 2,
-      crossAxisSpacing: 10,
-      mainAxisSpacing: 12,
-      mainAxisExtent: Style.verticalCardExtent(context, itemWidth),
     );
   }
 }
