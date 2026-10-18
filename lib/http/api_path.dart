@@ -49,6 +49,12 @@ abstract final class ApiPath {
   /// 用户.
   static const userInfo = 'api.php?op=user';
   static const userSpace = 'index.php?m=member&c=space';
+
+  /// 会员中心与贡献榜.
+  ///
+  /// 站点没有对应的 json 接口, 都只能抓页面, 且需要登录态.
+  static const memberCenter = 'index.php?m=member';
+  static const lifeRank = 'index.php?m=member&c=life_rank';
   static const login = 'index.php?m=member&c=index&a=login';
   static const register = 'index.php?m=member&c=index&a=register&siteid=1';
   static const logout = 'index.php?m=member&c=index&a=logout&forward=&siteid=1';

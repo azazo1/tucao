@@ -11,6 +11,7 @@ import 'package:tucao/common/style.dart';
 import 'package:tucao/common/vip.dart';
 import 'package:tucao/http/space_http.dart';
 import 'package:tucao/models/user.dart';
+import 'package:tucao/pages/life/widgets/life_card.dart';
 import 'package:tucao/router/routes.dart';
 import 'package:tucao/services/account_service.dart';
 import 'package:tucao/services/update_service.dart';
@@ -82,6 +83,23 @@ class _MinePageState extends State<MinePage> {
     await UpdateService.checkManually(context);
   }
 
+  /// 续命卡片.
+  ///
+  /// 数据来自会员中心, 需要登录态, 未登录时这一块不占位置;
+  /// 登录态变化时换 key, 卡片会跟着重新取数.
+  Widget _lifeSection() {
+    return Obx(() {
+      final user = AccountService.instance.user.value;
+      if (user == null) {
+        return const SizedBox.shrink();
+      }
+      return Padding(
+        padding: Style.pagePadding.add(const EdgeInsets.only(top: 12)),
+        child: LifeCard(key: ValueKey(user.userId)),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -93,6 +111,7 @@ class _MinePageState extends State<MinePage> {
         ),
         children: [
           const Padding(padding: Style.pagePadding, child: _UserHeader()),
+          _lifeSection(),
           const SizedBox(height: 16),
           ListTile(
             leading: const Icon(Icons.mail_outline),

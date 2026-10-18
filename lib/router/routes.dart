@@ -24,6 +24,7 @@ abstract final class Routes {
   static const space = '/space';
   static const weekBgm = '/week-bgm';
   static const userRank = '/user-rank';
+  static const lifeRank = '/life-rank';
   static const inbox = '/inbox';
   static const message = '/message';
 }

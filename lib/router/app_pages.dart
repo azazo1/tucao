@@ -7,6 +7,7 @@ import 'package:tucao/pages/channel/channel_page.dart';
 import 'package:tucao/pages/history/history_page.dart';
 import 'package:tucao/pages/download/download_page.dart';
 import 'package:tucao/pages/favorite/favorite_page.dart';
+import 'package:tucao/pages/life/life_rank_page.dart';
 import 'package:tucao/pages/login/change_password_page.dart';
 import 'package:tucao/pages/login/forgot_password_page.dart';
 import 'package:tucao/pages/login/login_page.dart';
@@ -49,6 +50,7 @@ abstract final class AppPages {
     ),
     GetPage(name: Routes.hotSearch, page: () => const HotSearchPage()),
     GetPage(name: Routes.userRank, page: () => const UserRankPage()),
+    GetPage(name: Routes.lifeRank, page: () => const LifeRankPage()),
     GetPage(name: Routes.inbox, page: () => const InboxPage()),
     GetPage(
       name: Routes.message,
