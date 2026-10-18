@@ -46,6 +46,22 @@ abstract final class VideoStatsHttp {
     return _intOf(values['olThis']);
   }
 
+  /// 总站的实时在线人数.
+  ///
+  /// 该接口传空 cid 时返回整站数据, `olAll` 就是总在线人数.
+  static Future<int?> fetchSiteOnline({CancelToken? cancelToken}) async {
+    final values = await _fetchScript(
+      ApiPath.onlineScript,
+      {
+        'cid': '',
+        'v': 0,
+        't': DateTime.now().millisecondsSinceEpoch,
+      },
+      cancelToken,
+    );
+    return _intOf(values['olAll']);
+  }
+
   /// 总播放量与追番数.
   static Future<({int? playCount, int? favoriteCount})> fetchCounts({
     required String hid,

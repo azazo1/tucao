@@ -8,6 +8,7 @@ import 'package:tucao/models/channel.dart';
 import 'package:tucao/pages/article/article_page.dart';
 import 'package:tucao/pages/channel/channel_controller.dart';
 import 'package:tucao/pages/home/home_controller.dart';
+import 'package:tucao/pages/home/widgets/site_online_badge.dart';
 import 'package:tucao/pages/home/week_view.dart';
 import 'package:tucao/router/routes.dart';
 
@@ -49,7 +50,18 @@ class _HomePageState extends State<HomePage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('吐槽'),
+        title: const Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text('吐槽'),
+            SizedBox(width: 8),
+            Padding(
+              padding: EdgeInsets.only(bottom: 6),
+              child: SiteOnlineBadge(),
+            ),
+          ],
+        ),
         titleSpacing: 16,
         actions: [
           PopupMenuButton<String>(
