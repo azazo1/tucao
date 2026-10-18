@@ -6,6 +6,9 @@ abstract final class Constants {
   static const sourceCodeUrl = 'https://github.com/azazo1/tucao';
   static const refererSourceCodeUrl = 'https://github.com/blackbbc/Tucao';
 
+  /// 官网的下载页, 非本项目维护, 只作为额外渠道提示.
+  static const officialSiteUrl = 'https://www.tucao.app/';
+
   /// 官方安卓端使用的接口密钥, 全站公开.
   static const apiKey = '25tids8f1ew1821ed';
 

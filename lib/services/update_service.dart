@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:tucao/build_config.dart';
+import 'package:tucao/common/constants.dart';
 import 'package:tucao/http/update_http.dart';
 import 'package:tucao/models/app_release.dart';
 import 'package:tucao/utils/logger.dart';
@@ -117,49 +118,83 @@ abstract final class UpdateService {
   ) async {
     final choice = await showDialog<_UpdateChoice>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('发现新版本 ${release.tagName}'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  release.body.trim().isEmpty
-                      ? '该版本没有填写发布说明.'
-                      : release.body.trim(),
-                  style: const TextStyle(fontSize: 13, height: 1.5),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  '下载后在系统里覆盖安装即可, 不要先卸载, 卸载会清除本地数据.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    height: 1.5,
-                    color: Theme.of(dialogContext).colorScheme.onSurfaceVariant,
+      builder: (dialogContext) {
+        final scheme = Theme.of(dialogContext).colorScheme;
+        return AlertDialog(
+          title: Text('发现新版本 ${release.tagName}'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    release.body.trim().isEmpty
+                        ? '该版本没有填写发布说明.'
+                        : release.body.trim(),
+                    style: const TextStyle(fontSize: 13, height: 1.5),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  Text(
+                    '下载后在系统里覆盖安装即可, 不要先卸载, 卸载会清除本地数据.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.5,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '官网下载页:',
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.5,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () =>
+                        _openUrl(dialogContext, Constants.officialSiteUrl),
+                    child: Text(
+                      Constants.officialSiteUrl,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: scheme.primary,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '该页面并非本人管理, 链接可能随时撤去, 也可能更新延迟.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.5,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, _UpdateChoice.later),
-            child: const Text('稍后'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, _UpdateChoice.ignore),
-            child: const Text('忽略此版本'),
-          ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(dialogContext, _UpdateChoice.download),
-            child: const Text('前往下载'),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () =>
+                  Navigator.pop(dialogContext, _UpdateChoice.later),
+              child: const Text('稍后'),
+            ),
+            TextButton(
+              onPressed: () =>
+                  Navigator.pop(dialogContext, _UpdateChoice.ignore),
+              child: const Text('忽略此版本'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.pop(dialogContext, _UpdateChoice.download),
+              child: const Text('前往下载'),
+            ),
+          ],
+        );
+      },
     );
     if (choice == _UpdateChoice.ignore) {
       Pref.skippedUpdateVersion = release.tagName;
@@ -171,28 +206,25 @@ abstract final class UpdateService {
       return;
     }
     if (choice == _UpdateChoice.download) {
-      await _openPage(context, release);
+      await _openUrl(context, release.pageUrl);
     }
     // 选稍后或直接关闭时不做记录, 下次启动的自动检查会重新提示.
   }
 
-  /// 用系统浏览器打开下载页.
-  static Future<void> _openPage(
-    BuildContext context,
-    AppRelease release,
-  ) async {
+  /// 用系统浏览器打开链接, 失败时给出提示.
+  static Future<void> _openUrl(BuildContext context, String url) async {
     try {
       final opened = await launchUrl(
-        Uri.parse(release.pageUrl),
+        Uri.parse(url),
         mode: LaunchMode.externalApplication,
       );
       if (!opened && context.mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('未能打开浏览器, 请在项目页下载')));
+        ).showSnackBar(const SnackBar(content: Text('未能打开浏览器, 请手动访问链接')));
       }
     } catch (error) {
-      Log.w('打开下载页失败: $error');
+      Log.w('打开链接失败: $error');
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,
