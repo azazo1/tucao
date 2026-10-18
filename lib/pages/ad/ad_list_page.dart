@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -10,7 +12,7 @@ import 'package:tucao/pages/ad/ad_page.dart';
 /// 应用内广告列表.
 ///
 /// 与官方客户端的首页一致, 把站点广告位里的多条广告图依次展示,
-/// 点某一条后进入应用内 WebView 打开对应链接.
+/// 点某一条后进入应用内 WebView 打开对应链接, 并把这次点击报给站点.
 class AdListPage extends StatefulWidget {
   const AdListPage({super.key});
 
@@ -21,6 +23,11 @@ class AdListPage extends StatefulWidget {
 class _AdListPageState extends State<AdListPage> {
   late Future<List<AdItem>> _ads;
 
+  /// 本轮已经上报过的广告位.
+  ///
+  /// 与站点页面一致: 同一个广告位只算一次点击, 反复点同一条不重复计入.
+  final _reported = <String>{};
+
   @override
   void initState() {
     super.initState();
@@ -28,7 +35,18 @@ class _AdListPageState extends State<AdListPage> {
   }
 
   void _reload() {
+    _reported.clear();
     setState(() => _ads = AdHttp.fetchHomeAds());
+  }
+
+  /// 打开广告页, 打开前把点击报给站点.
+  void _openAd(AdItem ad) {
+    final adId = ad.adId;
+    // 站点没给广告位 id, 或抓广告位时未登录, 这次点击不计入站点统计.
+    if (ad.loggedIn && adId != null && _reported.add(adId)) {
+      unawaited(AdHttp.reportClick(adId));
+    }
+    Get.to(() => AdPage(url: ad.linkUrl));
   }
 
   @override
@@ -69,7 +87,7 @@ class _AdListPageState extends State<AdListPage> {
               }
               final ad = ads[index];
               return InkWell(
-                onTap: () => Get.to(() => AdPage(url: ad.linkUrl)),
+                onTap: () => _openAd(ad),
                 child: CachedNetworkImage(
                   imageUrl: ad.imageUrl,
                   fit: BoxFit.fitWidth,

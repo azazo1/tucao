@@ -74,6 +74,15 @@ abstract final class ApiPath {
   static const messageSend = 'index.php?m=message&c=index&a=send';
   static const messageReply = 'index.php?m=message&c=index&a=reply';
 
+  /// 广告点击上报, 站点页面里的 adClick 打的是同一个地址.
+  ///
+  /// 站点只给登录访客的广告位挂上报脚本, 应用解析到登录标记后才调用这里.
+  static const adClick = 'index.php?m=content&c=ad_click&a=init';
+
+  /// 点击上报地址, 末尾的毫秒时间戳用于防缓存, 与站点页面一致.
+  static String adClickUrl(String adId, {required int timestamp}) =>
+      '$adClick&adid=${Uri.encodeQueryComponent(adId)}&t=$timestamp';
+
   /// 生成弹幕接口需要的播放器 id.
   ///
   /// 与官方 `generatePlayerId` 一致, 末尾的分P序号是弹幕的区分依据.

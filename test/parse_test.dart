@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tucao/http/ad_http.dart';
+import 'package:tucao/http/api_path.dart';
 import 'package:tucao/http/rank_http.dart';
 import 'package:tucao/http/user_rank_http.dart';
 import 'package:tucao/http/video_http.dart';
@@ -247,6 +248,26 @@ void main() {
       expect(ads.first.linkUrl, 'https://equity.tmall.com/tm?x=1');
       expect(ads.first.imageUrl, endsWith('/uploadfile/a.gif'));
       expect(ads.last.imageUrl, 'https://cdn.example/b.jpg');
+    });
+
+    test('解析广告位 id 与登录标记', () {
+      const raw = '''
+      <div class="header_rmb">
+        <div id="t36"><a href="https://cdn.example/a" onclick="adClick('t36',1)"><img src="/uploadfile/a.jpg"></a></div>
+        <div id="t39"><a href="https://l1.example/hycdh" onclick="adClick('t39',0)"><img src="/uploadfile/b.jpg"></a></div>
+        <div id="t41"><a href="https://lq52in.example/"><img src="/uploadfile/c.jpg"></a></div>
+      </div>
+      ''';
+      final ads = AdHttp.parseHomeAds(raw);
+      expect(ads.map((ad) => ad.adId), ['t36', 't39', null]);
+      expect(ads.map((ad) => ad.loggedIn), [true, false, false]);
+    });
+
+    test('上报地址带广告位与时间戳', () {
+      expect(
+        ApiPath.adClickUrl('t36', timestamp: 1700000000000),
+        'index.php?m=content&c=ad_click&a=init&adid=t36&t=1700000000000',
+      );
     });
 
     test('没有广告位时返回空', () {
