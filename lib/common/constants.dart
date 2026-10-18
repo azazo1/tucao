@@ -1,4 +1,4 @@
-import 'package:tucao/build_config.dart';
+import 'package:tucao/common/site_host.dart';
 
 /// 项目级常量. 站点接口大部分沿用官方安卓端的定义, 见 ApiConfig.
 abstract final class Constants {
@@ -6,19 +6,21 @@ abstract final class Constants {
   static const sourceCodeUrl = 'https://github.com/azazo1/tucao';
   static const refererSourceCodeUrl = 'https://github.com/blackbbc/Tucao';
 
+  /// 界面与交互参考的开源客户端.
+  static const piliPlusUrl = 'https://github.com/bggRGjQaUbCoE/PiliPlus';
+
   /// 官网的下载页, 非本项目维护, 只作为额外渠道提示.
   static const officialSiteUrl = 'https://www.tucao.app/';
 
   /// 官方安卓端使用的接口密钥, 全站公开.
   static const apiKey = '25tids8f1ew1821ed';
 
-  /// 主站域名, 构建时可用 SITE 覆盖为备用域名.
-  static const defaultHost = 'www.tucao.my';
+  /// 主站域名, 构建时可用 SITE 覆盖, 运行期可在设置里改.
+  static const defaultHost = SiteHost.defaultHost;
 
-  static String get host =>
-      BuildConfig.site.isEmpty ? defaultHost : BuildConfig.site;
+  static String get host => SiteHost.host;
 
-  static String get baseUrl => 'https://$host/';
+  static String get baseUrl => SiteHost.baseUrl;
 
   static String get apiUrl => '${baseUrl}api_v2/';
 
@@ -43,6 +45,6 @@ abstract final class Constants {
   ];
 
   /// 视频详情返回的占位封面.
-  static const placeholderImage =
-      'https://$defaultHost/uploadfile/2023/0823/20230823080102905.png';
+  static String get placeholderImage =>
+      '${baseUrl}uploadfile/2023/0823/20230823080102905.png';
 }

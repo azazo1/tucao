@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/common/style.dart';
+import 'package:tucao/pages/setting/widgets/site_host_tile.dart';
 import 'package:tucao/pages/video/widgets/danmaku_settings_sheet.dart';
 import 'package:tucao/services/account_service.dart';
 import 'package:tucao/services/ad_service.dart';
@@ -303,6 +304,7 @@ class _SettingPageState extends State<SettingPage> {
               onChanged: (value) => AdService.instance.setEnabled(value),
             ),
           ),
+          const SiteHostTile(),
           ListTile(
             title: const Text('搜索历史条数上限'),
             trailing: SegmentedButton<int>(

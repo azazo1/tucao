@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:tucao/router/app_pages.dart';
 import 'package:tucao/router/routes.dart';
 import 'package:tucao/common/style.dart';
+import 'package:tucao/common/site_host.dart';
 import 'package:tucao/http/init.dart';
 import 'package:tucao/services/account_service.dart';
 import 'package:tucao/services/ad_service.dart';
@@ -14,6 +15,7 @@ import 'package:tucao/services/theme_service.dart';
 import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/http_util.dart';
 import 'package:tucao/utils/storage.dart';
+import 'package:tucao/utils/storage_pref.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:media_kit/media_kit.dart';
 
@@ -23,6 +25,8 @@ Future<void> main() async {
   MediaKit.ensureInitialized();
 
   await GStorage.init();
+  // 域名在设置里改过时, 网络层与页面地址都按它拼接, 因此必须在初始化前读入.
+  SiteHost.setOverride(Pref.siteHost);
   await HttpInit.init();
   Get.put(ThemeService());
   Get.put(AccountService());

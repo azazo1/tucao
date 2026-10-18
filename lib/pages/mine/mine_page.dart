@@ -331,6 +331,10 @@ class _AboutDialog extends StatelessWidget {
           _LinkRow(label: '项目地址', url: Constants.sourceCodeUrl),
           const SizedBox(height: 8),
           _LinkRow(label: '参考项目', url: Constants.refererSourceCodeUrl),
+          const SizedBox(height: 8),
+          _LinkRow(label: 'PiliPlus', url: Constants.piliPlusUrl),
+          const SizedBox(height: 8),
+          _LinkRow(label: '吐槽官网', url: Constants.officialSiteUrl),
           const SizedBox(height: 12),
           Text(
             '本项目是第三方客户端, 与站点官方无关.',
