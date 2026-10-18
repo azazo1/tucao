@@ -22,7 +22,8 @@ class SiteOnlineBadge extends StatefulWidget {
 
 class _SiteOnlineBadgeState extends State<SiteOnlineBadge> {
   Timer? _timer;
-  int? _count;
+  int? _online;
+  int? _players;
 
   @override
   void initState() {
@@ -33,9 +34,12 @@ class _SiteOnlineBadgeState extends State<SiteOnlineBadge> {
 
   Future<void> _refresh() async {
     try {
-      final count = await VideoStatsHttp.fetchSiteOnline();
-      if (mounted && count != null) {
-        setState(() => _count = count);
+      final stats = await VideoStatsHttp.fetchSiteOnline();
+      if (mounted) {
+        setState(() {
+          _online = stats.online ?? _online;
+          _players = stats.players ?? _players;
+        });
       }
     } catch (e) {
       Log.d('读取总站在线人数失败: $e');
@@ -50,13 +54,18 @@ class _SiteOnlineBadgeState extends State<SiteOnlineBadge> {
 
   @override
   Widget build(BuildContext context) {
-    final count = _count;
-    if (count == null) {
+    if (_online == null && _players == null) {
       return const SizedBox.shrink();
     }
     final scheme = Theme.of(context).colorScheme;
+    final parts = <String>[
+      if (_online != null) '在线 ${Utils.formatCount(_online!)}',
+      if (_players != null) '播放器 ${Utils.formatCount(_players!)}',
+    ];
     return Text(
-      '在线 ${Utils.formatCount(count)}',
+      parts.join(' · '),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
       style: TextStyle(fontSize: 11, color: scheme.outline),
     );
   }

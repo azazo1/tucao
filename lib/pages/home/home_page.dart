@@ -56,9 +56,11 @@ class _HomePageState extends State<HomePage>
           children: [
             Text('吐槽'),
             SizedBox(width: 8),
-            Padding(
-              padding: EdgeInsets.only(bottom: 6),
-              child: SiteOnlineBadge(),
+            Flexible(
+              child: Padding(
+                padding: EdgeInsets.only(bottom: 6),
+                child: SiteOnlineBadge(),
+              ),
             ),
           ],
         ),
