@@ -6,6 +6,7 @@ import 'package:tucao/pages/video/widgets/video_stats_bar.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
 import 'package:tucao/router/routes.dart';
 import 'package:tucao/utils/date_utils.dart';
+import 'package:tucao/utils/html_text.dart';
 
 /// 播放页下方的视频信息区.
 class VideoInfoPanel extends StatelessWidget {
@@ -137,11 +138,12 @@ class _DescriptionState extends State<_Description> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final text = decodeHtmlText(widget.text);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          widget.text,
+          text,
           maxLines: _expanded ? null : 3,
           overflow: _expanded ? null : TextOverflow.ellipsis,
           style: theme.textTheme.bodySmall?.copyWith(height: 1.5),

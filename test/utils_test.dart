@@ -6,6 +6,7 @@ import 'package:tucao/http/danmaku_http.dart';
 import 'package:tucao/models/danmaku.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/utils/date_utils.dart';
+import 'package:tucao/utils/html_text.dart';
 import 'package:tucao/utils/utils.dart';
 
 void main() {
@@ -54,6 +55,29 @@ void main() {
       final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
       expect(DateUtil.relative(now - 3600 * 3), '3小时前');
       expect(DateUtil.relative(now - 86400 * 2), '2天前');
+    });
+  });
+
+  group('HTML 文本还原', () {
+    test('简介里的常用实体被还原', () {
+      expect(
+        decodeHtmlText('升学名校&mdash;&mdash;私立藤成学园'),
+        '升学名校——私立藤成学园',
+      );
+      expect(decodeHtmlText('「鬼之血&hellip;&hellip;」'), '「鬼之血……」');
+    });
+
+    test('二次转义的实体再解一层', () {
+      expect(
+        decodeHtmlText('哪有那么顺利啊(&amp;acute;-д-)=3'),
+        '哪有那么顺利啊(´-д-)=3',
+      );
+    });
+
+    test('换行标签与普通文本', () {
+      expect(decodeHtmlText('第一行<br>第二行'), '第一行\n第二行');
+      expect(decodeHtmlText('普通简介'), '普通简介');
+      expect(decodeHtmlText(''), '');
     });
   });
 
