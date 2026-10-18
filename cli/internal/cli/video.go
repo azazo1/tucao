@@ -40,17 +40,22 @@ func (a *App) newVideoCommand() *cobra.Command {
 			}
 			detail := &model.VideoDetail{Video: *video}
 
-			var waitGroup sync.WaitGroup
+			var (
+				waitGroup sync.WaitGroup
+				page      *model.PlayPage
+				pageMu    sync.Mutex
+			)
 			waitGroup.Add(1)
 			go func() {
 				defer waitGroup.Done()
-				page, pageErr := client.PlayPage(command.Context(), hid)
+				loaded, pageErr := client.PlayPage(command.Context(), hid)
 				if pageErr != nil {
 					a.Logger.Warn("读取播放页附加信息失败", "error", pageErr)
 					return
 				}
-				detail.FullDescription = page.Description
-				detail.Subject = page.Subject
+				pageMu.Lock()
+				page = loaded
+				pageMu.Unlock()
 			}()
 			if !noStats {
 				waitGroup.Add(1)
@@ -61,6 +66,15 @@ func (a *App) newVideoCommand() *cobra.Command {
 			}
 			waitGroup.Wait()
 
+			pageMu.Lock()
+			if page != nil {
+				detail.FullDescription = page.Description
+				detail.Subject = page.Subject
+				// 详情接口的分P地址可能残缺, 用播放页里的地址补全.
+				detail.Video.ApplyPlayParts(page.Parts)
+			}
+			pageMu.Unlock()
+
 			return a.finish(command, detail, func(mode output.Mode) {
 				a.renderVideoDetail(mode, detail)
 			})
@@ -70,6 +84,24 @@ func (a *App) newVideoCommand() *cobra.Command {
 	command.AddCommand(a.newVideoDanmakuCommand(), a.newVideoCommentCommand(),
 		a.newVideoFavoriteCommand(), a.newVideoDownloadCommand())
 	return command
+}
+
+// loadVideoWithParts 取视频详情, 并用播放页里的地址补全分P直链.
+//
+// 详情接口对带查询串的地址只返回前半截, 直接拿它下载会下到网页,
+// 因此下载前先补一次播放页; 播放页取不到时退回接口里那份地址.
+func (a *App) loadVideoWithParts(ctx context.Context, client *api.Client, hid string) (*model.Video, error) {
+	video, err := client.VideoView(ctx, hid)
+	if err != nil {
+		return nil, err
+	}
+	page, pageErr := client.PlayPage(ctx, hid)
+	if pageErr != nil {
+		a.Logger.Warn("读取播放页分P地址失败, 改用详情接口的地址", "error", pageErr)
+		return video, nil
+	}
+	video.ApplyPlayParts(page.Parts)
+	return video, nil
 }
 
 // loadVideoStats 并行取在线人数, 播放量, 追番数与评论数.

@@ -1,12 +1,15 @@
 package download
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -180,5 +183,81 @@ func TestFileReportsUpstreamStatus(t *testing.T) {
 	}
 	if api.CodeOf(err) != api.CodeUpstream {
 		t.Fatalf("应为上游错误: %v", err)
+	}
+}
+
+func TestFileRetriesAfterTruncatedConnection(t *testing.T) {
+	payload := []byte(strings.Repeat("tucao-download-", 4096))
+	var calls int32
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		attempt := atomic.AddInt32(&calls, 1)
+		writer.Header().Set("content-type", "video/mp4")
+		if attempt == 1 {
+			// 第一次只发一半就把连接掐掉, 模拟传输中断.
+			writer.Header().Set("content-length", fmt.Sprint(len(payload)))
+			writer.WriteHeader(http.StatusOK)
+			_, _ = writer.Write(payload[:len(payload)/2])
+			if flusher, ok := writer.(http.Flusher); ok {
+				flusher.Flush()
+			}
+			panic(http.ErrAbortHandler)
+		}
+		// 第二次正常响应 Range 请求.
+		http.ServeContent(writer, request, "sample.mp4", time.Time{}, bytes.NewReader(payload))
+	}))
+	defer server.Close()
+
+	target := filepath.Join(t.TempDir(), "video.mp4")
+	result, err := File(context.Background(), server.Client(), server.URL+"/sample.mp4", target, Options{Retries: 3})
+	if err != nil {
+		t.Fatalf("断流后应自动续传: %v", err)
+	}
+	if result.Retried == 0 {
+		t.Fatal("应记录续传次数")
+	}
+	if result.Bytes != int64(len(payload)) {
+		t.Fatalf("续传后字节数不正确: %d != %d", result.Bytes, len(payload))
+	}
+	data, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatalf("读取文件失败: %v", err)
+	}
+	if string(data) != string(payload) {
+		t.Fatalf("续传后内容不一致: %d 字节", len(data))
+	}
+}
+
+func TestFileGivesUpAfterRetries(t *testing.T) {
+	var calls int32
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		writer.Header().Set("content-type", "video/mp4")
+		writer.Header().Set("content-length", "1000")
+		writer.WriteHeader(http.StatusOK)
+		// 先发一小段再断开, 与服务端中途掐断连接的表现一致.
+		_, _ = writer.Write(bytes.Repeat([]byte("x"), 64))
+		if flusher, ok := writer.(http.Flusher); ok {
+			flusher.Flush()
+		}
+		panic(http.ErrAbortHandler)
+	}))
+	defer server.Close()
+
+	target := filepath.Join(t.TempDir(), "video.mp4")
+	_, err := File(context.Background(), server.Client(), server.URL+"/x.mp4", target, Options{Retries: 2})
+	if err == nil {
+		t.Fatal("一直断流时应当报错")
+	}
+	if api.CodeOf(err) != api.CodeNetwork {
+		t.Fatalf("应为网络错误: %v", err)
+	}
+	if !strings.Contains(err.Error(), "续传") {
+		t.Fatalf("错误信息应提示可以续传: %v", err)
+	}
+	if got := atomic.LoadInt32(&calls); got != 3 {
+		t.Fatalf("应尝试 3 次 (首次加 2 次重试), 实际 %d", got)
+	}
+	if _, statErr := os.Stat(target + ".part"); statErr != nil {
+		t.Fatalf("失败时应保留分片以便续传: %v", statErr)
 	}
 }

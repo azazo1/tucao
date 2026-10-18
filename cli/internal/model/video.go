@@ -1,5 +1,7 @@
 package model
 
+import "fmt"
+
 // VideoPart 是视频的一个分P.
 //
 // 站点存在两代视频源: 自建源直接给 file 直链, 早期第三方源只有 vid,
@@ -55,10 +57,67 @@ type SubjectField struct {
 	Value string `json:"value" yaml:"value"`
 }
 
+// PlayPagePart 是播放页里给出的分P来源.
+//
+// 详情接口有时只返回半个地址, 例如 sharepoint 直链会被截断成 ...?share,
+// 装上 play 页里这份地址才是播放器真正使用的, 因此以它为准.
+type PlayPagePart struct {
+	Type string `json:"type,omitempty" yaml:"type,omitempty"`
+	File string `json:"file,omitempty" yaml:"file,omitempty"`
+}
+
 // PlayPage 是播放页 html 里解析出的附加信息.
 type PlayPage struct {
 	Description string         `json:"description" yaml:"description"`
 	Subject     []SubjectField `json:"subject,omitempty" yaml:"subject,omitempty"`
+	Parts       []PlayPagePart `json:"parts,omitempty" yaml:"parts,omitempty"`
+}
+
+// ApplyPlayParts 用播放页里的地址补全或替换分P直链.
+//
+// 只按顺序覆盖已有分P, 额外的条目会被忽略, 免得页面上的非分P条目变成幽灵分P;
+// 详情接口一个分P都没给时, 才用播放页的条目建立分P列表.
+// 标题仍取详情接口的, 播放页里没有标题.
+func (v *Video) ApplyPlayParts(parts []PlayPagePart) {
+	filled := make([]PlayPagePart, 0, len(parts))
+	for _, part := range parts {
+		if part.File != "" {
+			filled = append(filled, part)
+		}
+	}
+	if len(filled) == 0 {
+		return
+	}
+	if len(v.Parts) == 0 {
+		for index, part := range filled {
+			v.Parts = append(v.Parts, VideoPart{
+				Index:      index,
+				Number:     index + 1,
+				Title:      fmt.Sprintf("p%d", index+1),
+				File:       part.File,
+				Type:       part.Type,
+				ThirdParty: false,
+			})
+		}
+		if v.PartCount < len(v.Parts) {
+			v.PartCount = len(v.Parts)
+		}
+		return
+	}
+	for index, part := range filled {
+		if index >= len(v.Parts) {
+			break
+		}
+		// 地址没变时不改类型, 免得把第三方的标记冲掉.
+		if v.Parts[index].File == part.File {
+			continue
+		}
+		v.Parts[index].File = part.File
+		if part.Type != "" {
+			v.Parts[index].Type = part.Type
+		}
+		v.Parts[index].ThirdParty = false
+	}
 }
 
 // VideoStats 是播放页与档案页的统计, 取不到的项为空.

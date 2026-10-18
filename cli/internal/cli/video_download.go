@@ -48,7 +48,7 @@ func (a *App) newVideoDownloadCommand() *cobra.Command {
 			if err != nil {
 				return a.fail(command, err, "")
 			}
-			video, err := client.VideoView(command.Context(), hid)
+			video, err := a.loadVideoWithParts(command.Context(), client, hid)
 			if err != nil {
 				return a.fail(command, err, "获取视频详情")
 			}
@@ -225,16 +225,31 @@ func (a *App) mediaFileName(video *model.Video, part model.VideoPart, basename s
 }
 
 // mediaExtension 从直链里取扩展名, 取不到时按 mp4 处理.
+//
+// 站点会把媒体挂在 download.aspx 这类脚本地址后面, 它的扩展名是 .aspx 而不是
+// 媒体格式, 因此只认常见的媒体扩展名.
 func mediaExtension(source string) string {
 	path := source
 	if index := strings.IndexAny(path, "?#"); index >= 0 {
 		path = path[:index]
 	}
-	extension := filepath.Ext(path)
-	if len(extension) < 2 || len(extension) > 5 {
+	extension := strings.ToLower(filepath.Ext(path))
+	if !mediaExtensions[extension] {
 		return ".mp4"
 	}
-	return strings.ToLower(extension)
+	return extension
+}
+
+// mediaExtensions 是可识别的媒体扩展名.
+var mediaExtensions = map[string]bool{
+	".mp4":  true,
+	".m4v":  true,
+	".flv":  true,
+	".mkv":  true,
+	".webm": true,
+	".avi":  true,
+	".mov":  true,
+	".ts":   true,
 }
 
 // sanitizeFileName 去掉文件名里的路径分隔符与控制字符.

@@ -181,7 +181,53 @@ func (c *Client) PlayPage(ctx context.Context, hid string) (*model.PlayPage, err
 	return &model.PlayPage{
 		Description: ParsePlayDescription(document),
 		Subject:     ParseSubjectFields(document),
+		Parts:       ParsePlayParts(document),
 	}, nil
+}
+
+// ParsePlayParts 解析播放页里的分P地址.
+//
+// 页面把全部分P塞在 <ul id="player_code"> 的第一个 li 里, 条目形如
+// type=video&file=地址, 条目之间用 |01** 这样的序号加星号分隔, 最后一个 li
+// 是播放器 id (如 11-4107864-1), 里面没有 type=, 会被自然跳过.
+//
+// 详情接口对带查询串的地址只返回前半截 (sharepoint 的 ...?share 就是这种情况),
+// 而播放器用的是这里这份完整地址, 下载要靠它.
+func ParsePlayParts(document *goquery.Document) []model.PlayPagePart {
+	node := document.Find("#player_code").First()
+	if node.Length() == 0 {
+		return nil
+	}
+	// Text 会把实体解码, 分P地址里不会出现竖线, 可以按竖线切.
+	text := node.Text()
+	parts := make([]model.PlayPagePart, 0, 4)
+	for _, chunk := range strings.Split(text, "|") {
+		start := strings.Index(chunk, "type=")
+		if start < 0 {
+			continue
+		}
+		rest := chunk[start+len("type="):]
+		separator := strings.Index(rest, "&")
+		if separator < 0 {
+			continue
+		}
+		kind := rest[:separator]
+		rest = rest[separator+1:]
+		if !strings.HasPrefix(rest, "file=") {
+			continue
+		}
+		file := strings.TrimPrefix(rest, "file=")
+		// 少数条目后面还跟着 title, 它不是地址的一部分.
+		if title := strings.Index(file, "&title="); title >= 0 {
+			file = file[:title]
+		}
+		file = strings.TrimSpace(file)
+		if file == "" {
+			continue
+		}
+		parts = append(parts, model.PlayPagePart{Type: kind, File: file})
+	}
+	return parts
 }
 
 // ParsePlayDescription 解析播放页里的简介正文, 去掉页面自带的标签行.

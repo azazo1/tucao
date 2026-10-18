@@ -64,3 +64,60 @@ func TestCompareVersions(t *testing.T) {
 		t.Fatal("同版本不应判为新")
 	}
 }
+
+func TestApplyPlayPartsFillsTruncatedLinks(t *testing.T) {
+	video := Video{
+		PartCount: 2,
+		Parts: []VideoPart{
+			{Index: 0, Number: 1, Title: "第一话", File: "https://x/download.aspx?share"},
+			{Index: 1, Number: 2, Title: "第二话", File: "https://x/download.aspx?share"},
+		},
+	}
+	video.ApplyPlayParts([]PlayPagePart{
+		{Type: "video", File: "https://x/download.aspx?share=AAA"},
+		{Type: "video", File: "https://x/download.aspx?share=BBB"},
+		{Type: "video", File: "https://x/download.aspx?share=CCC"},
+	})
+	if video.Parts[0].File != "https://x/download.aspx?share=AAA" {
+		t.Fatalf("首P地址没有补全: %q", video.Parts[0].File)
+	}
+	if video.Parts[1].File != "https://x/download.aspx?share=BBB" {
+		t.Fatalf("第二P地址没有补全: %q", video.Parts[1].File)
+	}
+	// 标题仍取详情接口的, 多出来的播放页条目要被忽略.
+	if video.Parts[0].Title != "第一话" {
+		t.Fatalf("标题被改写: %q", video.Parts[0].Title)
+	}
+	if len(video.Parts) != 2 || video.PartCount != 2 {
+		t.Fatalf("多余条目变成了幽灵分P: %d %d", len(video.Parts), video.PartCount)
+	}
+}
+
+func TestApplyPlayPartsBuildsPartsWhenAPIHasNone(t *testing.T) {
+	video := Video{}
+	video.ApplyPlayParts([]PlayPagePart{
+		{Type: "video", File: "https://x/1.mp4"},
+		{Type: "video", File: "https://x/2.mp4"},
+	})
+	if len(video.Parts) != 2 || video.PartCount != 2 {
+		t.Fatalf("接口没有分P时应用播放页建立列表: %+v", video.Parts)
+	}
+	if video.Parts[1].Number != 2 || video.Parts[1].Title != "p2" {
+		t.Fatalf("生成的分P信息不正确: %+v", video.Parts[1])
+	}
+}
+
+func TestApplyPlayPartsKeepsThirdPartyFlag(t *testing.T) {
+	video := Video{Parts: []VideoPart{{Index: 0, Number: 1, ThirdParty: true, VID: "abc"}}}
+	// 播放页没有地址时不改动.
+	video.ApplyPlayParts(nil)
+	if !video.Parts[0].ThirdParty {
+		t.Fatal("没有播放页地址时不应改动分P")
+	}
+	// 地址没变时也不改动类型标记.
+	video.Parts[0].File = "https://x/1.mp4"
+	video.ApplyPlayParts([]PlayPagePart{{Type: "video", File: "https://x/1.mp4"}})
+	if !video.Parts[0].ThirdParty {
+		t.Fatal("地址相同时不应冲掉第三方标记")
+	}
+}
