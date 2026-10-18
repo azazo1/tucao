@@ -6,7 +6,6 @@ import 'package:get/get.dart';
 import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/models/video.dart';
-import 'package:tucao/pages/video/widgets/cast_bar.dart';
 import 'package:tucao/pages/video/widgets/cast_sheet.dart';
 import 'package:tucao/pages/video/widgets/video_content_tabs.dart';
 import 'package:tucao/pages/video/widgets/player_view.dart';
@@ -375,34 +374,17 @@ class _VideoPageState extends State<VideoPage>
   }
 
   Widget _buildPlayerView() {
-    final session = _cast;
-    return Stack(
-      children: [
-        VideoPlayerView(
-          key: _playerKey,
-          controller: _controller,
-          fullscreen: _fullscreen,
-          pipMode: _pipMode,
-          // 不支持时不给回调, 播放器就不显示入口.
-          onEnterPip: _pipSupported ? _enterPip : null,
-          onToggleFullscreen: _fullscreen ? _exitFullscreen : _enterFullscreen,
-          onOpenWebsite: _openWebsite,
-        ),
-        if (session != null)
-          Positioned(
-            left: 8,
-            top: 8,
-            right: 8,
-            child: AnimatedBuilder(
-              animation: session,
-              builder: (context, _) => CastBar(
-                session: session,
-                onToggle: () => unawaited(_toggleCastPlayback()),
-                onStop: () => unawaited(_finishCast(restore: true)),
-              ),
-            ),
-          ),
-      ],
+    return VideoPlayerView(
+      key: _playerKey,
+      controller: _controller,
+      fullscreen: _fullscreen,
+      pipMode: _pipMode,
+      cast: _cast,
+      onExitCast: () => unawaited(_finishCast(restore: true)),
+      // 不支持时不给回调, 播放器就不显示入口.
+      onEnterPip: _pipSupported ? _enterPip : null,
+      onToggleFullscreen: _fullscreen ? _exitFullscreen : _enterFullscreen,
+      onOpenWebsite: _openWebsite,
     );
   }
 
@@ -606,18 +588,6 @@ class _VideoPageState extends State<VideoPage>
     await _controller.player.seek(position);
     if (wasPlaying) {
       await _controller.player.play();
-    }
-  }
-
-  Future<void> _toggleCastPlayback() async {
-    final session = _cast;
-    if (session == null) {
-      return;
-    }
-    if (session.state == CastState.playing) {
-      await session.pause();
-    } else if (session.state == CastState.paused) {
-      await session.resume();
     }
   }
 

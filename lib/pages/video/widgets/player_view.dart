@@ -9,6 +9,7 @@ import 'package:tucao/pages/video/widgets/danmaku_settings_sheet.dart';
 import 'package:tucao/pages/video/widgets/player_gesture.dart';
 import 'package:tucao/utils/danmaku_preferences_store.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
+import 'package:tucao/services/cast/session.dart';
 import 'package:tucao/utils/site_links.dart';
 import 'package:tucao/utils/storage_pref.dart';
 import 'package:tucao/utils/utils.dart';
@@ -16,7 +17,7 @@ import 'package:tucao/utils/utils.dart';
 /// 播放器区域: 视频画面, 弹幕层与控制条.
 ///
 /// 控制条与进度条直接读 [PlayerPageController.player] 的状态,
-/// 因此这里不重复保存播放状态.
+/// 因此这里不重复保存播放状态. 投屏时整块换成电视遥控面板.
 class VideoPlayerView extends StatefulWidget {
   const VideoPlayerView({
     super.key,
@@ -26,6 +27,8 @@ class VideoPlayerView extends StatefulWidget {
     required this.onOpenWebsite,
     this.pipMode = false,
     this.onEnterPip,
+    this.cast,
+    this.onExitCast,
   });
 
   final PlayerPageController controller;
@@ -41,6 +44,12 @@ class VideoPlayerView extends StatefulWidget {
 
   final VoidCallback onToggleFullscreen;
   final VoidCallback onOpenWebsite;
+
+  /// 正在进行的投屏会话, 非空时播放器区域变成电视遥控.
+  final CastSession? cast;
+
+  /// 退出投屏.
+  final VoidCallback? onExitCast;
 
   @override
   State<VideoPlayerView> createState() => _VideoPlayerViewState();
@@ -135,31 +144,39 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
   Widget build(BuildContext context) {
     // 小窗里系统只给一小块画面, 控制条与弹幕都收起来.
     final inPip = widget.pipMode;
+    final cast = widget.cast;
+    final casting = cast != null;
     return Stack(
       fit: StackFit.expand,
       children: [
         const ColoredBox(color: Colors.black),
         _buildVideo(),
-        // 小窗里只留画面. 弹幕层保持挂载, 免得退出小窗后重新投递一遍弹幕.
+        // 小窗里只留画面, 投屏时画面在电视上, 弹幕也没有意义.
         Offstage(
-          offstage: inPip,
+          offstage: inPip || casting,
           child: DanmakuScreen<DanmakuModel>(
             key: const ValueKey('danmaku'),
             createdController: _controller.attachDanmaku,
             option: _controller.danmakuOption,
           ),
         ),
-        Positioned.fill(
-          child: PlayerGestureDetector(
-            controller: _controller,
-            onToggleControls: _toggleControls,
-            onSeekPreview: _onSeekPreview,
+        if (!casting)
+          Positioned.fill(
+            child: PlayerGestureDetector(
+              controller: _controller,
+              onToggleControls: _toggleControls,
+              onSeekPreview: _onSeekPreview,
+            ),
           ),
-        ),
-        if (_showControls && !inPip) _buildControls(context),
-        if (widget.fullscreen && _showControls && !inPip) _buildFullscreenBack(),
-        _buildBuffering(),
-        _buildSourceTip(),
+        if (!casting && _showControls && !inPip) _buildControls(context),
+        if (!casting) _buildBuffering(),
+        if (!casting) _buildSourceTip(),
+        if (casting && !inPip) _buildCastControls(context, cast),
+        // 返回按钮放在遥控面板之上, 全屏时也能退出全屏.
+        if (widget.fullscreen &&
+            !inPip &&
+            (casting || _showControls))
+          _buildFullscreenBack(),
       ],
     );
   }
@@ -291,6 +308,183 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
         ),
       ),
     );
+  }
+
+  /// 投屏时的遥控面板: 画面在电视上, 这里只留状态, 进度与按键.
+  Widget _buildCastControls(BuildContext context, CastSession session) {
+    return Positioned.fill(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {},
+        child: Material(
+          color: Colors.black,
+          child: AnimatedBuilder(
+            animation: session,
+            builder: (context, _) {
+              final playing = session.state == CastState.playing;
+              final duration = session.duration;
+              return SafeArea(
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.cast_connected,
+                              size: 40,
+                              color: Colors.white54,
+                            ),
+                            const SizedBox(height: 12),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                              ),
+                              child: Text(
+                                session.device.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _castStateLabel(session),
+                              style: const TextStyle(
+                                color: Colors.white54,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            const Text(
+                              '弹幕仅在手机上显示',
+                              style: TextStyle(
+                                color: Colors.white38,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                Utils.formatDuration(session.position),
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: PlayerProgressBar(
+                                  position: session.position,
+                                  duration: duration,
+                                  buffered: Duration.zero,
+                                  onSeek: (position) =>
+                                      unawaited(session.seek(position)),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                duration > Duration.zero
+                                    ? Utils.formatDuration(duration)
+                                    : '--:--',
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              _castButton(
+                                Icons.replay_10,
+                                () => _seekCastBy(
+                                  session,
+                                  const Duration(seconds: -10),
+                                ),
+                                tooltip: '后退 10 秒',
+                              ),
+                              _castButton(
+                                playing ? Icons.pause : Icons.play_arrow,
+                                () => playing
+                                    ? session.pause()
+                                    : session.resume(),
+                                size: 40,
+                                tooltip: playing ? '暂停' : '继续',
+                              ),
+                              _castButton(
+                                Icons.forward_10,
+                                () => _seekCastBy(
+                                  session,
+                                  const Duration(seconds: 10),
+                                ),
+                                tooltip: '前进 10 秒',
+                              ),
+                              _castButton(
+                                Icons.stop_circle_outlined,
+                                () => widget.onExitCast?.call(),
+                                size: 34,
+                                tooltip: '退出投屏',
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  IconButton _castButton(
+    IconData icon,
+    VoidCallback onPressed, {
+    String? tooltip,
+    double size = 28,
+  }) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      icon: Icon(icon, size: size, color: Colors.white),
+    );
+  }
+
+  /// 遥控面板上的相对跳转, 结果夹在开头与片尾之间.
+  void _seekCastBy(CastSession session, Duration delta) {
+    final total = session.duration;
+    final upper = total > Duration.zero
+        ? total.inMilliseconds
+        : session.position.inMilliseconds;
+    final target = (session.position + delta).inMilliseconds.clamp(0, upper);
+    unawaited(session.seek(Duration(milliseconds: target.toInt())));
+  }
+
+  String _castStateLabel(CastSession session) {
+    return switch (session.state) {
+      CastState.connecting => '正在连接…',
+      CastState.playing => '正在播放',
+      CastState.paused => '已暂停',
+      CastState.failed => '投屏中断',
+      _ => '已停止',
+    };
   }
 
   Widget _buildProgressRow() {
