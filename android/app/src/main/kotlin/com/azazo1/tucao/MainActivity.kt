@@ -9,9 +9,14 @@ class MainActivity : FlutterActivity() {
     /** 画中画状态与平台通道, 首次用到时创建. */
     private val pip by lazy { PipController(this) }
 
+    /** 保存图片到相册的平台通道. */
+    private val imageSaver by lazy { ImageSaverController(this) }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        pip.attach(flutterEngine.dartExecutor.binaryMessenger)
+        val messenger = flutterEngine.dartExecutor.binaryMessenger
+        pip.attach(messenger)
+        imageSaver.attach(messenger)
     }
 
     override fun onUserLeaveHint() {
