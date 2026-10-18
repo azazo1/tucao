@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tucao/http/ad_http.dart';
 import 'package:tucao/http/rank_http.dart';
 import 'package:tucao/http/user_rank_http.dart';
 import 'package:tucao/http/video_http.dart';
@@ -230,6 +231,22 @@ void main() {
 
     test('非统计脚本返回空表', () {
       expect(VideoStatsHttp.parseScript('console.log(1);'), isEmpty);
+    });
+  });
+
+  group('首页广告位解析', () {
+    test('取广告位里的第一条外链', () {
+      const raw = '''
+      <div class="header_rmb">
+        <div id="t1"><a href="https://equity.tmall.com/tm?x=1">广告</a></div>
+        <div id="t2"><a href="/play/h1/">其他</a></div>
+      </div>
+      ''';
+      expect(AdHttp.parseHomeAdLink(raw), 'https://equity.tmall.com/tm?x=1');
+    });
+
+    test('没有广告位时返回空', () {
+      expect(AdHttp.parseHomeAdLink('<div class="other"></div>'), isNull);
     });
   });
 
