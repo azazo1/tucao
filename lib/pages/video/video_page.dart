@@ -80,6 +80,9 @@ class _VideoPageState extends State<VideoPage>
 
   bool _openingWebsite = false;
 
+  /// 重启播放时递增, 用来让简介, 统计, 评论这些子组件重建并重新请求.
+  int _contentEpoch = 0;
+
   /// 当前投屏会话, 为空表示没有在投屏.
   CastSession? _cast;
 
@@ -336,11 +339,6 @@ class _VideoPageState extends State<VideoPage>
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       actions: [
-        IconButton(
-          tooltip: '重启播放器',
-          icon: const Icon(Icons.restart_alt),
-          onPressed: _restartPlayer,
-        ),
         if (_cast case final session?)
           AnimatedBuilder(
             animation: session,
@@ -364,6 +362,7 @@ class _VideoPageState extends State<VideoPage>
             onDownload: _controller.video.value == null
                 ? null
                 : _openDownloadSheet,
+            onRestart: () => unawaited(_restartPlayback()),
           ),
         ),
       ],
@@ -420,13 +419,17 @@ class _VideoPageState extends State<VideoPage>
   Widget _buildContentArea() {
     return KeyedSubtree(
       key: _contentKey,
-      child: Obx(() {
-        final error = _controller.error.value;
-        if (error != null && _controller.video.value == null) {
-          return ErrorWidgetView(message: error, onRetry: _controller.load);
-        }
-        return _buildContent();
-      }),
+      // 重启播放时换掉内层 key, 让简介, 统计与评论区整棵子树重建并重新请求.
+      child: KeyedSubtree(
+        key: ValueKey('content-$_contentEpoch'),
+        child: Obx(() {
+          final error = _controller.error.value;
+          if (error != null && _controller.video.value == null) {
+            return ErrorWidgetView(message: error, onRetry: _controller.load);
+          }
+          return _buildContent();
+        }),
+      ),
     );
   }
 
@@ -594,22 +597,19 @@ class _VideoPageState extends State<VideoPage>
     await _controller.resumeAfterCast(position, autoPlay: wasPlaying);
   }
 
-  /// 重新进入播放页, 相当于把页面关掉再打开: 播放器, 弹幕与详情都会重新拉一遍.
+  /// 重载播放器与页面信息, 效果等同于退出播放页再进来, 但不切换路由.
   ///
-  /// 播放器卡死或者画面停在错误上时用这个恢复, 比让用户退出再点进来快.
-  void _restartPlayer() {
-    unawaited(_reopenPage());
-  }
-
-  Future<void> _reopenPage() async {
-    await Get.offNamed(
-      Routes.video,
-      parameters: {
-        'hid': _controller.hid,
-        'part': _controller.part.value.toString(),
-      },
-      arguments: _controller.video.value,
-    );
+  /// 播放器卡死或者画面停在错误上时用这个恢复; 正在投屏的话先收起投屏.
+  Future<void> _restartPlayback() async {
+    if (_cast != null) {
+      await _finishCast(restore: false);
+    }
+    if (!mounted) {
+      return;
+    }
+    // 换掉内容区的 key, 评论, 统计与简介会重新请求.
+    setState(() => _contentEpoch++);
+    await _controller.restart();
   }
 
   void _toast(String message) {

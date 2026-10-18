@@ -235,6 +235,33 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     }
   }
 
+  /// 重载详情与当前分P, 并回到重启前的进度.
+  ///
+  /// 播放器卡死或者画面停在错误上时用这个恢复, 效果等同于退出播放页再进来,
+  /// 但不切换路由, 也不会丢掉页面上的其他状态.
+  Future<void> restart() async {
+    if (_closed) {
+      return;
+    }
+    final resumeAt = player.position;
+    final wasPlaying = player.playing;
+    // 先把进度写进历史, 重新加载时会按它续播.
+    await recordHistory();
+    await player.stop();
+    await load();
+    if (_closed) {
+      return;
+    }
+    // 历史里没有可用进度时, 用重启前的位置兜底.
+    if (resumeAt > const Duration(seconds: 2) &&
+        player.position == Duration.zero) {
+      await player.seek(resumeAt);
+    }
+    if (wasPlaying) {
+      await player.play();
+    }
+  }
+
   /// 拉取播放页里的完整简介, 详情接口的简介只返回截断的一段.
   Future<void> _loadFullDescription(String id) async {
     try {
