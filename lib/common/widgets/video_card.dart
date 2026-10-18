@@ -101,7 +101,9 @@ class CoverBadge extends StatelessWidget {
 /// 首页等信息流使用的竖版视频卡片.
 ///
 /// 结构参考 PiliPlus: 卡片自身有圆角与底色, 封面只圆上方两角,
-/// 下方是带内边距的内容区, 依次是标题, 统计行与作者行.
+/// 下方是带内边距的内容区, 依次是标题, 统计行与作者行;
+/// 作者行只在取到作者名时出现, 新番时间表与新番索引的抓取结果里没有作者,
+/// 这两处不会显示作者行.
 class VideoCardVertical extends StatelessWidget {
   const VideoCardVertical({
     super.key,
@@ -162,27 +164,29 @@ class VideoCardVertical extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     _StatRow(video: video),
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.person_outline,
-                          size: 12,
-                          color: scheme.outline,
-                        ),
-                        const SizedBox(width: 3),
-                        Expanded(
-                          child: Text(
-                            video.userName.isEmpty ? '未知' : video.userName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: scheme.outline,
+                    if (video.userName.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.person_outline,
+                            size: 12,
+                            color: scheme.outline,
+                          ),
+                          const SizedBox(width: 3),
+                          Expanded(
+                            child: Text(
+                              video.userName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: scheme.outline,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
