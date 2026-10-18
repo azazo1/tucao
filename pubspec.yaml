@@ -37,6 +37,7 @@ dependencies:
   path_provider: ^2.1.6
   url_launcher: ^6.3.3
   wakelock_plus: ^1.8.1
+  webview_flutter: ^4.4.0
   xml: ^7.0.1
 
 dev_dependencies:

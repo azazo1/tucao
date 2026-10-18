@@ -8,6 +8,7 @@ import 'package:tucao/models/channel.dart';
 import 'package:tucao/pages/article/article_page.dart';
 import 'package:tucao/pages/channel/channel_controller.dart';
 import 'package:tucao/pages/home/home_controller.dart';
+import 'package:tucao/pages/home/widgets/ad_entry_button.dart';
 import 'package:tucao/pages/home/widgets/site_online_badge.dart';
 import 'package:tucao/pages/home/week_view.dart';
 import 'package:tucao/router/routes.dart';
@@ -66,6 +67,7 @@ class _HomePageState extends State<HomePage>
         ),
         titleSpacing: 16,
         actions: [
+          const AdEntryButton(),
           PopupMenuButton<String>(
             icon: const Icon(Icons.calendar_month_outlined),
             tooltip: '新番',
