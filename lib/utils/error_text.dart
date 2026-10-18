@@ -8,6 +8,8 @@ String errorText(Object error) {
       case DioExceptionType.sendTimeout:
       case DioExceptionType.receiveTimeout:
         return '网络超时, 请检查网络后重试';
+      case DioExceptionType.transformTimeout:
+        return '处理数据超时, 请重试';
       case DioExceptionType.connectionError:
         return '连接不上服务器, 请检查网络';
       case DioExceptionType.badCertificate:
