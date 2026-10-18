@@ -93,7 +93,6 @@ class _MinePageState extends State<MinePage> {
         ),
         children: [
           const Padding(padding: Style.pagePadding, child: _UserHeader()),
-          const _VipCard(),
           const SizedBox(height: 16),
           ListTile(
             leading: const Icon(Icons.mail_outline),
@@ -286,16 +285,28 @@ class _UserHeaderState extends State<_UserHeader> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          user.displayName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            // 破会员的昵称与网页端一样用站点金色.
-                            color: user.isVip ? Vip.nicknameColor : null,
-                          ),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                user.displayName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  // 破会员的昵称与网页端一样用站点金色.
+                                  color: user.isVip
+                                      ? Vip.nicknameColor
+                                      : null,
+                                ),
+                              ),
+                            ),
+                            if (user.isVip) ...[
+                              const SizedBox(width: 6),
+                              const VipBadge(),
+                            ],
+                          ],
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -389,63 +400,34 @@ class _UserHeaderState extends State<_UserHeader> {
   }
 }
 
-/// 破会员身份卡.
+/// 昵称后的破会员小标签.
 ///
-/// 会员身份来自站点 `api.php?op=user` 的 vip 字段, 非会员时整块不显示.
-class _VipCard extends StatelessWidget {
-  const _VipCard();
+/// 只占昵称同一行的高度, 不额外占版面; 非会员不显示这个组件.
+class VipBadge extends StatelessWidget {
+  const VipBadge({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Obx(() {
-      final user = AccountService.instance.user.value;
-      if (user == null || !user.isVip) {
-        return const SizedBox.shrink();
-      }
-      return Padding(
-        padding: Style.pagePadding,
-        child: Card(
-          color: Vip.nicknameColor.withValues(alpha: 0.1),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: Vip.nicknameColor.withValues(alpha: 0.4)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                Icon(Icons.workspace_premium, color: Vip.nicknameColor),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '破会员',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: Vip.nicknameColor,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '站点会员头衔, 昵称在评论区显示金色. 特权: 无广告, 亮眼, 图评.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: Vip.nicknameColor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: Vip.nicknameColor.withValues(alpha: 0.35),
+          width: 0.8,
         ),
-      );
-    });
+      ),
+      child: const Text(
+        '破会员',
+        style: TextStyle(
+          fontSize: 10,
+          height: 1.3,
+          fontWeight: FontWeight.w600,
+          color: Vip.nicknameColor,
+        ),
+      ),
+    );
   }
 }
 
