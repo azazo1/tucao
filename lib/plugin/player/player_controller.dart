@@ -65,6 +65,9 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
   /// 视频详情, 加载完成前可能只有列表页带过来的简要信息.
   final video = Rxn<VideoModel>();
 
+  /// 站点播放页里的完整简介, 详情接口的 description 会被截断.
+  final fullDescription = RxnString();
+
   /// 当前分P序号, 从 0 开始.
   final part = 0.obs;
 
@@ -206,6 +209,7 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     final request = _requests.begin();
     firstLoading.value = true;
     error.value = null;
+    fullDescription.value = null;
     try {
       final response = await _loadVideo(hid);
       if (!_requests.isCurrent(request)) {
@@ -216,6 +220,7 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
         return;
       }
       video.value = response.result;
+      unawaited(_loadFullDescription(hid));
       final index = part.value.clamp(0, partCount - 1);
       await _loadPart(index, resume: true, request: request);
     } catch (e, stackTrace) {
@@ -227,6 +232,19 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
       if (_requests.isCurrent(request)) {
         firstLoading.value = false;
       }
+    }
+  }
+
+  /// 拉取播放页里的完整简介, 详情接口的简介只返回截断的一段.
+  Future<void> _loadFullDescription(String id) async {
+    try {
+      final text = await VideoHttp.fetchDescription(hid: id);
+      if (_closed || video.value?.hid != id || text.isEmpty) {
+        return;
+      }
+      fullDescription.value = text;
+    } catch (e) {
+      Log.w('加载完整简介失败: $e');
     }
   }
 

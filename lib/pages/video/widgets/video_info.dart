@@ -84,9 +84,13 @@ class VideoInfoPanel extends StatelessWidget {
               ),
             ),
           ],
-          if (video.description.isNotEmpty) ...[
+          if (controller.fullDescription.value != null ||
+              video.description.isNotEmpty) ...[
             const SizedBox(height: 8),
-            _Description(text: video.description),
+            _Description(
+              key: ValueKey(video.hid),
+              text: controller.fullDescription.value ?? video.description,
+            ),
           ],
         ],
       ),
@@ -124,7 +128,7 @@ class VideoInfoPanel extends StatelessWidget {
 
 /// 可折叠的简介.
 class _Description extends StatefulWidget {
-  const _Description({required this.text});
+  const _Description({super.key, required this.text});
 
   final String text;
 
@@ -139,28 +143,42 @@ class _DescriptionState extends State<_Description> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final text = decodeHtmlText(widget.text);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          text,
-          maxLines: _expanded ? null : 3,
-          overflow: _expanded ? null : TextOverflow.ellipsis,
-          style: theme.textTheme.bodySmall?.copyWith(height: 1.5),
-        ),
-        GestureDetector(
-          onTap: () => setState(() => _expanded = !_expanded),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Text(
-              _expanded ? '收起' : '展开',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.primary,
-              ),
+    final style = theme.textTheme.bodySmall?.copyWith(height: 1.5);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 用同样的样式量一次, 只有真的超过 3 行才显示展开按钮.
+        final painter = TextPainter(
+          text: TextSpan(text: text, style: style),
+          maxLines: 3,
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+        )..layout(maxWidth: constraints.maxWidth);
+        final overflows = painter.didExceedMaxLines;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              text,
+              maxLines: _expanded ? null : 3,
+              overflow: _expanded ? null : TextOverflow.ellipsis,
+              style: style,
             ),
-          ),
-        ),
-      ],
+            if (overflows)
+              GestureDetector(
+                onTap: () => setState(() => _expanded = !_expanded),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Text(
+                    _expanded ? '收起' : '展开',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }

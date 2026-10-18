@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tucao/http/rank_http.dart';
 import 'package:tucao/http/user_rank_http.dart';
+import 'package:tucao/http/video_http.dart';
 import 'package:tucao/http/video_stats_http.dart';
 import 'package:tucao/http/week_http.dart';
 
@@ -229,6 +230,18 @@ void main() {
 
     test('非统计脚本返回空表', () {
       expect(VideoStatsHttp.parseScript('console.log(1);'), isEmpty);
+    });
+  });
+
+  group('播放页简介解析', () {
+    test('去掉简介标签并还原实体与换行', () {
+      const raw = '''
+      <div class="show_content">
+        <p class="show_content_n">简介：</p>
+        <p>第一行<br />第二行&hellip;&hellip;</p>
+      </div>
+      ''';
+      expect(VideoHttp.parseDescriptionHtml(raw), '第一行\n第二行……');
     });
   });
 }
