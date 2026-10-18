@@ -417,6 +417,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      # gh release 靠本地 git 远端推断仓库, 而这个 job 不检出代码, 所以直接指定仓库.
+      GH_REPO: ${{ github.repository }}
     # 所有分支共用同一个滚动 release, 必须串行: 正在发布的那次跑完,
     # 队列里只留下最后排上的一个, 更早的待跑项会被取消.
     concurrency:
