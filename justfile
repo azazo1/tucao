@@ -6,6 +6,7 @@ mod build
 mod check
 mod device
 mod generate
+mod mock
 
 # 显示项目信息.
 info:

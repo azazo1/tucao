@@ -73,7 +73,12 @@ just build android
 
 # 在设备上运行
 just device run
+
+# 启动 mock 电视, 投屏联调用
+just mock tv
 ```
+
+投屏相关功能可以先用 mock 电视联调, 用法见 [docs/mock-tv.md](docs/mock-tv.md).
 
 ## 构建
 
