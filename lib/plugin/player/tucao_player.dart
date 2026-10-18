@@ -353,14 +353,28 @@ class TucaoPlayer extends ChangeNotifier {
         if (_disposed) {
           return;
         }
-        _error = value.trim().isEmpty ? null : value;
-        if (_error != null) {
-          _buffering = false;
-          Log.e('播放出错: $value');
+        final message = value.trim();
+        if (message.isEmpty) {
+          return;
         }
+        // 硬件解码器打不开时 mpv 会回退到软件解码继续播放,
+        // 这类 error 级别的日志不是播放失败, 不应该盖住正常画面.
+        if (_isRecoverableError(message)) {
+          Log.w('播放器解码回退: $message');
+          return;
+        }
+        _error = message;
+        _buffering = false;
+        Log.e('播放出错: $message');
         _notify();
       }),
     ]);
+  }
+
+  /// 判断播放器错误是否只是解码器回退, 不影响继续播放.
+  static bool _isRecoverableError(String message) {
+    final lower = message.toLowerCase();
+    return lower.contains('could not open codec');
   }
 
   /// 播放中阻止息屏, 暂停或释放时取消.
