@@ -14,13 +14,12 @@ String decodeHtmlText(String raw) {
   if (raw.isEmpty) {
     return raw;
   }
-  final text = html_parser
-      .parseFragment(
-        raw.replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n'),
-      )
-      .text;
+  final fragment = html_parser.parseFragment(
+    raw.replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n'),
+  );
+  final text = fragment.text ?? '';
   if (!_entityPattern.hasMatch(text)) {
     return text;
   }
-  return html_parser.parseFragment(text).text;
+  return html_parser.parseFragment(text).text ?? '';
 }
