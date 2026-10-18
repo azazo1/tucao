@@ -141,6 +141,9 @@ class _SearchPageState extends State<SearchPage> {
   Widget _buildIdle() {
     return Obx(() {
       final items = _controller.history;
+      // Obx 只订阅构建期读取过的可观察量. 热搜列表交给子组件渲染,
+      // 这里先取一次快照, 否则数据回来之后界面不会刷新.
+      final hotKeywords = _controller.hotSearch.toList();
       final scheme = Theme.of(context).colorScheme;
       return ListView(
         padding: const EdgeInsets.symmetric(vertical: 4),
@@ -189,7 +192,7 @@ class _SearchPageState extends State<SearchPage> {
             ),
           const SizedBox(height: 8),
           HotSearchSection(
-            items: _controller.hotSearch,
+            items: hotKeywords,
             onKeyword: _submit,
             onMore: () => Get.toNamed(Routes.hotSearch),
           ),
