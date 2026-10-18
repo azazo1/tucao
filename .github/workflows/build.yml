@@ -406,3 +406,110 @@ jobs:
               --notes-file release-notes.md \
               "${prerelease_args[@]}"
           fi
+
+  # 每次 push 都把同一个滚动 tag 的预发布 release 重建成最新产物,
+  # 因此仓库里始终只有最新一次 push 的预发布.
+  prerelease:
+    name: 发布预发布 Release
+    needs: [version, analyze, test, android]
+    # tag push 走上面的正式 release; pull_request 的 token 是只读的, 也不该改写预发布.
+    if: needs.version.outputs.is_release != 'true' && startsWith(github.ref, 'refs/heads/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # 所有分支共用同一个滚动 release, 必须串行: 正在发布的那次跑完,
+    # 队列里只留下最后排上的一个, 更早的待跑项会被取消.
+    concurrency:
+      group: rolling-prerelease
+      cancel-in-progress: false
+    steps:
+      # 构建快慢不定, 先跑的 push 不一定先到这里, 因此发布前确认自己仍是最新提交,
+      # 免得较早的 push 覆盖掉较新的预发布.
+      - name: 确认提交仍是最新
+        id: freshness
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+          COMMIT: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # 用 commit 查"以它为 HEAD 的分支", 免得把分支名拼进 url.
+          head_branches="$(gh api "repos/$GITHUB_REPOSITORY/commits/$COMMIT/branches-where-head" --jq '.[].name')"
+
+          is_latest=false
+          if grep -Fxq "$BRANCH" <<< "$head_branches"; then
+            is_latest=true
+          else
+            echo "::notice::$BRANCH 的 HEAD 已不在 $COMMIT, 本次预发布让给更新的运行"
+          fi
+          echo "is_latest=$is_latest" >> "$GITHUB_OUTPUT"
+
+      - name: 下载构建产物
+        if: steps.freshness.outputs.is_latest == 'true'
+        uses: actions/download-artifact@v5
+        with:
+          path: prerelease-artifacts
+          merge-multiple: true
+
+      - name: 生成校验和
+        if: steps.freshness.outputs.is_latest == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          cd prerelease-artifacts
+          archives=(tucao-*.apk)
+
+          if (( ${#archives[@]} != 3 )); then
+            echo "预期 3 个 apk, 实际找到 ${#archives[@]} 个" >&2
+            exit 1
+          fi
+
+          sha256sum "${archives[@]}" > SHA256SUMS
+
+      - name: 重建预发布 Release
+        if: steps.freshness.outputs.is_latest == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+          COMMIT: ${{ github.sha }}
+          BUILD_VERSION: ${{ needs.version.outputs.build_version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          tag="dev-latest"
+          assets=(
+            prerelease-artifacts/tucao-*.apk
+            prerelease-artifacts/SHA256SUMS
+          )
+
+          if (( ${#assets[@]} != 4 )); then
+            echo "预期 4 个发布文件, 实际找到 ${#assets[@]} 个" >&2
+            exit 1
+          fi
+
+          # 先清掉上一轮的 release 与 tag 再按本次提交重建, 于是滚动 tag 总是指向
+          # 最新一次 push 的提交, 产物也不会残留上一轮的 apk.
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release delete "$tag" --yes --cleanup-tag
+          fi
+          # tag 还在但 release 已被删掉时, 沿用旧 tag 建 release 会指到旧提交, 这里补齐.
+          gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/$tag" >/dev/null 2>&1 || true
+
+          {
+            echo "分支 \`$BRANCH\` 最新一次 push 的预发布, 会被后续 push 覆盖, 只保留最新的一次."
+            echo
+            echo "- 提交: [\`${COMMIT:0:7}\`](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${COMMIT})"
+            echo "- 构建版本: \`v$BUILD_VERSION\`"
+            echo
+            echo "按设备架构下载对应的 \`tucao-*.apk\`, 校验和见 \`SHA256SUMS\`."
+          } > prerelease-notes.md
+
+          gh release create "$tag" "${assets[@]}" \
+            --target "$COMMIT" \
+            --title "吐槽 最新构建 v$BUILD_VERSION" \
+            --notes-file prerelease-notes.md \
+            --prerelease \
+            --latest=false
