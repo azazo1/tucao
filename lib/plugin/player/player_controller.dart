@@ -9,6 +9,7 @@ import 'package:tucao/models/api_response.dart';
 import 'package:tucao/models/danmaku.dart';
 import 'package:tucao/models/danmaku_preferences.dart';
 import 'package:tucao/models/video.dart';
+import 'package:tucao/models/video_subject.dart';
 import 'package:tucao/plugin/player/tucao_player.dart';
 import 'package:tucao/services/account_service.dart';
 import 'package:tucao/services/history_service.dart';
@@ -67,6 +68,9 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
 
   /// 站点播放页里的完整简介, 详情接口的 description 会被截断.
   final fullDescription = RxnString();
+
+  /// 播放页里的番组信息, 与完整简介同一次请求解析出来.
+  final subjectInfo = Rxn<VideoSubjectInfo>();
 
   /// 当前分P序号, 从 0 开始.
   final part = 0.obs;
@@ -210,6 +214,7 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     firstLoading.value = true;
     error.value = null;
     fullDescription.value = null;
+    subjectInfo.value = null;
     try {
       final response = await _loadVideo(hid);
       if (!_requests.isCurrent(request)) {
@@ -220,7 +225,7 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
         return;
       }
       video.value = response.result;
-      unawaited(_loadFullDescription(hid));
+      unawaited(_loadPlayPage(hid));
       final index = part.value.clamp(0, partCount - 1);
       await _loadPart(index, resume: true, request: request);
     } catch (e, stackTrace) {
@@ -262,16 +267,22 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     }
   }
 
-  /// 拉取播放页里的完整简介, 详情接口的简介只返回截断的一段.
-  Future<void> _loadFullDescription(String id) async {
+  /// 拉取播放页里的完整简介与番组信息.
+  ///
+  /// 详情接口的简介只返回截断的一段, 番组信息只有播放页 html 才有,
+  /// 两者在同一页面, 一次请求取回.
+  Future<void> _loadPlayPage(String id) async {
     try {
-      final text = await VideoHttp.fetchDescription(hid: id);
-      if (_closed || video.value?.hid != id || text.isEmpty) {
+      final page = await VideoHttp.fetchPlayPage(hid: id);
+      if (_closed || video.value?.hid != id) {
         return;
       }
-      fullDescription.value = text;
+      if (page.description.isNotEmpty) {
+        fullDescription.value = page.description;
+      }
+      subjectInfo.value = page.subject;
     } catch (e) {
-      Log.w('加载完整简介失败: $e');
+      Log.w('加载播放页附加信息失败: $e');
     }
   }
 

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/common/style.dart';
 import 'package:tucao/models/video.dart';
+import 'package:tucao/models/video_subject.dart';
+import 'package:tucao/pages/video/widgets/subject_info.dart';
 import 'package:tucao/pages/video/widgets/video_stats_bar.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
 import 'package:tucao/router/routes.dart';
@@ -28,6 +30,7 @@ class VideoInfoPanel extends StatelessWidget {
   Widget _buildContent(BuildContext context, VideoModel video) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final subject = controller.subjectInfo.value;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
       child: Column(
@@ -41,7 +44,7 @@ class VideoInfoPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          _buildMeta(context, video),
+          _buildMeta(context, video, subject),
           if (video.userName.isNotEmpty) ...[
             const SizedBox(height: 8),
             InkWell(
@@ -98,7 +101,11 @@ class VideoInfoPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildMeta(BuildContext context, VideoModel video) {
+  Widget _buildMeta(
+    BuildContext context,
+    VideoModel video,
+    VideoSubjectInfo? subject,
+  ) {
     final theme = Theme.of(context);
     final style = theme.textTheme.labelSmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
@@ -111,6 +118,8 @@ class VideoInfoPanel extends StatelessWidget {
           _metaItem(Icons.schedule, DateUtil.relative(video.createTime), style),
         if (video.typeName.isNotEmpty)
           _metaItem(Icons.local_offer_outlined, video.typeName, style),
+        if (subject != null && subject.isNotEmpty)
+          SubjectInfoSummary(info: subject),
       ],
     );
   }

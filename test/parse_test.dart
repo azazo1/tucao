@@ -265,4 +265,43 @@ void main() {
       expect(VideoHttp.parseDescriptionHtml(raw), '第一行\n第二行……');
     });
   });
+
+  group('播放页番组信息解析', () {
+    test('按页面顺序解析标签与链接文本', () {
+      const raw = '''
+      <div class="vdata_info"><div class="b">
+        <span class="n">类型：</span>搞笑 <br />
+        <span class="n">别名：</span>GINTAMA ぎんたま<br />
+        <span class='n'>角色配音：</span><a href="#">杉田智和</a>、<a href="#">钉宫理惠</a><br />
+        <span class='n'>制作公司：</span>日升动画<br />
+      </div></div>
+      ''';
+      final info = VideoHttp.parseSubjectInfoHtml(raw);
+      expect(info.fields.map((e) => e.label).toList(), [
+        '类型',
+        '别名',
+        '角色配音',
+        '制作公司',
+      ]);
+      expect(info.valueOf('角色配音'), '杉田智和、钉宫理惠');
+      expect(info.valueOf('制作公司'), '日升动画');
+    });
+
+    test('省略空值并保留冒号后的空白处理', () {
+      const raw = '''
+      <div class="vdata_info"><div class="b">
+        <span class="n">首播：</span>  2026-10-04 <br />
+        <span class="n">官方网站：</span> <br />
+      </div></div>
+      ''';
+      final info = VideoHttp.parseSubjectInfoHtml(raw);
+      expect(info.fields, hasLength(1));
+      expect(info.valueOf('首播'), '2026-10-04');
+      expect(info.valueOf('官方网站'), isEmpty);
+    });
+
+    test('没有信息区块时返回空', () {
+      expect(VideoHttp.parseSubjectInfoHtml('<html></html>').isEmpty, isTrue);
+    });
+  });
 }
