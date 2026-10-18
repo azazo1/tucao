@@ -1,3 +1,5 @@
+import 'dart:ui' show lerpDouble;
+
 import 'package:extended_image/extended_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -7,8 +9,9 @@ import 'package:tucao/utils/logger.dart';
 
 /// 单张图片的全屏查看.
 ///
-/// 手势交给 extended_image: 双指缩放, 双击放大到点击位置 (再双击还原),
-/// 放大后可以拖动. 长按弹出菜单, 菜单里可以保存到系统相册.
+/// 手势交给 extended_image: 双指缩放, 放大后拖动. 双击放大与还原由本页做
+/// 补间动画, 因为库自身只在缩放越界时才动画, 范围内的双击会直接跳变, 手感很硬.
+/// 长按弹出菜单, 菜单里可以保存到系统相册.
 class ImageViewerPage extends StatefulWidget {
   const ImageViewerPage({
     super.key,
@@ -33,7 +36,8 @@ class ImageViewerPage extends StatefulWidget {
 /// 长按菜单里能做的事.
 enum _ViewerAction { save }
 
-class _ImageViewerPageState extends State<ImageViewerPage> {
+class _ImageViewerPageState extends State<ImageViewerPage>
+    with SingleTickerProviderStateMixin {
   final _gestureKey = GlobalKey<ExtendedImageGestureState>();
 
   bool _saving = false;
@@ -41,15 +45,90 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
   /// 双击放大到的倍数.
   static const _doubleTapScale = 2.5;
 
-  /// 双击时当前已放大就还原, 否则放大到点击位置.
+  /// 双击缩放的补间, 时长取系统图片查看的常见值.
+  late final AnimationController _zoomController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 260),
+  );
+
+  VoidCallback? _zoomTick;
+
+  @override
+  void dispose() {
+    _stopZoomAnimation();
+    _zoomController.dispose();
+    super.dispose();
+  }
+
+  void _stopZoomAnimation() {
+    final tick = _zoomTick;
+    if (tick != null) {
+      _zoomController.removeListener(tick);
+      _zoomTick = null;
+    }
+    _zoomController.stop();
+  }
+
+  /// 双击: 已放大就平滑还原, 否则平滑放大到点击位置.
   void _handleDoubleTap(ExtendedImageGestureState state) {
-    final scale = state.gestureDetails?.totalScale ?? 1;
-    if (scale > _doubleTapScale * 0.9) {
-      state.reset();
+    final details = state.gestureDetails;
+    final currentScale = details?.totalScale ?? 1;
+    final currentOffset = details?.offset ?? Offset.zero;
+    if (currentScale > 1.05) {
+      _animateZoom(state, targetScale: 1, targetOffset: Offset.zero);
       return;
     }
-    // 不传位置时按最后一次按下的位置放大, 也就是手指点的位置.
-    state.handleDoubleTap(scale: _doubleTapScale);
+    // 按下位置与 offset 是同一套坐标, 用它保证手指下面那个点不动.
+    final focal = state.pointerDownPosition;
+    if (focal == null) {
+      _animateZoom(
+        state,
+        targetScale: _doubleTapScale,
+        targetOffset: Offset.zero,
+      );
+      return;
+    }
+    final normalized = (focal - currentOffset) / currentScale;
+    _animateZoom(
+      state,
+      targetScale: _doubleTapScale,
+      targetOffset: focal - normalized * _doubleTapScale,
+    );
+  }
+
+  /// 把缩放倍数与偏移量从当前值补间到目标值.
+  void _animateZoom(
+    ExtendedImageGestureState state, {
+    required double targetScale,
+    required Offset targetOffset,
+  }) {
+    _stopZoomAnimation();
+    final details = state.gestureDetails;
+    final startScale = details?.totalScale ?? 1;
+    final startOffset = details?.offset ?? Offset.zero;
+    if ((startScale - targetScale).abs() < 0.001 &&
+        (startOffset - targetOffset).distance < 0.5) {
+      return;
+    }
+    _zoomTick = () {
+      final t = Curves.easeOutCubic.transform(_zoomController.value);
+      final scale = lerpDouble(startScale, targetScale, t) ?? targetScale;
+      final offset = Offset.lerp(startOffset, targetOffset, t) ?? targetOffset;
+      final target = _gestureKey.currentState;
+      if (target == null) {
+        return;
+      }
+      target.gestureDetails = GestureDetails(
+        offset: offset,
+        totalScale: scale,
+        actionType: ActionType.zoom,
+        // false 表示位移来自动画而不是用户拖动.
+        userOffset: false,
+        initialAlignment: InitialAlignment.center,
+      );
+    };
+    _zoomController.addListener(_zoomTick!);
+    _zoomController.forward(from: 0);
   }
 
   /// 长按图片时弹出可选操作, 而不是直接保存.
@@ -122,64 +201,68 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
         foregroundColor: Colors.white,
         title: widget.title == null ? null : Text(widget.title!),
       ),
-      body: GestureDetector(
-        onLongPress: _saving ? null : _showActions,
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: ExtendedImage.network(
-                widget.url,
-                fit: BoxFit.contain,
-                mode: ExtendedImageMode.gesture,
-                extendedImageGestureKey: _gestureKey,
-                onDoubleTap: _handleDoubleTap,
-                initGestureConfigHandler: (state) => GestureConfig(
-                  minScale: 0.8,
-                  maxScale: 5,
-                  initialScale: 1,
-                  inPageView: false,
-                  initialAlignment: InitialAlignment.center,
-                  speed: 1,
-                  inertialSpeed: 100,
-                ),
-                loadStateChanged: (state) {
-                  switch (state.extendedImageLoadState) {
-                    case LoadState.loading:
-                      return const Center(
-                        child: CircularProgressIndicator(
-                          color: Colors.white70,
-                        ),
-                      );
-                    case LoadState.failed:
-                      return const Center(
-                        child: Text(
-                          '图片加载失败',
-                          style: TextStyle(color: Colors.white70),
-                        ),
-                      );
-                    case LoadState.completed:
-                      // 返回 null 表示走默认渲染.
-                      return null;
-                  }
-                },
-              ),
-            ),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 24,
-              child: Text(
-                '双击放大, 长按保存到相册',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.white.withValues(alpha: 0.7),
+      body: Listener(
+        // 动画途中用户按下就立刻停, 免得和自己的拖动打架.
+        onPointerDown: (_) => _stopZoomAnimation(),
+        child: GestureDetector(
+          onLongPress: _saving ? null : _showActions,
+          child: Stack(
+            children: [
+              Positioned.fill(child: _buildImage()),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 24,
+                child: Text(
+                  '双击放大, 长按保存到相册',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white.withValues(alpha: 0.7),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildImage() {
+    return ExtendedImage.network(
+      widget.url,
+      fit: BoxFit.contain,
+      mode: ExtendedImageMode.gesture,
+      extendedImageGestureKey: _gestureKey,
+      onDoubleTap: _handleDoubleTap,
+      initGestureConfigHandler: (state) => GestureConfig(
+        minScale: 0.8,
+        maxScale: 5,
+        initialScale: 1,
+        inPageView: false,
+        initialAlignment: InitialAlignment.center,
+        speed: 1,
+        inertialSpeed: 100,
+      ),
+      loadStateChanged: (state) {
+        switch (state.extendedImageLoadState) {
+          case LoadState.loading:
+            return const Center(
+              child: CircularProgressIndicator(color: Colors.white70),
+            );
+          case LoadState.failed:
+            return const Center(
+              child: Text(
+                '图片加载失败',
+                style: TextStyle(color: Colors.white70),
+              ),
+            );
+          case LoadState.completed:
+            // 返回 null 表示走默认渲染.
+            return null;
+        }
+      },
     );
   }
 }
