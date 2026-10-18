@@ -36,6 +36,12 @@ abstract final class ApiPath {
 
   /// 评论.
   static const replyList = 'index.php?m=comment&c=index&a=ajax';
+
+  /// 服务端渲染的评论页.
+  ///
+  /// 与 [replyList] 返回同一批一级评论, 区别是这里带会员昵称颜色,
+  /// 用来标记破会员, 见 `VipHttp`.
+  static const replyInit = 'index.php?m=comment&c=index&a=init';
   static const replySend = 'index.php?m=comment&c=index&a=post';
   static const replySupport =
       'index.php?m=comment&c=index&a=support&format=json';

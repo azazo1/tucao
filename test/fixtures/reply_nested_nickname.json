@@ -1,0 +1,51 @@
+{
+  "_note": "取自评论 ajax 接口, 评论者没有设置昵称时站点会把整条用户记录塞进 nickname. 原响应里的密码散列等字段已去掉.",
+  "commentid": "content_41-7241-1",
+  "title": "楼层标题",
+  "url": "/play/d7241/",
+  "total": "3",
+  "data": {
+    "316918": {
+      "id": "316918",
+      "commentid": "content_41-7241-1",
+      "userid": "405978",
+      "username": "zzx715450884",
+      "nickname": {
+        "userid": "405978",
+        "username": "zzx715450884",
+        "nickname": "",
+        "groupid": "3",
+        "vip": "1",
+        "credit": "0"
+      },
+      "content": "没设昵称的破会员",
+      "creat_at": "2026-10-16 23:03:41",
+      "support": "1",
+      "replys": "0",
+      "replyid": "0",
+      "replyuid": "0",
+      "avatar": "https://www.tucao.my/phpsso_server/uploadfile/avatar/11/4/103120/180x180.jpg"
+    },
+    "316919": {
+      "id": "316919",
+      "commentid": "content_41-7241-1",
+      "userid": "368889",
+      "username": "771433946",
+      "nickname": {
+        "userid": "368889",
+        "username": "771433946",
+        "nickname": "雨歌丸",
+        "groupid": "1",
+        "vip": "0",
+        "credit": "0"
+      },
+      "content": "设了昵称但没有会员",
+      "creat_at": "2026-10-16 22:50:00",
+      "support": "0",
+      "replys": "0",
+      "replyid": "0",
+      "replyuid": "0",
+      "avatar": "https://www.tucao.my/phpsso_server/uploadfile/avatar/45/10/449266/180x180.jpg"
+    }
+  }
+}

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:get/get.dart';
 import 'package:tucao/common/controller/paging_controller.dart';
 import 'package:tucao/http/api_path.dart';
@@ -5,6 +7,7 @@ import 'package:tucao/http/reply_http.dart';
 import 'package:tucao/models/reply.dart';
 import 'package:tucao/pages/reply/reply_thread.dart';
 import 'package:tucao/services/account_service.dart';
+import 'package:tucao/services/vip_service.dart';
 import 'package:tucao/utils/logger.dart';
 
 /// 去掉异常前缀, 让提示可读.
@@ -76,7 +79,23 @@ class ReplyController extends PagingController<ReplyModel> {
       pageSize: pageSize,
     );
     total.value = result.total;
+    _rememberVipMarks(page);
     return result.list;
+  }
+
+  /// 顺带记下这一页评论里的破会员.
+  ///
+  /// 评论 json 没有会员字段, 只能按同样的页码再抓一次评论页 HTML, 见
+  /// [VipService]; 这是额外的请求, 失败不影响评论列表, 因此不等待结果.
+  /// 站点以后若把会员字段放进评论 json, 删掉这里的调用即可.
+  void _rememberVipMarks(int page) {
+    final vip = VipService.maybe;
+    if (vip == null) {
+      return;
+    }
+    unawaited(
+      vip.rememberCommentPage(typeId: typeId, hid: hid, page: page),
+    );
   }
 
   /// 拉取楼中楼, 子类可覆盖以便测试.
