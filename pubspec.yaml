@@ -21,6 +21,8 @@ dependencies:
   device_info_plus: ^13.3.0
   dio: ^5.11.1
   dio_cookie_manager: ^3.5.0
+  # 图片查看页的双击与双指缩放, 自己写容易在手势竞争上出问题.
+  extended_image: ^10.1.0
   # 2.0.0 起依赖 material_ui, 其 ColorScheme 与 Flutter SDK 的类型不兼容.
   dynamic_color: ^1.9.0
   get: ^4.7.3

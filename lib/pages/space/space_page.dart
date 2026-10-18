@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/common/widgets/video_card.dart';
 import 'package:tucao/http/space_http.dart';
+import 'package:tucao/pages/mine/image_viewer_page.dart';
 import 'package:tucao/pages/space/space_controller.dart';
 import 'package:tucao/router/routes.dart';
 import 'package:tucao/services/account_service.dart';
@@ -154,14 +155,17 @@ class _SpacePageState extends State<SpacePage> {
   }
 
   /// 顶部背景图与头像.
+  ///
+  /// 背景图与头像是站点给的原图, 点一下可以放大查看, 长按保存.
   Widget _buildHeader(BuildContext context, SpaceInfo? info) {
     final scheme = Theme.of(context).colorScheme;
-    return Stack(
+    final banner = info?.banner ?? '';
+    final background = Stack(
       fit: StackFit.expand,
       children: [
-        if (info != null && info.banner.isNotEmpty)
+        if (banner.isNotEmpty)
           CachedNetworkImage(
-            imageUrl: info.banner,
+            imageUrl: banner,
             fit: BoxFit.cover,
             placeholder: (context, url) =>
                 ColoredBox(color: scheme.surfaceContainerHighest),
@@ -185,6 +189,29 @@ class _SpacePageState extends State<SpacePage> {
         ),
       ],
     );
+    if (banner.isEmpty) {
+      return background;
+    }
+    return GestureDetector(
+      onTap: () => _openImage(
+        url: banner,
+        title: '${info?.userName ?? ''} 的横幅'.trim(),
+        prefix: 'banner',
+      ),
+      child: background,
+    );
+  }
+
+  /// 放大查看某张图片, 是否保存由查看页里的长按与按钮决定.
+  void _openImage({
+    required String url,
+    required String title,
+    required String prefix,
+  }) {
+    if (url.isEmpty) {
+      return;
+    }
+    Get.to(() => ImageViewerPage(url: url, title: title, prefix: prefix));
   }
 
   /// 自己的主页上显示账号操作, 别人的主页不显示.
@@ -235,32 +262,39 @@ class _SpacePageState extends State<SpacePage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ClipOval(
-            child: SizedBox(
-              width: 56,
-              height: 56,
-              child: info.avatar.isEmpty
-                  ? ColoredBox(
-                      color: scheme.surfaceContainerHighest,
-                      child: Icon(
-                        Icons.person,
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    )
-                  : CachedNetworkImage(
-                      imageUrl: info.avatar,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => ColoredBox(
-                        color: scheme.surfaceContainerHighest,
-                      ),
-                      errorWidget: (context, url, error) => ColoredBox(
+          GestureDetector(
+            onTap: () => _openImage(
+              url: info.avatar,
+              title: '${info.userName} 的头像',
+              prefix: 'avatar',
+            ),
+            child: ClipOval(
+              child: SizedBox(
+                width: 56,
+                height: 56,
+                child: info.avatar.isEmpty
+                    ? ColoredBox(
                         color: scheme.surfaceContainerHighest,
                         child: Icon(
                           Icons.person,
                           color: scheme.onSurfaceVariant,
                         ),
+                      )
+                    : CachedNetworkImage(
+                        imageUrl: info.avatar,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => ColoredBox(
+                          color: scheme.surfaceContainerHighest,
+                        ),
+                        errorWidget: (context, url, error) => ColoredBox(
+                          color: scheme.surfaceContainerHighest,
+                          child: Icon(
+                            Icons.person,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
                       ),
-                    ),
+              ),
             ),
           ),
           const SizedBox(width: 12),

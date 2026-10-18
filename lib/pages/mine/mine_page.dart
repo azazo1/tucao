@@ -8,6 +8,7 @@ import 'package:tucao/build_config.dart';
 import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/common/constants.dart';
 import 'package:tucao/common/style.dart';
+import 'package:tucao/http/space_http.dart';
 import 'package:tucao/models/user.dart';
 import 'package:tucao/router/routes.dart';
 import 'package:tucao/services/account_service.dart';
@@ -72,7 +73,10 @@ class _MinePageState extends State<MinePage> {
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('正在检查更新...'), duration: Duration(seconds: 2)),
+      const SnackBar(
+        content: Text('正在检查更新...'),
+        duration: Duration(seconds: 2),
+      ),
     );
     await UpdateService.checkManually(context);
   }
@@ -132,115 +136,249 @@ class _MinePageState extends State<MinePage> {
 }
 
 /// 顶部账号卡片, 登录状态变化时自动刷新.
-class _UserHeader extends StatelessWidget {
+///
+/// 头像与横幅取自自己的用户空间页: 那个页面应用本来就会访问, 不受站点网页版
+/// 会员中心的影响. 有横幅就把它铺在卡片顶部, 没有就退回主题色渐变.
+/// 点卡片进自己的用户空间, 点头像或横幅则是放大查看, 放大后长按可保存.
+class _UserHeader extends StatefulWidget {
   const _UserHeader();
+
+  @override
+  State<_UserHeader> createState() => _UserHeaderState();
+}
+
+class _UserHeaderState extends State<_UserHeader> {
+  static const _bannerHeight = 104.0;
+  static const _avatarSize = 56.0;
+
+  Worker? _userWorker;
+
+  /// 自己的用户空间资料, 用来取头像与横幅.
+  SpaceInfo? _info;
+
+  /// 已经为哪个 uid 取过资料, 避免重复请求.
+  int _loadedUserId = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _userWorker = ever<UserModel?>(AccountService.instance.user, (user) {
+      if (user == null) {
+        setState(() {
+          _info = null;
+          _loadedUserId = 0;
+        });
+        return;
+      }
+      unawaited(_loadSpace(user.userId));
+    });
+    final current = AccountService.instance.user.value;
+    if (current != null) {
+      unawaited(_loadSpace(current.userId));
+    }
+  }
+
+  @override
+  void dispose() {
+    _userWorker?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadSpace(int userId) async {
+    if (_loadedUserId == userId) {
+      return;
+    }
+    _loadedUserId = userId;
+    try {
+      final page = await SpaceHttp.fetch(userId: userId);
+      if (!mounted || AccountService.instance.user.value?.userId != userId) {
+        return;
+      }
+      setState(() => _info = page.info);
+    } catch (e, stackTrace) {
+      Log.e('读取自己的用户空间失败', error: e, stackTrace: stackTrace);
+      // 允许下次进页面时重试.
+      _loadedUserId = 0;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Obx(() {
       final user = AccountService.instance.user.value;
-      return Card(
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: user == null
-              ? null
-              : () => Get.toNamed(
-                  Routes.space,
-                  parameters: {'uid': user.userId.toString()},
-                ),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                _Avatar(user: user),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: user == null
-                      ? Text(
-                          '未登录, 登录后可同步站点账号信息',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: scheme.onSurfaceVariant,
-                          ),
-                        )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              user.displayName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '用户 id: ${user.userId}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: scheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                ),
-                if (user == null) ...[
-                  const SizedBox(width: 8),
-                  FilledButton.tonal(
-                    onPressed: () => Get.toNamed(Routes.login),
-                    child: const Text('点击登录'),
-                  ),
-                ] else
-                  Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
-              ],
-            ),
-          ),
-        ),
-      );
+      if (user == null) {
+        return _buildGuest(context, scheme);
+      }
+      return _buildUser(context, scheme, user);
     });
   }
-}
 
-/// 圆形头像, 没有头像地址或加载失败时回落到默认图标.
-class _Avatar extends StatelessWidget {
-  const _Avatar({required this.user});
-
-  static const _size = 56.0;
-
-  final UserModel? user;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final url = user?.avatar ?? '';
-    return SizedBox(
-      width: _size,
-      height: _size,
-      child: ClipOval(
-        child: url.isEmpty
-            ? _placeholder(scheme)
-            : CachedNetworkImage(
-                imageUrl: url,
-                width: _size,
-                height: _size,
-                fit: BoxFit.cover,
-                fadeInDuration: const Duration(milliseconds: 150),
-                placeholder: (context, url) => _placeholder(scheme),
-                errorWidget: (context, url, error) => _placeholder(scheme),
+  Widget _buildGuest(BuildContext context, ColorScheme scheme) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            _placeholderAvatar(scheme),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                '未登录, 登录后可同步站点账号信息',
+                style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
               ),
+            ),
+            const SizedBox(width: 8),
+            FilledButton.tonal(
+              onPressed: () => Get.toNamed(Routes.login),
+              child: const Text('点击登录'),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _placeholder(ColorScheme scheme) {
-    return ColoredBox(
-      color: scheme.surfaceContainerHighest,
+  Widget _buildUser(BuildContext context, ColorScheme scheme, UserModel user) {
+    final banner = _info?.banner ?? '';
+    final avatar = (_info?.avatar.isNotEmpty ?? false)
+        ? _info!.avatar
+        : user.avatar;
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => Get.toNamed(
+          Routes.space,
+          parameters: {'uid': user.userId.toString()},
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              height: _bannerHeight + _avatarSize / 2,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: 0,
+                    height: _bannerHeight,
+                    child: _buildBanner(scheme, banner),
+                  ),
+                  Positioned(
+                    left: 14,
+                    top: _bannerHeight - _avatarSize / 2,
+                    child: _buildAvatar(scheme, avatar),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          user.displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '用户 id: ${user.userId}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 没有横幅时的底色: 用主题容器色拼一层渐变.
+  Widget _bannerBackground(ColorScheme scheme) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            scheme.primaryContainer.withValues(alpha: 0.9),
+            scheme.secondaryContainer.withValues(alpha: 0.9),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBanner(ColorScheme scheme, String banner) {
+    final placeholder = _bannerBackground(scheme);
+    if (banner.isEmpty) {
+      return placeholder;
+    }
+    return CachedNetworkImage(
+      imageUrl: banner,
+      fit: BoxFit.cover,
+      placeholder: (context, url) => placeholder,
+      errorWidget: (context, url, error) => placeholder,
+    );
+  }
+
+  Widget _buildAvatar(ColorScheme scheme, String avatar) {
+    final image = avatar.isEmpty
+        ? _placeholderAvatar(scheme)
+        : CachedNetworkImage(
+            imageUrl: avatar,
+            width: _avatarSize,
+            height: _avatarSize,
+            fit: BoxFit.cover,
+            fadeInDuration: const Duration(milliseconds: 150),
+            placeholder: (context, url) => _placeholderAvatar(scheme),
+            errorWidget: (context, url, error) => _placeholderAvatar(scheme),
+          );
+    return Container(
+      width: _avatarSize,
+      height: _avatarSize,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        // 头像压在横幅上, 加一圈描边避免糊在一起.
+        border: Border.all(color: scheme.surface, width: 2),
+      ),
+      child: ClipOval(child: image),
+    );
+  }
+
+  Widget _placeholderAvatar(ColorScheme scheme) {
+    return Container(
+      width: _avatarSize,
+      height: _avatarSize,
+      // 占位也要是圆形, 未登录时头像是单独出现的, 没有外层裁剪.
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: scheme.surfaceContainerHighest,
+      ),
       child: Icon(
         Icons.person,
-        size: _size * 0.6,
+        size: _avatarSize * 0.6,
         color: scheme.onSurfaceVariant,
       ),
     );

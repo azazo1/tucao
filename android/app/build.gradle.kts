@@ -25,7 +25,15 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.azazo1.tucao"
+        // 测试包可以传 -PappIdSuffix=.test 构建, 与正式包装在同一台设备上互不覆盖.
+        val appIdSuffix = providers.gradleProperty("appIdSuffix").getOrElse("")
+        applicationId = "com.azazo1.tucao$appIdSuffix"
+        // 两个包同时在桌面上时按后缀区分名称.
+        manifestPlaceholders["appLabel"] = if (appIdSuffix.isEmpty()) {
+            "吐槽"
+        } else {
+            "吐槽${appIdSuffix}"
+        }
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
