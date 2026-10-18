@@ -336,6 +336,11 @@ class _VideoPageState extends State<VideoPage>
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       actions: [
+        IconButton(
+          tooltip: '重启播放器',
+          icon: const Icon(Icons.restart_alt),
+          onPressed: _restartPlayer,
+        ),
         if (_cast case final session?)
           AnimatedBuilder(
             animation: session,
@@ -517,8 +522,8 @@ class _VideoPageState extends State<VideoPage>
     }
     final wasPlaying = _controller.player.playing;
     final startAt = _controller.player.position;
-    // 投屏期间本地不再出声, 两个播放器同时放会互相干扰.
-    await _controller.player.pause();
+    // 投屏期间本地不再出声; 卸载地址而不是暂停, 免得那条空闲连接失效.
+    await _controller.releaseForCast();
     if (!mounted) {
       return;
     }
@@ -585,10 +590,26 @@ class _VideoPageState extends State<VideoPage>
       return;
     }
     // 从电视端停下的位置接着放, 与原生客户端的投屏体验一致.
-    await _controller.player.seek(position);
-    if (wasPlaying) {
-      await _controller.player.play();
-    }
+    // 重新打开地址而不是 seek: 旧连接在投屏期间可能已经被服务端断开.
+    await _controller.resumeAfterCast(position, autoPlay: wasPlaying);
+  }
+
+  /// 重新进入播放页, 相当于把页面关掉再打开: 播放器, 弹幕与详情都会重新拉一遍.
+  ///
+  /// 播放器卡死或者画面停在错误上时用这个恢复, 比让用户退出再点进来快.
+  void _restartPlayer() {
+    unawaited(_reopenPage());
+  }
+
+  Future<void> _reopenPage() async {
+    await Get.offNamed(
+      Routes.video,
+      parameters: {
+        'hid': _controller.hid,
+        'part': _controller.part.value.toString(),
+      },
+      arguments: _controller.video.value,
+    );
   }
 
   void _toast(String message) {
