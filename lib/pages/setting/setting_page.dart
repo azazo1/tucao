@@ -55,6 +55,11 @@ class _SettingPageState extends State<SettingPage> {
     _themeMode = _theme.themeMode.value;
     _dynamicColor = _theme.useDynamicColor.value;
     _seedColor = _theme.seedColor.value;
+    if (_dynamicColor && _seedColor != null) {
+      // 旧版本允许动态取色与自定义色同时存在, 这里统一以动态取色为准.
+      _seedColor = null;
+      _theme.setSeedColor(null);
+    }
 
     _playerSpeed = _speeds.contains(Pref.playerSpeed) ? Pref.playerSpeed : 1.0;
     _seekStep = Pref.playerSeekStep;
@@ -113,6 +118,9 @@ class _SettingPageState extends State<SettingPage> {
   }
 
   void _setSeedColor(int? value) {
+    if (_dynamicColor) {
+      return;
+    }
     setState(() => _seedColor = value);
     _theme.setSeedColor(value);
   }
@@ -178,14 +186,26 @@ class _SettingPageState extends State<SettingPage> {
           ),
           SwitchListTile(
             title: const Text('动态取色'),
-            subtitle: const Text('使用系统壁纸提取的颜色, 自定义主题色优先'),
+            subtitle: const Text('使用系统壁纸取色, 开启时不能选择主题色'),
             value: _dynamicColor,
             onChanged: (value) {
-              setState(() => _dynamicColor = value);
+              setState(() {
+                _dynamicColor = value;
+                if (value) {
+                  _seedColor = null;
+                }
+              });
               _theme.setDynamicColor(value);
+              if (value) {
+                _theme.setSeedColor(null);
+              }
             },
           ),
-          _ColorPicker(current: _seedColor, onChanged: _setSeedColor),
+          _ColorPicker(
+            current: _seedColor,
+            enabled: !_dynamicColor,
+            onChanged: _setSeedColor,
+          ),
 
           const _SectionTitle('播放器'),
           ListTile(
@@ -390,10 +410,17 @@ class _ThemeModeTile extends StatelessWidget {
 
 /// 主题色圆点选择.
 class _ColorPicker extends StatelessWidget {
-  const _ColorPicker({required this.current, required this.onChanged});
+  const _ColorPicker({
+    required this.current,
+    required this.enabled,
+    required this.onChanged,
+  });
 
   /// 当前种子色, 为空表示使用站点默认色.
   final int? current;
+
+  /// 动态取色开启时禁用颜色选择.
+  final bool enabled;
 
   final ValueChanged<int?> onChanged;
 
@@ -420,27 +447,46 @@ class _ColorPicker extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('主题色', style: TextStyle(fontSize: 15, color: scheme.onSurface)),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              _Dot(
-                color: Style.seedColor,
-                selected: current == null,
-                label: '默认',
-                onTap: () => onChanged(null),
-              ),
-              for (final preset in _presets)
-                _Dot(
-                  color: Color(preset.value),
-                  selected: current == preset.value,
-                  label: preset.name,
-                  onTap: () => onChanged(preset.value),
-                ),
-            ],
+          Text(
+            '主题色',
+            style: TextStyle(
+              fontSize: 15,
+              color: enabled ? scheme.onSurface : scheme.onSurfaceVariant,
+            ),
           ),
+          const SizedBox(height: 10),
+          Opacity(
+            opacity: enabled ? 1 : 0.35,
+            child: IgnorePointer(
+              ignoring: !enabled,
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  _Dot(
+                    color: Style.seedColor,
+                    selected: enabled && current == null,
+                    label: '默认',
+                    onTap: () => onChanged(null),
+                  ),
+                  for (final preset in _presets)
+                    _Dot(
+                      color: Color(preset.value),
+                      selected: enabled && current == preset.value,
+                      label: preset.name,
+                      onTap: () => onChanged(preset.value),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          if (!enabled) ...[
+            const SizedBox(height: 8),
+            Text(
+              '动态取色开启时不能选择主题色',
+              style: TextStyle(fontSize: 12, color: scheme.outline),
+            ),
+          ],
         ],
       ),
     );
