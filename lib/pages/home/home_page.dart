@@ -5,6 +5,7 @@ import 'package:tucao/common/widgets/channel_bar.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/common/widgets/video_card.dart';
 import 'package:tucao/models/channel.dart';
+import 'package:tucao/pages/article/article_page.dart';
 import 'package:tucao/pages/channel/channel_controller.dart';
 import 'package:tucao/pages/home/home_controller.dart';
 import 'package:tucao/pages/home/week_view.dart';
@@ -33,7 +34,7 @@ class _HomePageState extends State<HomePage>
         ? Get.find<HomeController>()
         : Get.put(HomeController());
     _tabController = TabController(
-      length: ChannelData.list.length + 1,
+      length: ChannelData.list.length + 2,
       vsync: this,
     );
   }
@@ -80,6 +81,7 @@ class _HomePageState extends State<HomePage>
           tabs: [
             const Tab(text: '时间表'),
             for (final channel in ChannelData.list) Tab(text: channel.name),
+            const Tab(text: '档案'),
           ],
         ),
       ),
@@ -89,6 +91,7 @@ class _HomePageState extends State<HomePage>
           const WeekView(),
           for (final channel in ChannelData.list)
             _ChannelTabView(channel: channel, home: _home),
+          const ArticlePage(embedded: true),
         ],
       ),
     );

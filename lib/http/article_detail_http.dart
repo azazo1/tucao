@@ -14,6 +14,7 @@ class ArticleDetail {
     required this.paragraphs,
     this.category = '',
     this.publishedAt = '',
+    this.commentTypeId = 0,
   });
 
   final String hid;
@@ -27,6 +28,11 @@ class ArticleDetail {
 
   /// 发布时间原文, 形如 `2026-10-11 20:21:12`.
   final String publishedAt;
+
+  /// 评论楼层里的分区 id, 取自页面里的 `commentid=content_41-...`.
+  ///
+  /// 档案统一用 41, 取不到时为 0, 此时不显示评论区.
+  final int commentTypeId;
 
   /// 正文里以 # 开头的标签.
   final List<String> tags;
@@ -77,6 +83,7 @@ abstract final class ArticleDetailHttp {
     final header = _parseHeader(
       document.querySelector('.show_top .l .t')?.text.trim() ?? '',
     );
+    final commentTypeId = _parseCommentTypeId(raw);
 
     final content = _contentContainer(document);
     final blocks = <ArticleBlock>[];
@@ -133,6 +140,7 @@ abstract final class ArticleDetailHttp {
       cover: cover,
       category: header.category,
       publishedAt: header.publishedAt,
+      commentTypeId: commentTypeId,
       tags: tags,
       paragraphs: blocks,
     );
@@ -160,6 +168,15 @@ abstract final class ArticleDetailHttp {
       }
     }
     return best ?? document.body;
+  }
+
+  /// 从评论 iframe 或脚本里的 `commentid=content_41-...` 取分区 id.
+  static int _parseCommentTypeId(String raw) {
+    final match = RegExp(r'commentid=content_(\d+)-').firstMatch(raw);
+    if (match == null) {
+      return 0;
+    }
+    return int.tryParse(match.group(1)!) ?? 0;
   }
 
   /// 面包屑形如 `档案 / 情报 / 2026-10-11 20:21:12`.

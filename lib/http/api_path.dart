@@ -16,11 +16,12 @@ abstract final class ApiPath {
   static const onlineScript = 'ol.php';
   static const videoCountScript = 'api.php?op=count';
 
-  /// 站点视频内容模型 id.
+  /// 站点内容模型 id.
   ///
-  /// 所有视频共用 11, 与视频分区 id 不同; `api.php` 的 modelid 与
-  /// `ol.php` 的 cid 后缀都用它.
+  /// 视频固定为 11, 档案资讯固定为 18; 与分区 id 不同.
+  /// `api.php` 的 modelid 与 `ol.php` 的 cid 后缀都用它.
   static const videoModelId = 11;
+  static const articleModelId = 18;
 
   /// 排行榜等页面数据在官方接口里已经废弃, 只能抓页面.
   static const rankHtml = 'html/hot.html';

@@ -13,7 +13,10 @@ import 'package:tucao/router/routes.dart';
 /// 站点 `/data/` 是番组档案与资讯列表, 左侧封面右侧文字,
 /// 点按条目进入对应的资讯详情.
 class ArticlePage extends StatefulWidget {
-  const ArticlePage({super.key});
+  const ArticlePage({super.key, this.embedded = false});
+
+  /// 为 true 时作为首页的标签页使用, 不显示标题栏, 只保留分类选择条.
+  final bool embedded;
 
   @override
   State<ArticlePage> createState() => _ArticlePageState();
@@ -37,83 +40,100 @@ class _ArticlePageState extends State<ArticlePage> {
 
   @override
   Widget build(BuildContext context) {
+    final body = _buildBody();
+    if (widget.embedded) {
+      return Column(
+        children: [
+          _buildCategoryBar(),
+          Expanded(child: body),
+        ],
+      );
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('档案'),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(42),
-          child: Obx(
-            () => ChannelBar(
-              channels: [
-                for (var i = 0; i < ArticleController.categoryOptions.length; i++)
-                  ChannelItem(id: i, name: ArticleController.categoryOptions[i]),
-              ],
-              currentId: _currentIndex,
-              showAll: true,
-              allLabel: '全部',
-              onChanged: (value) {
-                if (value == null) {
-                  _controller.changeCategory(null);
-                } else {
-                  _controller.changeCategory(
-                    ArticleController.categoryOptions[value],
-                  );
-                }
-              },
-            ),
-          ),
+          child: _buildCategoryBar(),
         ),
       ),
-      body: Obx(() {
-        if (_controller.firstLoading.value) {
-          return const LoadingWidget();
-        }
-        final error = _controller.error.value;
-        if (error != null && _controller.list.isEmpty) {
-          return ErrorWidgetView(message: error, onRetry: _controller.loadFirst);
-        }
-        final list = _controller.list;
-        return RefreshIndicator(
-          onRefresh: _controller.refresh,
-          child: NotificationListener<ScrollNotification>(
-            onNotification: (notification) {
-              if (notification.metrics.pixels >=
-                  notification.metrics.maxScrollExtent - 300) {
-                _controller.loadMore();
-              }
-              return false;
-            },
-            child: list.isEmpty
-                ? ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: const [
-                      SizedBox(height: 120),
-                      EmptyWidget(message: '这个分类下还没有内容'),
-                    ],
-                  )
-                : ListView.separated(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
-                    itemCount: list.length + 1,
-                    separatorBuilder: (context, index) => const Divider(),
-                    itemBuilder: (context, index) {
-                      if (index == list.length) {
-                        return LoadMoreFooter(
-                          loading: _controller.loading.value,
-                          hasMore: _controller.hasMore,
-                          onRetry: _controller.loadMore,
-                        );
-                      }
-                      return _ArticleItem(item: list[index]);
-                    },
-                  ),
-          ),
-        );
-      }),
+      body: body,
     );
+  }
+
+  Widget _buildCategoryBar() {
+    return Obx(
+      () => ChannelBar(
+        channels: [
+          for (var i = 0; i < ArticleController.categoryOptions.length; i++)
+            ChannelItem(id: i, name: ArticleController.categoryOptions[i]),
+        ],
+        currentId: _currentIndex,
+        showAll: true,
+        allLabel: '全部',
+        onChanged: (value) {
+          if (value == null) {
+            _controller.changeCategory(null);
+          } else {
+            _controller.changeCategory(
+              ArticleController.categoryOptions[value],
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    return Obx(() {
+      if (_controller.firstLoading.value) {
+        return const LoadingWidget();
+      }
+      final error = _controller.error.value;
+      if (error != null && _controller.list.isEmpty) {
+        return ErrorWidgetView(message: error, onRetry: _controller.loadFirst);
+      }
+      final list = _controller.list;
+      return RefreshIndicator(
+        onRefresh: _controller.refresh,
+        child: NotificationListener<ScrollNotification>(
+          onNotification: (notification) {
+            if (notification.metrics.pixels >=
+                notification.metrics.maxScrollExtent - 300) {
+              _controller.loadMore();
+            }
+            return false;
+          },
+          child: list.isEmpty
+              ? ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: const [
+                    SizedBox(height: 120),
+                    EmptyWidget(message: '这个分类下还没有内容'),
+                  ],
+                )
+              : ListView.separated(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
+                  itemCount: list.length + 1,
+                  separatorBuilder: (context, index) => const Divider(),
+                  itemBuilder: (context, index) {
+                    if (index == list.length) {
+                      return LoadMoreFooter(
+                        loading: _controller.loading.value,
+                        hasMore: _controller.hasMore,
+                        onRetry: _controller.loadMore,
+                      );
+                    }
+                    return _ArticleItem(item: list[index]);
+                  },
+                ),
+        ),
+      );
+    });
   }
 
   int? get _currentIndex {

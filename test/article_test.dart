@@ -57,9 +57,11 @@ void main() {
       expect(detail.hid, '7301');
     });
 
-    test('解析出分类与发布时间', () {
+    test('解析出分类, 发布时间与评论分区', () {
       expect(detail.category, '情报');
       expect(detail.publishedAt, startsWith('2026-10-11'));
+      // 档案评论楼层固定为 content_41-<hid>-1.
+      expect(detail.commentTypeId, 41);
     });
 
     test('正文有内容', () {

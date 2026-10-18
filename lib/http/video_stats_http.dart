@@ -3,10 +3,11 @@ import 'package:tucao/common/constants.dart';
 import 'package:tucao/http/api_path.dart';
 import 'package:tucao/utils/http_util.dart';
 
-/// 播放页统计接口.
+/// 播放页与档案页的统计接口.
 ///
 /// 站点这两个接口都返回一段 javascript, 用 `$('#id').html('value')`
 /// 把数字写进页面, 这里直接把键值对解析出来.
+/// 视频传 [ApiPath.videoModelId], 档案传 [ApiPath.articleModelId].
 abstract final class VideoStatsHttp {
   static final _htmlCall = RegExp(
     r"\$\('#([A-Za-z0-9_]+)'\)\.html\('([^']*)'\)",
@@ -21,11 +22,12 @@ abstract final class VideoStatsHttp {
     return values;
   }
 
-  /// 当前正在观看该视频的人数.
+  /// 当前正在观看该内容的人数.
   ///
-  /// 站点用 `hid` 拼接视频模型 id 作为 `cid`, 与播放页的调用一致.
+  /// 站点用 `hid` 拼接内容模型 id 作为 `cid`, 与页面里的调用一致.
   static Future<int?> fetchOnline({
     required String hid,
+    int modelId = ApiPath.videoModelId,
     CancelToken? cancelToken,
   }) async {
     if (hid.isEmpty) {
@@ -34,7 +36,7 @@ abstract final class VideoStatsHttp {
     final values = await _fetchScript(
       ApiPath.onlineScript,
       {
-        'cid': '$hid${ApiPath.videoModelId}',
+        'cid': '$hid$modelId',
         // v=0 只返回数字, v=1 会返回一段自我轮询的脚本.
         'v': 0,
         't': DateTime.now().millisecondsSinceEpoch,
@@ -47,11 +49,12 @@ abstract final class VideoStatsHttp {
   /// 总播放量与追番数.
   static Future<({int? playCount, int? favoriteCount})> fetchCounts({
     required String hid,
+    int modelId = ApiPath.videoModelId,
     CancelToken? cancelToken,
   }) async {
     final values = await _fetchScript(
       ApiPath.videoCountScript,
-      {'id': hid, 'modelid': ApiPath.videoModelId},
+      {'id': hid, 'modelid': modelId},
       cancelToken,
     );
     return (
