@@ -41,10 +41,6 @@ class VideoInfoPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          if (video.typeId > 0) ...[
-            VideoStatsBar(video: video),
-            const SizedBox(height: 6),
-          ],
           _buildMeta(context, video),
           if (video.userName.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -91,6 +87,11 @@ class VideoInfoPanel extends StatelessWidget {
               key: ValueKey(video.hid),
               text: controller.fullDescription.value ?? video.description,
             ),
+          ],
+          // 统计放在简介下方, 紧挨着分 P 上方的分隔线.
+          if (video.typeId > 0) ...[
+            const SizedBox(height: 10),
+            VideoStatsBar(video: video),
           ],
         ],
       ),
