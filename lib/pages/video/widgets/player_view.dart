@@ -410,12 +410,12 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
                               _castButton(
-                                Icons.replay_10,
+                                Icons.replay_5,
                                 () => _seekCastBy(
                                   session,
-                                  const Duration(seconds: -10),
+                                  const Duration(seconds: -5),
                                 ),
-                                tooltip: '后退 10 秒',
+                                tooltip: '后退 5 秒',
                               ),
                               _castButton(
                                 playing ? Icons.pause : Icons.play_arrow,
@@ -426,12 +426,12 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
                                 tooltip: playing ? '暂停' : '继续',
                               ),
                               _castButton(
-                                Icons.forward_10,
+                                Icons.forward_5,
                                 () => _seekCastBy(
                                   session,
-                                  const Duration(seconds: 10),
+                                  const Duration(seconds: 5),
                                 ),
-                                tooltip: '前进 10 秒',
+                                tooltip: '前进 5 秒',
                               ),
                               _castButton(
                                 Icons.stop_circle_outlined,
