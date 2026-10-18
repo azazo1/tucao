@@ -10,7 +10,6 @@ import 'package:tucao/common/constants.dart';
 import 'package:tucao/common/style.dart';
 import 'package:tucao/http/space_http.dart';
 import 'package:tucao/models/user.dart';
-import 'package:tucao/pages/mine/image_viewer_page.dart';
 import 'package:tucao/router/routes.dart';
 import 'package:tucao/services/account_service.dart';
 import 'package:tucao/services/update_service.dart';
@@ -203,13 +202,6 @@ class _UserHeaderState extends State<_UserHeader> {
     }
   }
 
-  void _openViewer(String url, String title, String prefix) {
-    if (url.isEmpty) {
-      return;
-    }
-    Get.to(() => ImageViewerPage(url: url, title: title, prefix: prefix));
-  }
-
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -343,14 +335,11 @@ class _UserHeaderState extends State<_UserHeader> {
     if (banner.isEmpty) {
       return placeholder;
     }
-    return GestureDetector(
-      onTap: () => _openViewer(banner, '我的横幅', 'banner'),
-      child: CachedNetworkImage(
-        imageUrl: banner,
-        fit: BoxFit.cover,
-        placeholder: (context, url) => placeholder,
-        errorWidget: (context, url, error) => placeholder,
-      ),
+    return CachedNetworkImage(
+      imageUrl: banner,
+      fit: BoxFit.cover,
+      placeholder: (context, url) => placeholder,
+      errorWidget: (context, url, error) => placeholder,
     );
   }
 
@@ -366,18 +355,15 @@ class _UserHeaderState extends State<_UserHeader> {
             placeholder: (context, url) => _placeholderAvatar(scheme),
             errorWidget: (context, url, error) => _placeholderAvatar(scheme),
           );
-    return GestureDetector(
-      onTap: () => _openViewer(avatar, '我的头像', 'avatar'),
-      child: Container(
-        width: _avatarSize,
-        height: _avatarSize,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          // 头像压在横幅上, 加一圈描边避免糊在一起.
-          border: Border.all(color: scheme.surface, width: 2),
-        ),
-        child: ClipOval(child: image),
+    return Container(
+      width: _avatarSize,
+      height: _avatarSize,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        // 头像压在横幅上, 加一圈描边避免糊在一起.
+        border: Border.all(color: scheme.surface, width: 2),
       ),
+      child: ClipOval(child: image),
     );
   }
 
