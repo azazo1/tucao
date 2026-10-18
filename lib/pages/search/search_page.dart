@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/common/style.dart';
 import 'package:tucao/common/widgets/channel_bar.dart';
-import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/common/widgets/paging_list.dart';
 import 'package:tucao/common/widgets/video_card.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/pages/search/search_controller.dart';
+import 'package:tucao/pages/search/widgets/hot_search_section.dart';
+import 'package:tucao/router/routes.dart';
 
 /// 搜索页.
 ///
@@ -90,7 +91,7 @@ class _SearchPageState extends State<SearchPage> {
         if (_controller.hasSearched) {
           return _buildResult();
         }
-        return _buildHistory();
+        return _buildIdle();
       }),
     );
   }
@@ -137,12 +138,10 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
-  Widget _buildHistory() {
+  Widget _buildIdle() {
     return Obx(() {
       final items = _controller.history;
-      if (items.isEmpty) {
-        return const EmptyWidget(message: '还没有搜索记录', icon: Icons.history);
-      }
+      final scheme = Theme.of(context).colorScheme;
       return ListView(
         padding: const EdgeInsets.symmetric(vertical: 4),
         children: [
@@ -152,31 +151,47 @@ class _SearchPageState extends State<SearchPage> {
               children: [
                 const Text('搜索历史', style: TextStyle(fontSize: 13)),
                 const Spacer(),
-                TextButton(
-                  onPressed: _controller.clearHistory,
-                  child: const Text('清空'),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: Style.pagePadding,
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 2,
-              children: [
-                for (final keyword in items)
-                  InputChip(
-                    label: Text(keyword),
-                    labelStyle: const TextStyle(fontSize: 13),
-                    visualDensity: VisualDensity.compact,
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    onPressed: () => _submit(keyword),
-                    deleteIcon: const Icon(Icons.close, size: 15),
-                    onDeleted: () => _controller.removeHistory(keyword),
+                if (items.isNotEmpty)
+                  TextButton(
+                    onPressed: _controller.clearHistory,
+                    child: const Text('清空'),
                   ),
               ],
             ),
+          ),
+          if (items.isEmpty)
+            Padding(
+              padding: Style.pagePadding,
+              child: Text(
+                '还没有搜索记录',
+                style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
+              ),
+            )
+          else
+            Padding(
+              padding: Style.pagePadding,
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 2,
+                children: [
+                  for (final keyword in items)
+                    InputChip(
+                      label: Text(keyword),
+                      labelStyle: const TextStyle(fontSize: 13),
+                      visualDensity: VisualDensity.compact,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      onPressed: () => _submit(keyword),
+                      deleteIcon: const Icon(Icons.close, size: 15),
+                      onDeleted: () => _controller.removeHistory(keyword),
+                    ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 8),
+          HotSearchSection(
+            items: _controller.hotSearch,
+            onKeyword: _submit,
+            onMore: () => Get.toNamed(Routes.hotSearch),
           ),
         ],
       );

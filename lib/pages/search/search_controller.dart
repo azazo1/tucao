@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:get/get.dart';
 import 'package:tucao/common/controller/paging_controller.dart';
 import 'package:tucao/common/widgets/channel_bar.dart';
+import 'package:tucao/http/rank_http.dart';
 import 'package:tucao/http/video_http.dart';
 import 'package:tucao/models/api_response.dart';
 import 'package:tucao/models/channel.dart';
 import 'package:tucao/models/video.dart';
+import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/storage.dart';
 import 'package:tucao/utils/storage_pref.dart';
 
@@ -27,6 +31,12 @@ class SearchPageController extends PagingController<VideoModel> {
   /// 搜索历史, 最新的在最前.
   final history = <String>[].obs;
 
+  /// 搜索页推荐的热搜关键词, 只取前十条.
+  final hotSearch = <HotKeyword>[].obs;
+
+  /// 推荐区展示的热搜条数.
+  static const int hotSearchLimit = 10;
+
   /// 可选分区, 取自首页分区树.
   late final List<ChannelItem> channels = [
     for (final channel in ChannelData.homeTabs)
@@ -39,6 +49,7 @@ class SearchPageController extends PagingController<VideoModel> {
     // 因此照常调用, 只是额外把本地的搜索历史读回来.
     super.onInit();
     loadHistory();
+    unawaited(loadHotSearch());
   }
 
   @override
@@ -118,6 +129,18 @@ class SearchPageController extends PagingController<VideoModel> {
       history.assignAll(
         raw.map((e) => e.toString()).where((e) => e.isNotEmpty),
       );
+    }
+  }
+
+  /// 拉取热搜用于推荐区.
+  ///
+  /// 热搜只是搜索页的补充内容, 失败时保留空列表, 不打断手动搜索.
+  Future<void> loadHotSearch() async {
+    try {
+      final list = await RankHttp.fetchHotSearch();
+      hotSearch.assignAll(list.take(hotSearchLimit).toList());
+    } catch (e, stackTrace) {
+      Log.e('加载热搜失败', error: e, stackTrace: stackTrace);
     }
   }
 
