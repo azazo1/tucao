@@ -241,8 +241,9 @@ jobs:
       - name: 计算产物路径
         id: artifact
         env:
-          TUCAO_BUILD_VERSION: ${{ needs.version.outputs.tag_name }}
-          TUCAO_RELEASE_VERSION: ${{ needs.version.outputs.version }}
+          # 正式发布用 tag, 分支构建用与 apk 一致的构建版本.
+          TUCAO_BUILD_VERSION: ${{ needs.version.outputs.tag_name || needs.version.outputs.build_version }}
+          TUCAO_RELEASE_VERSION: ${{ needs.version.outputs.version || needs.version.outputs.build_version }}
         shell: bash
         run: |
           set -euo pipefail
@@ -250,23 +251,10 @@ jobs:
             -target-os "${{ matrix.goos }}" \
             -target-arch "${{ matrix.goarch }}" >> "$GITHUB_OUTPUT"
 
-      - name: 构建二进制
-        if: github.event_name != 'workflow_dispatch' && needs.version.outputs.is_release != 'true'
+      - name: 构建并打包归档
         env:
-          TUCAO_BUILD_VERSION: ${{ needs.version.outputs.tag_name }}
-          TUCAO_RELEASE_VERSION: ${{ needs.version.outputs.version }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          go run ./scripts/release -mode build \
-            -target-os "${{ matrix.goos }}" \
-            -target-arch "${{ matrix.goarch }}"
-
-      - name: 构建并打包发布归档
-        if: github.event_name == 'workflow_dispatch' || needs.version.outputs.is_release == 'true'
-        env:
-          TUCAO_BUILD_VERSION: ${{ needs.version.outputs.tag_name }}
-          TUCAO_RELEASE_VERSION: ${{ needs.version.outputs.version }}
+          TUCAO_BUILD_VERSION: ${{ needs.version.outputs.tag_name || needs.version.outputs.build_version }}
+          TUCAO_RELEASE_VERSION: ${{ needs.version.outputs.version || needs.version.outputs.build_version }}
         shell: bash
         run: |
           set -euo pipefail
@@ -326,7 +314,7 @@ jobs:
           }
 
       - name: 检查 tar.gz 归档
-        if: (github.event_name == 'workflow_dispatch' || needs.version.outputs.is_release == 'true') && matrix.platform != 'windows'
+        if: matrix.platform != 'windows'
         env:
           ARCHIVE_PATH: ${{ steps.artifact.outputs.archive_path }}
         shell: bash
@@ -339,7 +327,7 @@ jobs:
           fi
 
       - name: 检查 zip 归档
-        if: (github.event_name == 'workflow_dispatch' || needs.version.outputs.is_release == 'true') && matrix.platform == 'windows'
+        if: matrix.platform == 'windows'
         env:
           ARCHIVE_PATH: ${{ steps.artifact.outputs.archive_path }}
         shell: pwsh
@@ -355,13 +343,12 @@ jobs:
           }
 
       - name: 上传发布归档
-        if: github.event_name == 'workflow_dispatch' || needs.version.outputs.is_release == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: tucao-cli-${{ matrix.platform }}-${{ matrix.arch }}
+          name: tucao-cli-${{ needs.version.outputs.build_version }}-${{ matrix.platform }}-${{ matrix.arch }}
           path: cli/${{ steps.artifact.outputs.archive_path }}
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 14
 
   android:
     name: 构建 Android
@@ -612,7 +599,7 @@ jobs:
   # 因此仓库里始终只有最新一次 push 的预发布.
   prerelease:
     name: 发布预发布 Release
-    needs: [version, analyze, test, android]
+    needs: [version, analyze, test, android, cli]
     # tag push 走上面的正式 release; pull_request 的 token 是只读的, 也不该改写预发布.
     if: needs.version.outputs.is_release != 'true' && startsWith(github.ref, 'refs/heads/')
     runs-on: ubuntu-latest
@@ -663,14 +650,19 @@ jobs:
           set -euo pipefail
           shopt -s nullglob
           cd prerelease-artifacts
-          archives=(tucao-*.apk)
+          apks=(tucao-*.apk)
+          archives=(tucao-cli-*.tar.gz tucao-cli-*.zip)
 
-          if (( ${#archives[@]} != 3 )); then
-            echo "预期 3 个 apk, 实际找到 ${#archives[@]} 个" >&2
+          if (( ${#apks[@]} != 3 )); then
+            echo "预期 3 个 apk, 实际找到 ${#apks[@]} 个" >&2
+            exit 1
+          fi
+          if (( ${#archives[@]} != 6 )); then
+            echo "预期 6 个 CLI 归档, 实际找到 ${#archives[@]} 个" >&2
             exit 1
           fi
 
-          sha256sum "${archives[@]}" > SHA256SUMS
+          sha256sum "${apks[@]}" "${archives[@]}" > SHA256SUMS
 
       - name: 重建预发布 Release
         if: steps.freshness.outputs.is_latest == 'true'
@@ -686,11 +678,13 @@ jobs:
           tag="dev-latest"
           assets=(
             prerelease-artifacts/tucao-*.apk
+            prerelease-artifacts/tucao-cli-*.tar.gz
+            prerelease-artifacts/tucao-cli-*.zip
             prerelease-artifacts/SHA256SUMS
           )
 
-          if (( ${#assets[@]} != 4 )); then
-            echo "预期 4 个发布文件, 实际找到 ${#assets[@]} 个" >&2
+          if (( ${#assets[@]} != 10 )); then
+            echo "预期 10 个发布文件, 实际找到 ${#assets[@]} 个" >&2
             exit 1
           fi
 
@@ -708,7 +702,7 @@ jobs:
             echo "- 提交: [\`${COMMIT:0:7}\`](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${COMMIT})"
             echo "- 构建版本: \`v$BUILD_VERSION\`"
             echo
-            echo "按设备架构下载对应的 \`tucao-*.apk\`, 校验和见 \`SHA256SUMS\`."
+            echo "安卓端按设备架构下载 \`tucao-*.apk\`, 命令行工具按平台下载 \`tucao-cli-*\`, 校验和见 \`SHA256SUMS\`."
           } > prerelease-notes.md
 
           gh release create "$tag" "${assets[@]}" \

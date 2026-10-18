@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -97,7 +98,8 @@ func TestStoreRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取文件信息失败: %v", err)
 	}
-	if info.Mode().Perm() != 0o600 {
+	// Windows 不支持 unix 权限位, 读取到的永远是 0666 或 0444.
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 		t.Fatalf("auth.json 权限应为 0600, 实际 %v", info.Mode().Perm())
 	}
 

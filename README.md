@@ -112,8 +112,13 @@ just android build-debug    # 调试构建
 
 ## 持续集成
 
-[CI 工作流](<.github/workflows/build.yml>) 在推送与合并请求时执行静态检查, 单元测试与安卓构建.
-手动触发工作流并填写 tag 时会构建全部 ABI, 全部检查通过后发布 GitHub Release.
+[CI 工作流](<.github/workflows/build.yml>) 在推送与合并请求时执行静态检查, 单元测试,
+安卓构建, 以及命令行工具在六个平台上的构建与测试.
+
+分支推送会重建同一个滚动的预发布 `dev-latest`, 里面同时提供按架构拆分的 apk 与
+`tucao-cli-*` 命令行归档, 会被后续推送覆盖. 正式发布由 `vX.Y.Z` tag 触发, 工作流校验
+tag 与说明文件一致后, 把 apk 与 CLI 归档一并发布到该 tag 的 GitHub Release,
+校验和都在 `SHA256SUMS` 里.
 
 ## 接口
 
