@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tucao/common/vip.dart';
+import 'package:tucao/common/widgets/vip_gold.dart';
 import 'package:tucao/http/space_http.dart';
 import 'package:tucao/http/vip_http.dart';
 import 'package:tucao/models/reply.dart';
@@ -149,6 +150,43 @@ void main() {
     testWidgets('普通用户昵称不用金色', (tester) async {
       final name = await pumpName(tester, isVip: false);
       expect(name.style?.color, isNot(Vip.nicknameColor));
+    });
+  });
+
+  group('破会员金色呈现', () {
+    test('金色只是客户端的展示色, 站点的判定色不受影响', () {
+      expect(Vip.hasNicknameColor('color:#c07c32;'), isTrue);
+      expect(Vip.gold, isNot(Vip.nicknameColor));
+      expect(Vip.goldDeep, isNot(Vip.nicknameColor));
+    });
+
+    testWidgets('流光在减弱动画时静止, 卸载后不留 ticker', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(disableAnimations: true),
+              child: const Scaffold(
+                body: Center(child: VipGold(child: Text('破会员'))),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(find.byType(VipGold), findsOneWidget);
+      // 减弱动画时不跑流光, 但仍要确认卸载后控制器不留下还在跑的 ticker.
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('流光开着动画时也能正常卸载', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: Center(child: VipGold(child: Text('破会员')))),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(find.byType(VipGold), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
     });
   });
 }

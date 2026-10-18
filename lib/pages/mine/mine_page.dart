@@ -9,6 +9,7 @@ import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/common/constants.dart';
 import 'package:tucao/common/style.dart';
 import 'package:tucao/common/vip.dart';
+import 'package:tucao/common/widgets/vip_gold.dart';
 import 'package:tucao/http/space_http.dart';
 import 'package:tucao/models/user.dart';
 import 'package:tucao/pages/life/widgets/life_card.dart';
@@ -306,21 +307,7 @@ class _UserHeaderState extends State<_UserHeader> {
                       children: [
                         Row(
                           children: [
-                            Flexible(
-                              child: Text(
-                                user.displayName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  // 破会员的昵称与网页端一样用站点金色.
-                                  color: user.isVip
-                                      ? Vip.nicknameColor
-                                      : null,
-                                ),
-                              ),
-                            ),
+                            Flexible(child: _buildName(user)),
                             if (user.isVip) ...[
                               const SizedBox(width: 6),
                               const VipBadge(),
@@ -346,6 +333,23 @@ class _UserHeaderState extends State<_UserHeader> {
         ),
       ),
     );
+  }
+
+  /// 昵称.
+  ///
+  /// 破会员套一层金色流光, 与点进来的空间页保持一致; 普通用户的昵称仍用
+  /// 主题色.
+  Widget _buildName(UserModel user) {
+    final name = Text(
+      user.displayName,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+    );
+    if (!user.isVip) {
+      return name;
+    }
+    return VipGold(particleSeed: user.userId, child: name);
   }
 
   /// 没有横幅时的底色: 用主题容器色拼一层渐变.
@@ -422,28 +426,32 @@ class _UserHeaderState extends State<_UserHeader> {
 /// 昵称后的破会员小标签.
 ///
 /// 只占昵称同一行的高度, 不额外占版面; 非会员不显示这个组件.
+/// 底色, 描边与文字都由外层的金色流光上色, 三层只是透明度不同.
 class VipBadge extends StatelessWidget {
   const VipBadge({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-      decoration: BoxDecoration(
-        color: Vip.nicknameColor.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: Vip.nicknameColor.withValues(alpha: 0.35),
-          width: 0.8,
+    return VipGold(
+      particleCount: 5,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+        decoration: BoxDecoration(
+          color: Vip.gold.withValues(alpha: 0.16),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(
+            color: Vip.goldDeep.withValues(alpha: 0.5),
+            width: 0.8,
+          ),
         ),
-      ),
-      child: const Text(
-        '破会员',
-        style: TextStyle(
-          fontSize: 10,
-          height: 1.3,
-          fontWeight: FontWeight.w600,
-          color: Vip.nicknameColor,
+        child: const Text(
+          '破会员',
+          style: TextStyle(
+            fontSize: 10,
+            height: 1.3,
+            fontWeight: FontWeight.w600,
+            color: Vip.gold,
+          ),
         ),
       ),
     );

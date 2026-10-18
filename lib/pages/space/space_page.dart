@@ -1,9 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:tucao/common/vip.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/common/widgets/video_card.dart';
+import 'package:tucao/common/widgets/vip_gold.dart';
 import 'package:tucao/http/space_http.dart';
 import 'package:tucao/pages/mine/image_viewer_page.dart';
 import 'package:tucao/pages/space/space_controller.dart';
@@ -303,14 +303,7 @@ class _SpacePageState extends State<SpacePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  info.userName,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    // 破会员的昵称与网页端一样用站点金色.
-                    color: info.isVip ? Vip.nicknameColor : null,
-                  ),
-                ),
+                _buildName(theme, info),
                 if (info.meta.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
@@ -342,5 +335,21 @@ class _SpacePageState extends State<SpacePage> {
         ],
       ),
     );
+  }
+
+  /// 空间主人的昵称.
+  ///
+  /// 破会员套一层金色流光, 与我的页面保持一致; 普通用户仍用主题色.
+  Widget _buildName(ThemeData theme, SpaceInfo info) {
+    final name = Text(
+      info.userName,
+      style: theme.textTheme.titleMedium?.copyWith(
+        fontWeight: FontWeight.w600,
+      ),
+    );
+    if (!info.isVip) {
+      return name;
+    }
+    return VipGold(particleSeed: info.userId, child: name);
   }
 }
