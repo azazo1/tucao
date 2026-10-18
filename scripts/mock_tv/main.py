@@ -175,6 +175,9 @@ mock 电视已启动
 
     signal.signal(signal.SIGINT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
+    # 关掉终端窗口时收到的是 SIGHUP, 不接住就会直接死掉, 来不及广播 byebye.
+    if hasattr(signal, "SIGHUP"):
+        signal.signal(signal.SIGHUP, handle_signal)
     stop.wait()
 
     LOG.info("正在关闭 mock 电视")

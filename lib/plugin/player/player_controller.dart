@@ -445,6 +445,27 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     await player.seek(position);
   }
 
+  /// 投屏前卸载本地播放.
+  ///
+  /// 只是暂停的话, 这条连接会一直挂着; 长时间投屏后服务端多半已经把它断开,
+  /// 退出投屏再接着读写就会直接报 tcp 错误. 这里干脆卸掉, 退出时重新打开.
+  Future<void> releaseForCast() async {
+    await player.stop();
+  }
+
+  /// 退出投屏后从电视端进度重新打开本地播放.
+  Future<void> resumeAfterCast(
+    Duration position, {
+    required bool autoPlay,
+  }) async {
+    final url = playUrl.value;
+    if (url.isEmpty) {
+      return;
+    }
+    _rewindDanmaku();
+    await player.setUrl(url, autoPlay: autoPlay, startAt: position);
+  }
+
   Future<void> setSpeed(double speed) async {
     await player.setSpeed(speed);
   }
