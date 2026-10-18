@@ -34,7 +34,6 @@ class CommentTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final avatarSize = dense ? 26.0 : 36.0;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,

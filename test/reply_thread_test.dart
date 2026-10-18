@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:tucao/models/reply.dart';
 import 'package:tucao/pages/reply/reply_controller.dart';
-import 'package:tucao/pages/reply/reply_page.dart';
+import 'package:tucao/pages/reply/reply_page.dart' show ReplyPanel;
 import 'package:tucao/pages/reply/widgets/comment_tile.dart';
 
 /// 评论楼中楼的展开, 分页与失败重试.
