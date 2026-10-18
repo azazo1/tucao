@@ -1,4 +1,4 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:extended_image/extended_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/services/image_save_service.dart';
@@ -7,7 +7,8 @@ import 'package:tucao/utils/logger.dart';
 
 /// 单张图片的全屏查看.
 ///
-/// 可以双指缩放与拖动; 长按图片 (或点右上角按钮) 保存到系统相册.
+/// 手势交给 extended_image: 双指缩放, 双击放大到点击位置 (再双击还原),
+/// 放大后可以拖动. 长按弹出菜单, 菜单里可以保存到系统相册.
 class ImageViewerPage extends StatefulWidget {
   const ImageViewerPage({
     super.key,
@@ -19,7 +20,7 @@ class ImageViewerPage extends StatefulWidget {
   /// 图片地址.
   final String url;
 
-  /// 标题栏文案, 例如 "我的横幅".
+  /// 标题栏文案, 例如 "某某 的头像".
   final String? title;
 
   /// 保存文件名前缀, 便于在相册里区分来源.
@@ -29,11 +30,27 @@ class ImageViewerPage extends StatefulWidget {
   State<ImageViewerPage> createState() => _ImageViewerPageState();
 }
 
-/// 图片查看页能做的事.
+/// 长按菜单里能做的事.
 enum _ViewerAction { save }
 
 class _ImageViewerPageState extends State<ImageViewerPage> {
+  final _gestureKey = GlobalKey<ExtendedImageGestureState>();
+
   bool _saving = false;
+
+  /// 双击放大到的倍数.
+  static const _doubleTapScale = 2.5;
+
+  /// 双击时当前已放大就还原, 否则放大到点击位置.
+  void _handleDoubleTap(ExtendedImageGestureState state) {
+    final scale = state.gestureDetails?.totalScale ?? 1;
+    if (scale > _doubleTapScale * 0.9) {
+      state.reset();
+      return;
+    }
+    // 不传位置时按最后一次按下的位置放大, 也就是手指点的位置.
+    state.handleDoubleTap(scale: _doubleTapScale);
+  }
 
   /// 长按图片时弹出可选操作, 而不是直接保存.
   Future<void> _showActions() async {
@@ -110,24 +127,41 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
         child: Stack(
           children: [
             Positioned.fill(
-              child: InteractiveViewer(
-                minScale: 1,
-                maxScale: 5,
-                child: Center(
-                  child: CachedNetworkImage(
-                    imageUrl: widget.url,
-                    fit: BoxFit.contain,
-                    placeholder: (context, url) => const Center(
-                      child: CircularProgressIndicator(color: Colors.white70),
-                    ),
-                    errorWidget: (context, url, error) => const Center(
-                      child: Text(
-                        '图片加载失败',
-                        style: TextStyle(color: Colors.white70),
-                      ),
-                    ),
-                  ),
+              child: ExtendedImage.network(
+                widget.url,
+                fit: BoxFit.contain,
+                mode: ExtendedImageMode.gesture,
+                extendedImageGestureKey: _gestureKey,
+                onDoubleTap: _handleDoubleTap,
+                initGestureConfigHandler: (state) => GestureConfig(
+                  minScale: 0.8,
+                  maxScale: 5,
+                  initialScale: 1,
+                  inPageView: false,
+                  initialAlignment: InitialAlignment.center,
+                  speed: 1,
+                  inertialSpeed: 100,
                 ),
+                loadStateChanged: (state) {
+                  switch (state.extendedImageLoadState) {
+                    case LoadState.loading:
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          color: Colors.white70,
+                        ),
+                      );
+                    case LoadState.failed:
+                      return const Center(
+                        child: Text(
+                          '图片加载失败',
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                      );
+                    case LoadState.completed:
+                      // 返回 null 表示走默认渲染.
+                      return null;
+                  }
+                },
               ),
             ),
             Positioned(
@@ -135,7 +169,7 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
               right: 0,
               bottom: 24,
               child: Text(
-                '长按图片保存到相册',
+                '双击放大, 长按保存到相册',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 12,
