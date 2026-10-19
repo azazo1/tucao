@@ -183,7 +183,12 @@ abstract final class MessageHttp {
       'info[content]': content,
       'dosubmit': '1',
     }, cancelToken);
-    return _parseResult(raw);
+    final result = _parseResult(raw);
+    if (result == null) {
+      // 正文属于用户内容, 不写进日志.
+      Log.i('私信已发送, 收件人 uid=$toUser');
+    }
+    return result;
   }
 
   /// 回复私信, 成功返回空, 失败返回提示文本.

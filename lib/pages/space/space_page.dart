@@ -7,6 +7,7 @@ import 'package:tucao/common/widgets/video_card.dart';
 import 'package:tucao/common/widgets/vip_gold.dart';
 import 'package:tucao/http/space_http.dart';
 import 'package:tucao/pages/mine/image_viewer_page.dart';
+import 'package:tucao/pages/space/private_message_sheet.dart';
 import 'package:tucao/pages/space/space_controller.dart';
 import 'package:tucao/router/routes.dart';
 import 'package:tucao/services/account_service.dart';
@@ -124,7 +125,7 @@ class _SpacePageState extends State<SpacePage> {
                 ),
               ),
               SliverToBoxAdapter(child: _buildStats(context, info)),
-              SliverToBoxAdapter(child: _buildAccountActions(context)),
+              SliverToBoxAdapter(child: _buildActions(context)),
               if (_controller.list.isEmpty)
                 const SliverFillRemaining(
                   hasScrollBody: false,
@@ -205,41 +206,81 @@ class _SpacePageState extends State<SpacePage> {
     Get.to(() => ImageViewerPage(url: url, title: title, prefix: prefix));
   }
 
-  /// 自己的主页上显示账号操作, 别人的主页不显示.
-  Widget _buildAccountActions(BuildContext context) {
+  /// 自己的空间显示账号操作, 别人的空间显示私信入口.
+  Widget _buildActions(BuildContext context) {
     return Obx(() {
-      if (!_isOwnProfile) {
-        return const SizedBox.shrink();
+      if (_isOwnProfile) {
+        return _buildAccountActions(context);
       }
-      final scheme = Theme.of(context).colorScheme;
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-        child: Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            OutlinedButton.icon(
-              onPressed: () => Get.toNamed(Routes.changePassword),
-              icon: const Icon(Icons.password_outlined, size: 18),
-              label: const Text('修改密码'),
-            ),
-            TextButton.icon(
-              onPressed: _loggingOut ? null : _logout,
-              style: TextButton.styleFrom(foregroundColor: scheme.error),
-              icon: _loggingOut
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.logout, size: 18),
-              label: const Text('退出登录'),
-            ),
-          ],
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            onPressed: () => _openPrivateMessage(context),
+            icon: const Icon(Icons.mail_outline, size: 18),
+            label: const Text('私信'),
+          ),
         ),
       );
     });
+  }
+
+  /// 给空间主人发私信.
+  ///
+  /// 站点发送私信需要登录态, 未登录时先提示, 不去请求一个必然失败的接口.
+  /// 发送成功后只能提示去私信页查看: 站点只回一个成功标记, 拿不到新会话的
+  /// messageid, 无法直接跳进会话页.
+  Future<void> _openPrivateMessage(BuildContext context) async {
+    if (!AccountService.instance.isLogin) {
+      Get.snackbar('请先登录', '登录后才能给其他用户发私信');
+      return;
+    }
+    final name = _controller.info.value?.userName ?? '';
+    final sent = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => PrivateMessageSheet(
+        toUserId: widget.userId.toString(),
+        toUserName: name,
+      ),
+    );
+    if (sent == true && mounted) {
+      Get.snackbar('私信已发送', '可以在「我的 - 私信」里查看');
+    }
+  }
+
+  /// 自己的主页上显示账号操作.
+  Widget _buildAccountActions(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          OutlinedButton.icon(
+            onPressed: () => Get.toNamed(Routes.changePassword),
+            icon: const Icon(Icons.password_outlined, size: 18),
+            label: const Text('修改密码'),
+          ),
+          TextButton.icon(
+            onPressed: _loggingOut ? null : _logout,
+            style: TextButton.styleFrom(foregroundColor: scheme.error),
+            icon: _loggingOut
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.logout, size: 18),
+            label: const Text('退出登录'),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildStats(BuildContext context, SpaceInfo? info) {
