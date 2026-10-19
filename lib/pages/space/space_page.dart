@@ -294,6 +294,15 @@ class _SpacePageState extends State<SpacePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildName(theme, info),
+                if (info.userId > 0) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '用户 id: ${info.userId}',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
                 if (info.meta.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
