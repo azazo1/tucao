@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/azazo1/tucao/cli/internal/model"
@@ -33,27 +34,19 @@ func TestParseImageKinds(t *testing.T) {
 	}
 }
 
-func TestImageExtension(t *testing.T) {
-	cases := map[string]string{
-		"https://www.tucao.my/uploadfile/2023/0822/20230822065236713.jpg": ".jpg",
-		"https://www.tucao.my/uploadfile/avatar/46/4/453520/180x180.JPG":  ".jpg",
-		"https://www.tucao.my/uploadfile/2023/a.png?x=1":                  ".png",
-		"https://www.tucao.my/uploadfile/2023/a.gif#frag":                 ".gif",
-		"https://www.tucao.my/uploadfile/avatar/46/4/453520/180x180":      ".jpg",
-		"https://www.tucao.my/uploadfile/avatar.aspx?id=1":                ".jpg",
-		"https://www.tucao.my/uploadfile/2023/a.webp":                     ".webp",
-	}
-	for raw, want := range cases {
-		if got := imageExtension(raw); got != want {
-			t.Fatalf("imageExtension(%q) = %q, 期望 %q", raw, got, want)
-		}
+func TestImageFileName(t *testing.T) {
+	got := imageFileName("out", "442223", imageBanner, ".png")
+	if want := filepath.Join("out", "442223-banner.png"); got != want {
+		t.Fatalf("imageFileName = %q, 期望 %q", got, want)
 	}
 }
 
-func TestImageFileName(t *testing.T) {
-	got := imageFileName("442223", imageBanner, "https://www.tucao.my/uploadfile/2023/a.png")
-	if want := "442223-banner.png"; got != want {
-		t.Fatalf("imageFileName = %q, 期望 %q", got, want)
+func TestImageSizeText(t *testing.T) {
+	if got := imageSizeText(imageItem{Width: 960, Height: 300}); got != "960x300" {
+		t.Fatalf("imageSizeText = %q, 期望 960x300", got)
+	}
+	if got := imageSizeText(imageItem{Width: 180}); got != "" {
+		t.Fatalf("尺寸不全时应当返回空串, 实际 %q", got)
 	}
 }
 

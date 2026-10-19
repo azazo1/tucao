@@ -2,7 +2,9 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -10,6 +12,7 @@ import (
 
 	"github.com/azazo1/tucao/cli/internal/api"
 	"github.com/azazo1/tucao/cli/internal/download"
+	"github.com/azazo1/tucao/cli/internal/imagefile"
 	"github.com/azazo1/tucao/cli/internal/model"
 	"github.com/azazo1/tucao/cli/internal/output"
 )
@@ -47,7 +50,10 @@ func (a *App) newImageUserCommand() *cobra.Command {
 
 用户编号接受 442223, u442223 或 /play/u442223/ 这类写法,
 编号可以从 tucao rank user 或视频详情里取.
-文件名默认是 用户名-avatar 与 用户名-banner, 扩展名从图片地址里取.`,
+
+图片按内容认格式: 站点上头像地址以 .jpg 结尾而内容是 PNG 的情况很常见,
+所以文件名用识别出来的真实扩展名. 没有设置头像或横幅的账号会拿到占位图与
+只有文件头的坏文件, 这类内容不落盘, 只在结果里作为警告列出.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, args []string) error {
 			userID, err := parseUID(args[0])
@@ -84,9 +90,15 @@ func (a *App) newImageUserCommand() *cobra.Command {
 			return a.finish(command, payload, func(mode output.Mode) {
 				rows := make([][]string, 0, len(items))
 				for _, item := range items {
-					rows = append(rows, []string{imageLabel(item.Kind), item.Path, formatBytes(item.Bytes), item.Source})
+					rows = append(rows, []string{
+						imageLabel(item.Kind),
+						item.Path,
+						formatBytes(item.Bytes),
+						imageSizeText(item),
+						item.Source,
+					})
 				}
-				a.Out.RenderTable(mode, "已下载", []string{"类型", "文件", "大小", "地址"}, rows)
+				a.Out.RenderTable(mode, "已下载", []string{"类型", "文件", "大小", "尺寸", "地址"}, rows)
 				for _, warning := range warnings {
 					a.Out.Line(mode, "警告: %s", warning)
 				}
@@ -105,6 +117,9 @@ type imageItem struct {
 	Kind   string `json:"kind" yaml:"kind"`
 	Source string `json:"source" yaml:"source"`
 	Path   string `json:"path" yaml:"path"`
+	Format string `json:"format" yaml:"format"`
+	Width  int    `json:"width" yaml:"width"`
+	Height int    `json:"height" yaml:"height"`
 	Bytes  int64  `json:"bytes" yaml:"bytes"`
 }
 
@@ -138,6 +153,14 @@ func imageLabel(kind string) string {
 	}
 }
 
+// imageSizeText 把像素尺寸写成 宽x高, 未知时返回空串.
+func imageSizeText(item imageItem) string {
+	if item.Width <= 0 || item.Height <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("%dx%d", item.Width, item.Height)
+}
+
 // imageTargets 按 --only 的顺序挑出要下载的图片地址.
 func imageTargets(space model.Space, kinds []string) []imageTarget {
 	targets := make([]imageTarget, 0, len(kinds))
@@ -154,7 +177,8 @@ func imageTargets(space model.Space, kinds []string) []imageTarget {
 
 // downloadImages 下载用户空间里的头像与横幅.
 //
-// 某一类地址缺失时记为警告并继续下载另一类, 两类都没下成才算失败.
+// 地址缺失, 命中站点占位图与目标文件已存在的类型会被跳过并记为警告,
+// 两类都没下成才算失败.
 func (a *App) downloadImages(ctx context.Context, client *api.Client, space model.Space, kinds []string,
 	directory, basename string, overwrite bool) ([]imageItem, []string, error) {
 	base := strings.TrimSpace(basename)
@@ -170,71 +194,131 @@ func (a *App) downloadImages(ctx context.Context, client *api.Client, space mode
 	items := make([]imageItem, 0, len(kinds))
 	warnings := []string{}
 	var firstErr error
+	fail := func(err error, warning string) {
+		if firstErr == nil {
+			firstErr = err
+		}
+		warnings = append(warnings, warning)
+	}
 	for _, target := range imageTargets(space, kinds) {
 		label := imageLabel(target.kind)
-		if target.source == "" {
-			warnings = append(warnings, "站点没有返回"+label+"地址")
+		switch {
+		case target.source == "":
+			warnings = append(warnings, label+": 站点没有给出地址")
+			continue
+		case api.IsPlaceholderImage(target.source):
+			warnings = append(warnings, label+": 该用户没有设置"+label)
 			continue
 		}
-		path := filepath.Join(directory, imageFileName(base, target.kind, target.source))
-		result, err := download.File(ctx, client.HTTP, target.source, path, download.Options{
-			UserAgent: api.DesktopUserAgent,
-			Referer:   referer,
-			Overwrite: overwrite,
-			Progress:  a.progressPrinter(label),
-		})
-		if err != nil {
-			if firstErr == nil {
-				firstErr = err
+		if !overwrite {
+			if existed := existingImage(directory, base, target.kind); existed != "" {
+				err := api.NewError(api.CodeInvalidInput, "下载", "目标文件已存在: "+existed+", 加 --overwrite 覆盖")
+				fail(err, label+": "+imageReason(err))
+				continue
 			}
-			warnings = append(warnings, label+"下载失败: "+err.Error())
+		}
+		item, err := a.downloadImage(ctx, client, target, base, directory, referer, overwrite)
+		if err != nil {
+			fail(err, label+": "+imageReason(err))
 			continue
 		}
-		a.Logger.Info("图片下载完成", "kind", target.kind, "file", result.Path, "bytes", result.Bytes)
-		items = append(items, imageItem{
-			Kind:   target.kind,
-			Source: target.source,
-			Path:   result.Path,
-			Bytes:  result.Bytes,
-		})
+		items = append(items, item)
 	}
 	if len(items) == 0 {
+		code := api.CodeNotFound
 		if firstErr != nil {
-			return nil, warnings, firstErr
+			code = api.CodeOf(firstErr)
 		}
-		return nil, warnings, api.NewError(api.CodeNotFound, "下载", "该用户没有可下载的头像或横幅")
+		// 每一类为什么没下到, 都写进消息里, 免得只剩一句概括.
+		return nil, warnings, api.NewError(code, "下载", strings.Join(warnings, "; "))
 	}
 	return items, warnings, nil
 }
 
-// imageFileName 决定图片文件名, 前缀后面接类型后缀.
-func imageFileName(base, kind, source string) string {
-	return base + "-" + kind + imageExtension(source)
-}
-
-// imageExtension 从图片地址里取扩展名, 取不到时按 .jpg 处理.
+// downloadImage 下载一张图片, 认出内容之后再按真实格式落到最终文件名.
 //
-// 站点把图片挂在 uploadfile 目录下, 扩展名一般是 .jpg, 但也可能出现 .png 与 .gif,
-// 因此只认常见的图片扩展名.
-func imageExtension(source string) string {
-	path := source
-	if index := strings.IndexAny(path, "?#"); index >= 0 {
-		path = path[:index]
+// 先落在 .download 暂存文件上, 通过校验才改名; 认不出内容的一律删掉, 免得
+// 像站点上的坏头像那样留下一个打不开的文件, 还让人以为下载成功了.
+func (a *App) downloadImage(ctx context.Context, client *api.Client, target imageTarget,
+	base, directory, referer string, overwrite bool) (imageItem, error) {
+	label := imageLabel(target.kind)
+	staging := filepath.Join(directory, base+"-"+target.kind+".download")
+	result, err := download.File(ctx, client.HTTP, target.source, staging, download.Options{
+		UserAgent: api.DesktopUserAgent,
+		Referer:   referer,
+		// 暂存文件是本次下载的中间产物, 每次都从头写.
+		Overwrite: true,
+		Progress:  a.progressPrinter(label),
+	})
+	if err != nil {
+		return imageItem{}, err
 	}
-	extension := strings.ToLower(filepath.Ext(path))
-	if !imageExtensions[extension] {
-		return ".jpg"
+	info, err := imagefile.Inspect(result.Path)
+	if err != nil {
+		os.Remove(result.Path)
+		if errors.Is(err, imagefile.ErrNotImage) {
+			return imageItem{}, api.NewError(api.CodeNotFound, "下载", "站点返回的内容不是完整图片")
+		}
+		return imageItem{}, api.WrapError(api.CodeInternal, "下载", "检查"+label+"失败", err)
 	}
-	return extension
+	final := imageFileName(directory, base, target.kind, info.Extension)
+	if err := replaceFile(result.Path, final, overwrite); err != nil {
+		return imageItem{}, err
+	}
+	a.Logger.Info("图片下载完成", "kind", target.kind, "file", final,
+		"format", info.Format, "width", info.Width, "height", info.Height, "bytes", result.Bytes)
+	return imageItem{
+		Kind:   target.kind,
+		Source: target.source,
+		Path:   final,
+		Format: info.Format,
+		Width:  info.Width,
+		Height: info.Height,
+		Bytes:  result.Bytes,
+	}, nil
 }
 
-// imageExtensions 是可识别的图片扩展名.
-var imageExtensions = map[string]bool{
-	".jpg":  true,
-	".jpeg": true,
-	".png":  true,
-	".gif":  true,
-	".webp": true,
-	".bmp":  true,
-	".avif": true,
+// imageFileName 拼出最终文件名: 前缀加类型与识别出来的扩展名.
+func imageFileName(directory, base, kind, extension string) string {
+	return filepath.Join(directory, base+"-"+kind+extension)
+}
+
+// imageReason 取错误的说明部分, 省掉动作前缀, 便于写进警告与汇总消息.
+func imageReason(err error) string {
+	var apiErr *api.Error
+	if errors.As(err, &apiErr) && apiErr.Message != "" {
+		return apiErr.Message
+	}
+	return err.Error()
+}
+
+// existingImage 找出同前缀同类型已经存在的图片.
+//
+// 最终扩展名由下载到的内容决定, 因此要逐个可能的扩展名试过去.
+func existingImage(directory, base, kind string) string {
+	for _, extension := range imagefile.Extensions() {
+		path := imageFileName(directory, base, kind, extension)
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+	return ""
+}
+
+// replaceFile 把校验过的暂存文件挪到最终文件名.
+func replaceFile(staging, final string, overwrite bool) error {
+	if _, err := os.Stat(final); err == nil {
+		if !overwrite {
+			os.Remove(staging)
+			return api.NewError(api.CodeInvalidInput, "下载", "目标文件已存在: "+final+", 加 --overwrite 覆盖")
+		}
+		if err := os.Remove(final); err != nil {
+			os.Remove(staging)
+			return api.WrapError(api.CodeInternal, "下载", "删除旧文件失败: "+final, err)
+		}
+	}
+	if err := os.Rename(staging, final); err != nil {
+		return api.WrapError(api.CodeInternal, "下载", "重命名失败: "+final, err)
+	}
+	return nil
 }
