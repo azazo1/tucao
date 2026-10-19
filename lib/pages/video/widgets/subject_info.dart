@@ -1,6 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:tucao/models/video_subject.dart';
+import 'package:tucao/pages/mine/image_viewer_page.dart';
 
 /// 番组信息摘要.
 ///
@@ -139,30 +141,43 @@ class _SubjectInfoBody extends StatelessWidget {
 
 /// 番组封面.
 ///
+/// 点按交给评论图片那套全屏查看页, 可以双指放大与保存到相册;
 /// 站点给的地址失效时退回占位色块, 不挡后面的字段.
 class _SubjectCover extends StatelessWidget {
   const _SubjectCover({required this.url});
 
   final String url;
 
+  /// 保存到相册时的文件名前缀, 写法与查看页的其它调用方一致.
+  static const _savePrefix = 'tucao-subject';
+
+  void _open() {
+    Get.to(
+      () => ImageViewerPage(url: url, title: '番组封面', prefix: _savePrefix),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: AspectRatio(
-        aspectRatio: _SubjectInfoBody.coverAspectRatio,
-        child: CachedNetworkImage(
-          imageUrl: url,
-          fit: BoxFit.cover,
-          fadeInDuration: const Duration(milliseconds: 150),
-          placeholder: (context, url) =>
-              ColoredBox(color: scheme.surfaceContainerHighest),
-          errorWidget: (context, url, error) => ColoredBox(
-            color: scheme.surfaceContainerHighest,
-            child: Icon(
-              Icons.broken_image_outlined,
-              color: scheme.onSurfaceVariant,
+    return GestureDetector(
+      onTap: _open,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: AspectRatio(
+          aspectRatio: _SubjectInfoBody.coverAspectRatio,
+          child: CachedNetworkImage(
+            imageUrl: url,
+            fit: BoxFit.cover,
+            fadeInDuration: const Duration(milliseconds: 150),
+            placeholder: (context, url) =>
+                ColoredBox(color: scheme.surfaceContainerHighest),
+            errorWidget: (context, url, error) => ColoredBox(
+              color: scheme.surfaceContainerHighest,
+              child: Icon(
+                Icons.broken_image_outlined,
+                color: scheme.onSurfaceVariant,
+              ),
             ),
           ),
         ),
