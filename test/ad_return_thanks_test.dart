@@ -112,6 +112,20 @@ void main() {
     await finishPop(tester);
   }
 
+  /// 等待依赖异步资源或下一帧才更新的状态, 不依赖固定的 pump 次数.
+  Future<void> pumpUntil(
+    WidgetTester tester,
+    Finder finder, {
+    required bool present,
+    int maxFrames = 400,
+  }) async {
+    for (var frame = 0; frame < maxFrames; frame++) {
+      if (finder.evaluate().isNotEmpty == present) return;
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    fail('等待 ${finder.description} ${present ? '出现' : '消失'} 超时');
+  }
+
   testWidgets('成功上报与恢复前台都不在广告页弹出, 完整退出后才感谢', (tester) async {
     var reports = 0;
     final result = Completer<bool>();
@@ -127,13 +141,13 @@ void main() {
     // 仅发出 pop 还没有完成退出转场.
     expect(find.byType(CcPeekThanks, skipOffstage: false), findsNothing);
     await finishPop(tester);
-    expect(find.byType(CcPeekThanks), findsOneWidget);
+    await pumpUntil(tester, find.byType(CcPeekThanks), present: true);
     expect(find.byType(AdFinishedPanel), findsNothing);
     expect(find.byKey(const ValueKey('ad-t1')), findsNothing);
     expect(reports, 1);
-    await tester.pump(CcPeekThanks.duration);
+    // 感谢动画要等图集加载后才开始, 按实际消失时机等待.
+    await pumpUntil(tester, find.byType(CcPeekThanks), present: false);
     await tester.pump();
-    expect(find.byType(CcPeekThanks), findsNothing);
     final finished = find.byType(AdFinishedPanel);
     expect(finished, findsOneWidget);
     expect(tester.widget<AdFinishedPanel>(finished).completedHere, isTrue);
@@ -209,8 +223,7 @@ void main() {
     expect(find.byType(CcPeekThanks, skipOffstage: false), findsNothing);
     await returnFromAd(tester);
     second.complete(true);
-    await tester.pump();
-    expect(find.byType(CcPeekThanks), findsOneWidget);
+    await pumpUntil(tester, find.byType(CcPeekThanks), present: true);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -234,12 +247,11 @@ void main() {
     await showFeed(tester, (_) async => true);
     await openAd(tester);
     await returnFromAd(tester);
-    expect(find.byType(CcPeekThanks), findsOneWidget);
+    await pumpUntil(tester, find.byType(CcPeekThanks), present: true);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
     await tester.pump();
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-    await tester.pump();
-    expect(find.byType(CcPeekThanks), findsNothing);
+    await pumpUntil(tester, find.byType(CcPeekThanks), present: false);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
