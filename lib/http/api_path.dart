@@ -74,6 +74,12 @@ abstract final class ApiPath {
   static const messageSend = 'index.php?m=message&c=index&a=send';
   static const messageReply = 'index.php?m=message&c=index&a=reply';
 
+  /// 自己发表的评论, 与私信同在会员中心, 需要登录态.
+  ///
+  /// 站点只提供 html 页面, 条目里带被评论内容的封面, 分区, 标题与作者,
+  /// 用来跳回原内容.
+  static const messageCommentList = 'index.php?m=member&c=index&a=comment';
+
   /// 系统公告, 与私信同属消息模块, 但是单向公告.
   ///
   /// 站点把公告挂在 group 系列动作下, 条目编号是 group_id,

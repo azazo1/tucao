@@ -175,4 +175,70 @@ void main() {
       expect(empty.blocks, isEmpty);
     });
   });
+
+  group('评论列表解析', () {
+    late CommentMessagePage page;
+
+    setUpAll(() {
+      final raw = File(
+        'test/fixtures/message_comment_list.html',
+      ).readAsStringSync();
+      page = MessageHttp.parseCommentListHtml(raw);
+    });
+
+    test('解析出评论条目', () {
+      expect(page.list, hasLength(2));
+      expect(page.list[0].title, '感谢@azazo1，写的第三方APP。');
+      expect(page.list[0].content, '给力，大佬');
+      expect(page.list[0].category, '档案');
+      expect(page.list[0].author, '不明');
+      expect(page.list[0].time, '2026-10-19');
+    });
+
+    test('带时分的日期完整保留', () {
+      expect(page.list[1].time, '2026-10-18 20:15');
+    });
+
+    test('封面与内容地址补成绝对地址', () {
+      expect(
+        page.list[0].cover,
+        '${Constants.baseUrl}uploadfile/2026/1017/'
+        'thumb_362_233_20261017103216427.jpg',
+      );
+      expect(page.list[0].url, '${Constants.baseUrl}play/d7320/');
+      // 已经是绝对地址的封面原样保留.
+      expect(
+        page.list[1].cover,
+        'https://www.tucao.my/uploadfile/2026/1001/cover.jpg',
+      );
+    });
+
+    test('内容地址区分档案与视频', () {
+      expect(page.list[0].target?.article, isTrue);
+      expect(page.list[0].target?.hid, '7320');
+      expect(page.list[1].target?.article, isFalse);
+      expect(page.list[1].target?.hid, '1234');
+    });
+
+    test('作者空间地址与 uid', () {
+      expect(page.list[0].authorUrl, '${Constants.baseUrl}play/u1/');
+      expect(page.list[0].authorId, '1');
+      expect(page.list[1].authorId, '42');
+    });
+
+    test('没有标题的条目被忽略', () {
+      expect(page.list.any((e) => e.content == '没有标题的条目应当被忽略'), isFalse);
+    });
+
+    test('分页区有下一页时还有更多', () {
+      expect(page.hasMore, isTrue);
+    });
+
+    test('空页面返回空列表且没有下一页', () {
+      final empty = MessageHttp.parseCommentListHtml('<html></html>');
+      expect(empty.list, isEmpty);
+      expect(empty.hasMore, isFalse);
+      expect(CommentTarget.parse(''), isNull);
+    });
+  });
 }

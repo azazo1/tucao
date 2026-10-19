@@ -18,7 +18,7 @@ Flutter 重建的吐槽弹幕网 (`tucao.my`) 第三方安卓客户端.
 - 档案: 站点档案列表与详情, 详情含播放 / 在线 / 评论统计与评论区
 - 用户空间: 查看 up 主的资料与投稿, 头像与背景图可以点开放大 (双指缩放),
   放大后长按保存到相册
-- 私信: 收件箱与会话详情, 支持发送与回复
+- 私信: 收件箱与会话详情, 支持发送与回复; 另有自己发表过的评论列表
 - 续命: 我的页面显示 cc娘还能存活的天数与本人累计续命天数, 带进度条,
   附会员组, 积分与账号年限, 点按进入贡献榜; 两个数值都取自站点会员中心
 - 贡献榜: 按用户列出续命天数与占比条, 页脚可跳到站点说明续命规则的公告
@@ -154,6 +154,7 @@ Release, 校验和都在 `SHA256SUMS` 里.
 | 修改密码 | `index.php?m=member&c=index&a=account_manage_password` |
 | 找回密码 | `index.php?m=member&c=index&a=public_forget_password` |
 | 私信 | `index.php?m=message&c=index&a=inbox` (页面解析) |
+| 评论列表 | `index.php?m=member&c=index&a=comment` (页面解析, 需登录) |
 | 续命与贡献榜 | `index.php?m=member` 与 `index.php?m=member&c=life_rank` (页面解析, 需登录) |
 
 站点的排行榜 json 接口 `rank.php` 与播放地址接口 `api/playurl` 都已废弃,

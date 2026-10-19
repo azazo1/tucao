@@ -8,11 +8,12 @@ import 'package:tucao/utils/http_util.dart';
 import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/site_url.dart';
 
-/// 私信与系统公告数据源.
+/// 私信, 评论与系统公告数据源.
 ///
-/// 站点是 discuz 的消息模块, 只提供 html, 需要登录态. 消息分两块: 收件箱是
-/// 用户之间的私信, 系统公告是站点单方面发的通知, 两者页面结构相近但不是
-/// 同一个动作, 公告也没有回复入口.
+/// 站点是 discuz 的消息模块, 只提供 html, 需要登录态. 私信收件箱是用户之间
+/// 的会话, 系统公告是站点单方面发的通知, 两者页面结构相近但不是同一个动作,
+/// 公告也没有回复入口. 评论列表在会员中心, 列出自己发表过的评论, 条目里带
+/// 被评论内容的摘要, 用来跳回原内容.
 ///
 /// 页面结构沿用官方客户端的解析方式:
 /// - 收件箱是 `div.minbox div.item`, 头像在 `div.l img`, 链接带 `messageid=数字`,
@@ -21,6 +22,8 @@ import 'package:tucao/utils/site_url.dart';
 ///   与自己 uid 相同的条目即为本人发出.
 /// - 系统公告列表同样是 `div.minbox div.item`, 但链接带 `group_id=数字`,
 ///   未读的条目多一个 `span.tip`; 详情是 `div.group_show` 里的一段富文本.
+/// - 评论列表是 `div.mcomment div.item`, 封面在 `div.l a img`, 分区在 `div.c`,
+///   标题在 `div.t`, 作者与日期在 `div.tt`, 正文在 `div.d`.
 /// 消息接口需要登录态, 站点认为没登录时抛出.
 ///
 /// [toString] 直接给出可以显示的文案, 界面把异常文本原样当提示用.
@@ -67,6 +70,25 @@ abstract final class MessageHttp {
     final list = parseDetailHtml(raw, selfUid);
     Log.i('私信详情解析完成, 共 ${list.length} 条');
     return list;
+  }
+
+  /// 自己发表的评论.
+  ///
+  /// 与私信一样需要登录态, 页面按页返回, 是否还有下一页以页面里的分页链接
+  /// 为准, 不按本页条数猜站点每页多少条.
+  static Future<CommentMessagePage> comments({
+    int page = 1,
+    CancelToken? cancelToken,
+  }) async {
+    final raw = await _fetchPage(
+      ApiPath.messageCommentList,
+      query: {'page': page},
+      container: 'div.mcomment',
+      cancelToken: cancelToken,
+    );
+    final result = parseCommentListHtml(raw, page: page);
+    Log.i('评论列表解析完成, 第 $page 页 ${result.list.length} 条');
+    return result;
   }
 
   /// 系统公告列表.
@@ -312,6 +334,81 @@ abstract final class MessageHttp {
       time: time?.group(0) ?? '',
       blocks: blocks,
     );
+  }
+
+  /// 解析评论列表.
+  ///
+  /// 条目结构: 封面在 `div.l a img`, 内容地址在 `div.l a`, 右侧依次是分区
+  /// `div.c`, 标题 `div.t`, 作者与日期 `div.tt`, 评论正文 `div.d`. 站点在
+  /// 分页区用 `下一页` 链接表示还有下一页, 这里按链接判断, 不猜每页条数.
+  static CommentMessagePage parseCommentListHtml(
+    String raw, {
+    int page = 1,
+  }) {
+    final document = html_parser.parse(raw);
+    final list = <CommentMessage>[];
+    for (final item in document.querySelectorAll('div.mcomment div.item')) {
+      final link =
+          item.querySelector('div.l a') ??
+          item.querySelector('div.r div.t a');
+      final title = _inlineText(item.querySelector('div.r div.t')?.text ?? '');
+      if (title.isEmpty) {
+        continue;
+      }
+      final meta = item.querySelector('div.r div.tt');
+      final authorLink = meta?.querySelector('a[href*=play/u]');
+      list.add(
+        CommentMessage(
+          title: title,
+          content: _inlineText(item.querySelector('div.r div.d')?.text ?? ''),
+          cover: absoluteSiteUrl(
+            item.querySelector('div.l img')?.attributes['src'] ?? '',
+          ),
+          url: absoluteSiteUrl(link?.attributes['href'] ?? ''),
+          category: _inlineText(item.querySelector('div.r div.c')?.text ?? ''),
+          author: _inlineText(authorLink?.text ?? ''),
+          authorUrl: absoluteSiteUrl(authorLink?.attributes['href'] ?? ''),
+          time: _dateText(meta?.text ?? ''),
+        ),
+      );
+    }
+    return CommentMessagePage(list: list, hasMore: _hasNextPage(document, page));
+  }
+
+  /// 从一句 `作者 · 2026-10-19` 里取出日期部分.
+  static String _dateText(String raw) {
+    final match = RegExp(
+      r'\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2}(?::\d{2})?)?',
+    ).firstMatch(raw);
+    return match?.group(0) ?? '';
+  }
+
+  /// 分页区里是否有比当前页更大的页码或下一页链接.
+  static bool _hasNextPage(Document document, int page) {
+    final pages = document.querySelector('div.pages');
+    if (pages == null) {
+      return false;
+    }
+    for (final link in pages.querySelectorAll('a')) {
+      final text = _inlineText(link.text);
+      if (text == '下一页' || text == '下页') {
+        return true;
+      }
+      final match = RegExp(
+        r'page=(\d+)',
+      ).firstMatch(link.attributes['href'] ?? '');
+      final number = int.tryParse(match?.group(1) ?? '');
+      if (number != null && number > page) {
+        return true;
+      }
+    }
+    for (final span in pages.querySelectorAll('span')) {
+      final number = int.tryParse(_inlineText(span.text));
+      if (number != null && number > page) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /// 正文里会断开段落的块级标签, 其余标签只当作行内元素继续往下走.
