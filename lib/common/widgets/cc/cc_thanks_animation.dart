@@ -57,7 +57,7 @@ class _CcThanksAnimationState extends State<CcThanksAnimation>
   void didChangeDependencies() {
     super.didChangeDependencies();
     _reduceMotion = MediaQuery.disableAnimationsOf(context);
-    _visible = TickerMode.of(context);
+    _visible = TickerMode.valuesOf(context).enabled;
     // 静态模式不解码整张图集, 用户恢复动画后再懒加载.
     if (!_reduceMotion && _stream == null) {
       _stream = const AssetImage(CcThanksAnimation.spriteAsset).resolve(

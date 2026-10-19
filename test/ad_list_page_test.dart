@@ -13,7 +13,9 @@ import 'package:tucao/pages/ad/widgets/vip_thanks_panel.dart';
 import 'package:tucao/services/account_service.dart';
 
 class _Account extends AccountService {
+  // 测试直接注入用户状态, 不走缓存读取与网络刷新.
   @override
+  // ignore: must_call_super
   void onInit() {}
 }
 
@@ -28,8 +30,8 @@ void main() {
     Get.put<AccountService>(account);
   });
 
-  tearDown(() async {
-    await Get.reset();
+  tearDown(() {
+    Get.reset();
   });
 
   Future<void> showPage(
