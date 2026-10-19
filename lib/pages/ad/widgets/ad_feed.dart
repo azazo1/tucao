@@ -8,6 +8,7 @@ import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/http/ad_http.dart';
 import 'package:tucao/pages/ad/ad_disclaimer.dart';
 import 'package:tucao/pages/ad/ad_page.dart';
+import 'package:tucao/pages/ad/widgets/ad_finished_panel.dart';
 import 'package:tucao/services/account_service.dart';
 import 'package:tucao/utils/logger.dart';
 
@@ -172,9 +173,9 @@ class _AdFeedState extends State<AdFeed> with WidgetsBindingObserver {
             final ads = (snapshot.data ?? const <AdItem>[])
                 .where((ad) => !_accepted.contains(ad.adId)).toList();
             if (ads.isEmpty) {
-              return EmptyWidget(
-                message: _accepted.isEmpty ? '广告暂时不可用' : '感谢支持, 本次广告已看完',
-              );
+              // 最后一段感谢播完或被收起后才显示静态图, 不同时出现两个 CC 娘.
+              if (_showThanks) return const SizedBox.shrink();
+              return AdFinishedPanel(completedHere: _accepted.isNotEmpty);
             }
             return ListView.separated(
               padding: const EdgeInsets.symmetric(vertical: 8),

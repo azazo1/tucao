@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:tucao/common/widgets/cc/cc_peek_thanks.dart';
+import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/http/ad_http.dart';
 import 'package:tucao/models/user.dart';
 import 'package:tucao/pages/ad/widgets/ad_feed.dart';
+import 'package:tucao/pages/ad/widgets/ad_finished_panel.dart';
 import 'package:tucao/services/account_service.dart';
 
 class _Account extends AccountService {
@@ -15,6 +17,16 @@ class _Account extends AccountService {
   // 测试只使用注入的账号状态, 不初始化缓存或网络.
   // ignore: must_call_super
   void onInit() {}
+}
+
+class _Routes extends NavigatorObserver {
+  TransitionRoute<dynamic>? lastPopped;
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didPop(route, previousRoute);
+    if (route is TransitionRoute<dynamic>) lastPopped = route;
+  }
 }
 
 const _user = UserModel(userId: 1, userName: 'viewer');
@@ -32,12 +44,14 @@ const _otherAd = AdItem(
 void main() {
   late _Account account;
   late GlobalKey<NavigatorState> navigator;
+  late _Routes routes;
 
   setUp(() {
     Get.testMode = true;
     account = _Account()..user.value = _user;
     Get.put<AccountService>(account);
     navigator = GlobalKey<NavigatorState>();
+    routes = _Routes();
   });
 
   tearDown(() => Get.reset());
@@ -48,9 +62,11 @@ void main() {
     List<AdItem> ads = const [_ad],
     bool accessible = false,
     double textScale = 1,
+    AdLoader? loadAds,
   }) async {
     await tester.pumpWidget(MaterialApp(
       navigatorKey: navigator,
+      navigatorObservers: [routes],
       builder: (context, child) => MediaQuery(
         data: MediaQuery.of(context).copyWith(
           disableAnimations: true,
@@ -61,7 +77,7 @@ void main() {
       ),
       home: Scaffold(
         body: AdFeed(
-          loadAds: ({CancelToken? cancelToken}) async => ads,
+          loadAds: loadAds ?? (({CancelToken? cancelToken}) async => ads),
           reportClick: reporter,
           buildAdPage: (_) => const Scaffold(key: ValueKey('ad-detail')),
         ),
@@ -76,11 +92,24 @@ void main() {
     expect(find.byKey(const ValueKey('ad-detail')), findsOneWidget);
   }
 
+  Future<void> finishPop(WidgetTester tester) async {
+    final route = routes.lastPopped!;
+    final duration = route.reverseTransitionDuration;
+    var completed = false;
+    unawaited(route.completed.then((_) { completed = true; }));
+    await tester.pump();
+    await tester.pump(duration);
+    // 等退出 Overlay 的帧结束, 不用 pumpAndSettle 把感谢动画一起播完.
+    for (var frame = 0; frame < 10 && !completed; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(completed, isTrue);
+    await tester.pump();
+  }
+
   Future<void> returnFromAd(WidgetTester tester) async {
     navigator.currentState!.pop();
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.pump();
+    await finishPop(tester);
   }
 
   testWidgets('成功上报与恢复前台都不在广告页弹出, 完整退出后才感谢', (tester) async {
@@ -97,15 +126,56 @@ void main() {
     navigator.currentState!.pop();
     // 仅发出 pop 还没有完成退出转场.
     expect(find.byType(CcPeekThanks, skipOffstage: false), findsNothing);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.pump();
+    await finishPop(tester);
     expect(find.byType(CcPeekThanks), findsOneWidget);
+    expect(find.byType(AdFinishedPanel), findsNothing);
     expect(find.byKey(const ValueKey('ad-t1')), findsNothing);
     expect(reports, 1);
     await tester.pump(CcPeekThanks.duration);
     await tester.pump();
     expect(find.byType(CcPeekThanks), findsNothing);
+    final finished = find.byType(AdFinishedPanel);
+    expect(finished, findsOneWidget);
+    expect(tester.widget<AdFinishedPanel>(finished).completedHere, isTrue);
+    final still = find.descendant(of: finished, matching: find.byType(Image));
+    expect(tester.widget<Image>(still).image, const AssetImage(CcPeekThanks.stillAsset));
+    await tester.pump(const Duration(seconds: 8));
+    expect(finished, findsOneWidget);
+    expect(find.byType(CcPeekThanks), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('初次空列表也显示静态感谢, 不推断今日是否看完', (tester) async {
+    var reports = 0;
+    await showFeed(tester, (_) async { reports++; return true; }, ads: const []);
+    final finished = find.byType(AdFinishedPanel);
+    expect(finished, findsOneWidget);
+    expect(tester.widget<AdFinishedPanel>(finished).completedHere, isFalse);
+    expect(find.byType(CcPeekThanks), findsNothing);
+    expect(reports, 0);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('加载失败显示重试而不是空列表感谢', (tester) async {
+    await showFeed(tester, (_) async => true,
+        loadAds: ({CancelToken? cancelToken}) async => throw StateError('load failed'));
+    expect(find.byType(ErrorWidgetView), findsOneWidget);
+    expect(find.byType(AdFinishedPanel), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('还有未看或未成功上报的广告时不显示收尾页', (tester) async {
+    await showFeed(tester, (id) async => id == 't1', ads: const [_ad, _otherAd]);
+    await openAd(tester);
+    await returnFromAd(tester);
+    await tester.pump(CcPeekThanks.duration);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('ad-t2')), findsOneWidget);
+    expect(find.byType(AdFinishedPanel), findsNothing);
+    await openAd(tester, 't2');
+    await returnFromAd(tester);
+    expect(find.byKey(const ValueKey('ad-t2')), findsOneWidget);
+    expect(find.byType(AdFinishedPanel), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -223,6 +293,7 @@ void main() {
     await tester.tap(image);
     await tester.pump();
     expect(thanks, findsNothing);
+    expect(find.byType(AdFinishedPanel), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
