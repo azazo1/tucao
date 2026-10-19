@@ -56,15 +56,9 @@ func (a *App) newVideoDownloadCommand() *cobra.Command {
 			if err != nil {
 				return a.fail(command, err, "")
 			}
-			directory := strings.TrimSpace(outputDir)
-			if directory == "" {
-				directory = a.Config.Download.OutputDir
-			}
-			if directory == "" {
-				directory = "."
-			}
-			if err := os.MkdirAll(directory, 0o755); err != nil {
-				return a.fail(command, api.WrapError(api.CodeInternal, "下载", "创建目录失败: "+directory, err), "")
+			directory, err := a.prepareDownloadDir(outputDir)
+			if err != nil {
+				return a.fail(command, err, "")
 			}
 			concurrency := threads
 			if concurrency <= 0 {

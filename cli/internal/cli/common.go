@@ -2,10 +2,13 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/azazo1/tucao/cli/internal/api"
 )
 
 var (
@@ -61,6 +64,23 @@ func parseUID(raw string) (int, error) {
 		return 0, fmt.Errorf("无法识别的用户编号: %s", raw)
 	}
 	return value, nil
+}
+
+// prepareDownloadDir 解析输出目录并按需创建.
+//
+// 命令行参数优先, 其次是配置里的下载目录, 都没有时落在当前目录.
+func (a *App) prepareDownloadDir(flagValue string) (string, error) {
+	directory := strings.TrimSpace(flagValue)
+	if directory == "" {
+		directory = a.Config.Download.OutputDir
+	}
+	if directory == "" {
+		directory = "."
+	}
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		return "", api.WrapError(api.CodeInternal, "下载", "创建目录失败: "+directory, err)
+	}
+	return directory, nil
 }
 
 // formatTimestamp 把秒级时间戳格式化成本地时间.

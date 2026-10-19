@@ -15,7 +15,7 @@ func (a *App) newRoot() *cobra.Command {
 		Long: `吐槽弹幕网命令行工具.
 
 按分区浏览与搜索站点内容, 查看排行榜, 番组索引, 档案, 用户空间, 私信与评论,
-拉取并导出弹幕, 下载单文件分P, 以及登录与本地收藏管理.
+拉取并导出弹幕, 下载单文件分P与用户头像横幅, 以及登录与本地收藏管理.
 
 配置保存在 ~/.config/tucao/config.toml, 登录态保存在 ~/.config/tucao/auth.json,
 收藏与播放历史保存在 ~/.local/share/tucao/ 下.`,
@@ -51,6 +51,7 @@ func (a *App) newRoot() *cobra.Command {
 		a.newBgmCommand(),
 		a.newArticleCommand(),
 		a.newSpaceCommand(),
+		a.newImageCommand(),
 		a.newMessageCommand(),
 		a.newMeCommand(),
 		a.newFavCommand(),
