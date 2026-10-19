@@ -605,8 +605,13 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
   /// 竖屏下页面下方本来就有分P条, 控制条再挤一个按钮会把窄屏占满;
   /// 全屏时那条列表在画面之外, 才需要直接从画面上换集.
   Widget _buildPartButton() {
+    if (!widget.fullscreen) {
+      return const SizedBox.shrink();
+    }
+    // 进 Obx 后先读分P列表: 一个可观察量都读不到时 GetX 会直接报错.
     return Obx(() {
-      if (!widget.fullscreen || _controller.parts.length <= 1) {
+      final parts = _controller.parts;
+      if (parts.length <= 1) {
         return const SizedBox.shrink();
       }
       return Tooltip(

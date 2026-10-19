@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:tucao/models/danmaku.dart';
+import 'package:tucao/models/video.dart';
 import 'package:tucao/pages/video/widgets/player_gesture.dart';
 import 'package:tucao/pages/video/widgets/player_view.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
@@ -75,8 +76,13 @@ class _Controller implements PlayerPageController {
   final sourceError = RxnString();
   @override
   final part = 0.obs;
+  // 控制条上的选集按钮要读分P列表, 这里让它没有分P可选.
+  @override
+  final video = Rxn<VideoModel>();
   @override
   String get hid => '1';
+  @override
+  List<VideoPart> get parts => video.value?.parts ?? const [];
   @override
   DanmakuOption get danmakuOption => const DanmakuOption();
   @override
