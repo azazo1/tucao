@@ -206,46 +206,55 @@ class _ImageViewerPageState extends State<ImageViewerPage>
         onPointerDown: (_) => _stopZoomAnimation(),
         child: GestureDetector(
           onLongPress: _saving ? null : _showActions,
-          child: _buildImage(),
+          child: _buildImage(context),
         ),
       ),
     );
   }
 
-  Widget _buildImage() {
-    return ExtendedImage.network(
-      widget.url,
-      fit: BoxFit.contain,
-      mode: ExtendedImageMode.gesture,
-      extendedImageGestureKey: _gestureKey,
-      onDoubleTap: _handleDoubleTap,
-      initGestureConfigHandler: (state) => GestureConfig(
-        minScale: 0.8,
-        maxScale: 5,
-        initialScale: 1,
-        inPageView: false,
-        initialAlignment: InitialAlignment.center,
-        speed: 1,
-        inertialSpeed: 100,
+  Widget _buildImage(BuildContext context) {
+    // 手势模式下必须让图片占满整个视口: 它按自身布局盒的尺寸算落地矩形, 盒子
+    // 若只有图片原始大小, 图片就会按原始尺寸贴在左上角, 居中和缩放都失效.
+    final viewport = MediaQuery.sizeOf(context);
+    return SizedBox.fromSize(
+      size: viewport,
+      child: ExtendedImage.network(
+        widget.url,
+        width: viewport.width,
+        height: viewport.height,
+        fit: BoxFit.contain,
+        alignment: Alignment.center,
+        mode: ExtendedImageMode.gesture,
+        extendedImageGestureKey: _gestureKey,
+        onDoubleTap: _handleDoubleTap,
+        initGestureConfigHandler: (state) => GestureConfig(
+          minScale: 0.8,
+          maxScale: 5,
+          initialScale: 1,
+          inPageView: false,
+          initialAlignment: InitialAlignment.center,
+          speed: 1,
+          inertialSpeed: 100,
+        ),
+        loadStateChanged: (state) {
+          switch (state.extendedImageLoadState) {
+            case LoadState.loading:
+              return const Center(
+                child: CircularProgressIndicator(color: Colors.white70),
+              );
+            case LoadState.failed:
+              return const Center(
+                child: Text(
+                  '图片加载失败',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              );
+            case LoadState.completed:
+              // 返回 null 表示走默认渲染.
+              return null;
+          }
+        },
       ),
-      loadStateChanged: (state) {
-        switch (state.extendedImageLoadState) {
-          case LoadState.loading:
-            return const Center(
-              child: CircularProgressIndicator(color: Colors.white70),
-            );
-          case LoadState.failed:
-            return const Center(
-              child: Text(
-                '图片加载失败',
-                style: TextStyle(color: Colors.white70),
-              ),
-            );
-          case LoadState.completed:
-            // 返回 null 表示走默认渲染.
-            return null;
-        }
-      },
     );
   }
 }
