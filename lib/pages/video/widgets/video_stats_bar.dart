@@ -266,7 +266,9 @@ class _VideoStatsBarState extends State<VideoStatsBar>
             icon: favorited ? Icons.favorite : Icons.favorite_border,
             label: favorited ? '已追番, 点击取消' : '追番',
             value: stats.favoriteCount,
-            onTap: _favoriteBusy ? null : _toggleFavorite,
+            // 提交中照旧保留可点外壳, 只换成转圈; 重复提交由 _toggleFavorite 挡.
+            onTap: _toggleFavorite,
+            busy: _favoriteBusy,
           ),
         ],
       );

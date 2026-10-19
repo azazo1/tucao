@@ -8,6 +8,7 @@ class StatsBarItem {
     required this.label,
     this.value,
     this.onTap,
+    this.busy = false,
   });
 
   final IconData icon;
@@ -19,7 +20,13 @@ class StatsBarItem {
   final int? value;
 
   /// 不为空时该项可以点击, 目前只有播放页的追番.
+  ///
+  /// 提交中不要把它置空: 可点与不可点的外壳不一样高, 统计条会跟着抖一下,
+  /// 重复提交由 [onTap] 自己拦住.
   final VoidCallback? onTap;
+
+  /// 提交中, 用同尺寸的转圈顶替图标, 高度不变.
+  final bool busy;
 }
 
 /// 播放页与档案页共用的统计条.
@@ -58,10 +65,18 @@ class _StatsCell extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final value = item.value;
+    // 转圈与图标同样占 18 见方, 提交中换过去不会把统计条顶高.
+    final icon = item.busy
+        ? const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        : Icon(item.icon, size: 18, color: scheme.onSurfaceVariant);
     final content = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(item.icon, size: 18, color: scheme.onSurfaceVariant),
+        icon,
         const SizedBox(height: 2),
         Text(
           value == null ? '…' : Utils.formatCount(value),
