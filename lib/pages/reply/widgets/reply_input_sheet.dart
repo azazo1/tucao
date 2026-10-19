@@ -214,10 +214,14 @@ class _ReplyInputSheetState extends State<ReplyInputSheet> {
                     builder: (context, value, child) {
                       final canSend = value.text.trim().isNotEmpty;
                       return FilledButton(
-                        // 默认的点击热区会把按钮撑到 48 高, 与 40 高的
-                        // 输入框和图标按钮对不齐, 这里只保留可见高度.
+                        // 默认的点击热区会把按钮撑到 48 高, 只去掉热区后仍有
+                        // 40 高, 与 compact 密度下 32 高的图标按钮底边对齐时
+                        // 还是差一截; 这里把可见高度固定成与图标一致, 并收紧
+                        // 左右内边距.
                         style: FilledButton.styleFrom(
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          minimumSize: const Size(0, 32),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
                         ),
                         onPressed: canSend ? _submit : null,
                         child: const Text('发送'),
