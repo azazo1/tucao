@@ -32,6 +32,12 @@ class MinePage extends StatefulWidget {
 class _MinePageState extends State<MinePage> {
   String _version = '';
 
+  /// 手动刷新登录状态的次数, 头像横幅与续命卡片据此重新取数.
+  int _refreshTick = 0;
+
+  /// 刷新请求进行中, 避免下拉手势连续触发重复请求.
+  bool _refreshing = false;
+
   @override
   void initState() {
     super.initState();
@@ -84,10 +90,45 @@ class _MinePageState extends State<MinePage> {
     await UpdateService.checkManually(context);
   }
 
+  /// 刷新当前登录状态.
+  ///
+  /// 头像横幅与续命卡片不会跟着账号信息自动更新, 这里一并重新取数.
+  Future<void> _refresh() async {
+    if (_refreshing) {
+      return;
+    }
+    _refreshing = true;
+    final wasLogin = AccountService.instance.isLogin;
+    try {
+      final result = await AccountService.instance.refreshSession();
+      if (!mounted) {
+        return;
+      }
+      setState(() => _refreshTick++);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_refreshMessage(result, wasLogin: wasLogin)),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } finally {
+      _refreshing = false;
+    }
+  }
+
+  /// 刷新结果提示. 未登录时刷新只是确认状态, 不能提示登录失效.
+  String _refreshMessage(LoginRefreshResult result, {required bool wasLogin}) {
+    return switch (result) {
+      LoginRefreshResult.loggedIn => '登录状态已刷新',
+      LoginRefreshResult.loggedOut => wasLogin ? '登录已失效, 请重新登录' : '当前未登录',
+      LoginRefreshResult.failed => '刷新登录状态失败, 请稍后重试',
+    };
+  }
+
   /// 续命卡片.
   ///
   /// 数据来自会员中心, 需要登录态, 未登录时这一块不占位置;
-  /// 登录态变化时换 key, 卡片会跟着重新取数.
+  /// 登录态变化或手动刷新时换 key, 卡片会跟着重新取数.
   Widget _lifeSection() {
     return Obx(() {
       final user = AccountService.instance.user.value;
@@ -96,7 +137,7 @@ class _MinePageState extends State<MinePage> {
       }
       return Padding(
         padding: Style.pagePadding.add(const EdgeInsets.only(top: 12)),
-        child: LifeCard(key: ValueKey(user.userId)),
+        child: LifeCard(key: ValueKey('life-${user.userId}-$_refreshTick')),
       );
     });
   }
@@ -105,52 +146,59 @@ class _MinePageState extends State<MinePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('我的')),
-      body: ListView(
-        padding: EdgeInsets.symmetric(
-          horizontal: Adaptive.sidePadding(context),
-          vertical: 12,
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.symmetric(
+            horizontal: Adaptive.sidePadding(context),
+            vertical: 12,
+          ),
+          children: [
+            Padding(
+              padding: Style.pagePadding,
+              child: _UserHeader(refreshTick: _refreshTick),
+            ),
+            _lifeSection(),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.mail_outline),
+              title: const Text('私信'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Get.toNamed(Routes.inbox),
+            ),
+            ListTile(
+              leading: const Icon(Icons.history),
+              title: const Text('播放历史'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Get.toNamed(Routes.history),
+            ),
+            ListTile(
+              leading: const Icon(Icons.star_outline),
+              title: const Text('本地收藏'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Get.toNamed(Routes.favorites),
+            ),
+            ListTile(
+              leading: const Icon(Icons.download_outlined),
+              title: const Text('离线缓存'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Get.toNamed(Routes.downloads),
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings_outlined),
+              title: const Text('我的设置'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Get.toNamed(Routes.setting),
+            ),
+            ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: const Text('关于'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _showAbout,
+            ),
+          ],
         ),
-        children: [
-          const Padding(padding: Style.pagePadding, child: _UserHeader()),
-          _lifeSection(),
-          const SizedBox(height: 16),
-          ListTile(
-            leading: const Icon(Icons.mail_outline),
-            title: const Text('私信'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Get.toNamed(Routes.inbox),
-          ),
-          ListTile(
-            leading: const Icon(Icons.history),
-            title: const Text('播放历史'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Get.toNamed(Routes.history),
-          ),
-          ListTile(
-            leading: const Icon(Icons.star_outline),
-            title: const Text('本地收藏'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Get.toNamed(Routes.favorites),
-          ),
-          ListTile(
-            leading: const Icon(Icons.download_outlined),
-            title: const Text('离线缓存'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Get.toNamed(Routes.downloads),
-          ),
-          ListTile(
-            leading: const Icon(Icons.settings_outlined),
-            title: const Text('我的设置'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Get.toNamed(Routes.setting),
-          ),
-          ListTile(
-            leading: const Icon(Icons.info_outline),
-            title: const Text('关于'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _showAbout,
-          ),
-        ],
       ),
     );
   }
@@ -162,7 +210,10 @@ class _MinePageState extends State<MinePage> {
 /// 会员中心的影响. 有横幅就把它铺在卡片顶部, 没有就退回主题色渐变.
 /// 点卡片进自己的用户空间, 点头像或横幅则是放大查看, 放大后长按可保存.
 class _UserHeader extends StatefulWidget {
-  const _UserHeader();
+  const _UserHeader({required this.refreshTick});
+
+  /// 手动刷新登录状态的次数, 变化时重新拉取自己的空间资料.
+  final int refreshTick;
 
   @override
   State<_UserHeader> createState() => _UserHeaderState();
@@ -203,6 +254,22 @@ class _UserHeaderState extends State<_UserHeader> {
   void dispose() {
     _userWorker?.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant _UserHeader oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.refreshTick == oldWidget.refreshTick) {
+      return;
+    }
+    // 手动刷新时 uid 通常没变, 上面的监听不会触发, 这里强制重取头像与横幅.
+    final current = AccountService.instance.user.value;
+    _loadedUserId = 0;
+    if (current == null) {
+      _info = null;
+      return;
+    }
+    unawaited(_loadSpace(current.userId));
   }
 
   Future<void> _loadSpace(int userId) async {
