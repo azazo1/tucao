@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
+import 'package:tucao/common/widgets/unread_badge.dart';
 import 'package:tucao/http/message_http.dart';
 import 'package:tucao/models/message.dart';
 import 'package:tucao/router/routes.dart';
@@ -166,13 +167,19 @@ class _InboxTile extends StatelessWidget {
                           ),
                         ),
                       ),
-                      if (item.time.isNotEmpty)
+                      if (item.tip.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        UnreadBadge(text: item.tip),
+                      ],
+                      if (item.time.isNotEmpty) ...[
+                        const SizedBox(width: 6),
                         Text(
                           item.time,
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: scheme.onSurfaceVariant,
                           ),
                         ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 4),

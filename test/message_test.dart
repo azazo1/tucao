@@ -35,6 +35,18 @@ void main() {
     test('空页面返回空列表而不是抛异常', () {
       expect(MessageHttp.parseInboxHtml('<html></html>'), isEmpty);
     });
+
+    test('未读标记原样带出', () {
+      // 站点在条目里写 "未读" 与 "对方未读", 界面按原文显示.
+      expect(list[0].tip, '未读');
+      expect(list[1].tip, '对方未读');
+      final plain = MessageHttp.parseInboxHtml(
+        '<div class="minbox"><div class="item"><div class="r">'
+        '<a href="index.php?m=message&c=index&a=read&messageid=9">标题</a>'
+        '</div></div></div>',
+      );
+      expect(plain.single.tip, isEmpty);
+    });
   });
 
   group('私信详情解析', () {

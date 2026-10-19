@@ -234,7 +234,8 @@ abstract final class MessageHttp {
   /// 解析收件箱页面.
   ///
   /// 昵称, 摘要与时间都是相对标题链接查找的兄弟节点, 与官方客户端一致,
-  /// 不直接在整个 item 里找, 避免 item 内还有别的同类节点时取错.
+  /// 不直接在整个 item 里找, 避免 item 内还有别的同类节点时取错. 未读标记
+  /// 在条目里的 `span.tip`, 文本有 "未读" 与 "对方未读" 两种, 原样交给界面.
   static List<MessageModel> parseInboxHtml(String raw) {
     final document = html_parser.parse(raw);
     final list = <MessageModel>[];
@@ -259,6 +260,7 @@ abstract final class MessageHttp {
           message: link?.querySelector('div.c')?.text.trim() ??
               item.querySelector('div.c')?.text.trim() ??
               '',
+          tip: _inlineText(item.querySelector('span.tip')?.text ?? ''),
         ),
       );
     }

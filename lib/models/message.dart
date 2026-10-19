@@ -8,6 +8,7 @@ class MessageModel {
     this.avatar = '',
     this.time = '',
     this.message = '',
+    this.tip = '',
   });
 
   /// 消息 id, 用于拉取详情与回复.
@@ -23,6 +24,12 @@ class MessageModel {
 
   /// 消息摘要.
   final String message;
+
+  /// 站点打在条目上的状态标记.
+  ///
+  /// 对方发来还没看的是 "未读", 自己发出去对方还没看的是 "对方未读";
+  /// 站点没给标记时为空.
+  final String tip;
 }
 
 /// 入口上的未读数.

@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
+import 'package:tucao/common/widgets/unread_badge.dart';
 import 'package:tucao/http/message_http.dart';
 import 'package:tucao/models/message.dart';
 import 'package:tucao/router/routes.dart';
@@ -178,7 +179,7 @@ class _SystemTile extends StatelessWidget {
                       ),
                       if (item.unread) ...[
                         const SizedBox(width: 6),
-                        const _UnreadBadge(),
+                        const UnreadBadge(),
                       ],
                       if (item.time.isNotEmpty) ...[
                         const SizedBox(width: 6),
@@ -205,29 +206,6 @@ class _SystemTile extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// 未读标记, 站点在未读的条目上用同样的描边胶囊.
-class _UnreadBadge extends StatelessWidget {
-  const _UnreadBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-      decoration: BoxDecoration(
-        border: Border.all(color: scheme.primary),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        '未读',
-        style: Theme.of(
-          context,
-        ).textTheme.labelSmall?.copyWith(color: scheme.primary),
       ),
     );
   }
