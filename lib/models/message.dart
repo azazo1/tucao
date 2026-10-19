@@ -25,6 +25,20 @@ class MessageModel {
   final String message;
 }
 
+/// 入口上的未读数.
+///
+/// 站点在会员中心的导航里渲染这两个数字, 应用不自己算未读, 见
+/// `MessageHttp.parseUnread`.
+class MessageUnread {
+  const MessageUnread({this.inbox = 0, this.comment = 0});
+
+  /// 收件箱未读.
+  final int inbox;
+
+  /// 评论未读.
+  final int comment;
+}
+
 /// 私信详情里的一条消息.
 ///
 /// 同一个会话里双方的消息都在这一个列表里, 用 [isMine] 区分左右.

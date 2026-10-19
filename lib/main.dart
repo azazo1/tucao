@@ -11,6 +11,7 @@ import 'package:tucao/services/download/download_service.dart';
 import 'package:tucao/services/download/download_transport.dart';
 import 'package:tucao/services/history_service.dart';
 import 'package:tucao/services/favorite_service.dart';
+import 'package:tucao/services/message_count_service.dart';
 import 'package:tucao/services/site_favorite_service.dart';
 import 'package:tucao/services/theme_service.dart';
 import 'package:tucao/services/update/update_download_service.dart';
@@ -41,6 +42,8 @@ Future<void> main() async {
   Get.put(FavoriteService(), permanent: true);
   // 站点追番在播放页与我的收藏页共用, 拉取时机由页面决定.
   Get.put(SiteFavoriteService(), permanent: true);
+  // 未读私信与评论数挂在「我的」入口上, 需要登录态, 取数时机由主框架决定.
+  Get.put(MessageCountService(), permanent: true);
   final downloads = Get.put(
     DownloadService(transport: DioDownloadTransport(HttpUtil.dio)),
     permanent: true,

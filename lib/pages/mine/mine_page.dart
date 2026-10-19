@@ -17,6 +17,7 @@ import 'package:tucao/common/widgets/user_banner.dart';
 import 'package:tucao/pages/mine/widgets/update_download_panel.dart';
 import 'package:tucao/router/routes.dart';
 import 'package:tucao/services/account_service.dart';
+import 'package:tucao/services/message_count_service.dart';
 import 'package:tucao/services/update/update_download_service.dart';
 import 'package:tucao/services/update_service.dart';
 import 'package:tucao/utils/logger.dart';
@@ -77,14 +78,18 @@ class _MinePageState extends State<MinePage> {
 
   /// 刷新当前登录状态.
   ///
-  /// 头像横幅与续命卡片不会跟着账号信息自动更新, 这里一并重新取数.
+  /// 头像横幅与续命卡片不会跟着账号信息自动更新, 这里一并重新取数,
+  /// 顺带把私信与评论的未读数也更新一次.
   Future<void> _refresh() async {
     if (_refreshing) {
       return;
     }
     _refreshing = true;
     try {
-      await AccountService.instance.refresh();
+      await Future.wait([
+        AccountService.instance.refresh(),
+        MessageCountService.instance.refresh(),
+      ]);
       if (!mounted) {
         return;
       }
@@ -92,6 +97,15 @@ class _MinePageState extends State<MinePage> {
     } finally {
       _refreshing = false;
     }
+  }
+
+  /// 打开消息类入口.
+  ///
+  /// 站点的已读状态在打开会话时才清掉, 回到本页要重新取一次未读数,
+  /// 否则刚看完的私信还挂在入口上.
+  Future<void> _openMessage(String route) async {
+    await Get.toNamed(route);
+    await MessageCountService.instance.refresh();
   }
 
   /// 续命卡片.
@@ -130,17 +144,17 @@ class _MinePageState extends State<MinePage> {
             ),
             _lifeSection(),
             const SizedBox(height: 16),
-            ListTile(
-              leading: const Icon(Icons.mail_outline),
-              title: const Text('私信'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Get.toNamed(Routes.inbox),
+            _MessageEntry(
+              icon: Icons.mail_outline,
+              label: '私信',
+              count: MessageCountService.instance.inbox,
+              onTap: () => _openMessage(Routes.inbox),
             ),
-            ListTile(
-              leading: const Icon(Icons.comment_outlined),
-              title: const Text('评论'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Get.toNamed(Routes.comment),
+            _MessageEntry(
+              icon: Icons.comment_outlined,
+              label: '评论',
+              count: MessageCountService.instance.comment,
+              onTap: () => _openMessage(Routes.comment),
             ),
             ListTile(
               leading: const Icon(Icons.history),
@@ -177,6 +191,42 @@ class _MinePageState extends State<MinePage> {
         ),
       ),
     );
+  }
+}
+
+/// 消息类入口.
+///
+/// 有未读时图标上带一个红点, 标题后面跟上未读数量; 数量只写在标题里,
+/// 图标上的圆点不再重复数字. 未读数由服务持有, 组件自己订阅它, 数字变化时
+/// 只重建这一项.
+class _MessageEntry extends StatelessWidget {
+  const _MessageEntry({
+    required this.icon,
+    required this.label,
+    required this.count,
+    required this.onTap,
+  });
+
+  final IconData icon;
+
+  final String label;
+
+  /// 未读数来源.
+  final RxInt count;
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final unread = count.value;
+      return ListTile(
+        leading: Badge(isLabelVisible: unread > 0, child: Icon(icon)),
+        title: Text(unread > 0 ? '$label ($unread)' : label),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
+      );
+    });
   }
 }
 

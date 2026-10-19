@@ -56,6 +56,22 @@ abstract final class MessageHttp {
     return list;
   }
 
+  /// 入口上的未读数.
+  ///
+  /// 站点把未读数渲染在会员中心的左侧导航里, 私信与评论各一个. 这里不请求
+  /// 评论页: 站点在打开评论页时就把评论未读清掉, 取数不该替用户看一遍列表;
+  /// 会员中心页只把数字渲染出来, 反复请求它数字也不会变.
+  static Future<MessageUnread> unreadCounts({CancelToken? cancelToken}) async {
+    final raw = await _fetchPage(
+      ApiPath.memberCenter,
+      container: 'div.mnav',
+      cancelToken: cancelToken,
+    );
+    final counts = parseUnread(raw);
+    Log.i('未读数: 私信 ${counts.inbox} 条, 评论 ${counts.comment} 条');
+    return counts;
+  }
+
   static Future<List<MessageDetail>> detail({
     required String messageId,
     required String selfUid,
@@ -373,6 +389,44 @@ abstract final class MessageHttp {
       );
     }
     return CommentMessagePage(list: list, hasMore: _hasNextPage(document, page));
+  }
+
+  /// 解析会员中心页面里的未读数.
+  ///
+  /// 私信与评论各取一次导航里的数字, 站点没给数字的就是没有未读.
+  static MessageUnread parseUnread(String raw) {
+    final document = html_parser.parse(raw);
+    return MessageUnread(
+      inbox: _navUnread(document, 'inbox') ?? 0,
+      comment: _navUnread(document, 'comment') ?? 0,
+    );
+  }
+
+  /// 左侧导航里的未读数字.
+  ///
+  /// 会员中心与消息页共用一套导航, 私信入口写作
+  /// `<a href="...a=inbox"><span class="m">1</span>私信</a>`, 评论入口写作
+  /// `<a href="...a=comment">评论<span>1</span></a>`: 数字都在 span 里, 位置
+  /// 前后不一. 没有未读时那个 span 为空或不存在, 此时返回 null.
+  static int? _navUnread(Document document, String action) {
+    for (final link in document.querySelectorAll('a[href]')) {
+      if (_urlAction(link.attributes['href'] ?? '') != action) {
+        continue;
+      }
+      for (final span in link.querySelectorAll('span')) {
+        final number = int.tryParse(_inlineText(span.text));
+        if (number != null && number > 0) {
+          return number;
+        }
+      }
+    }
+    return null;
+  }
+
+  /// 地址里的动作名, 取不到时为空.
+  static String _urlAction(String href) {
+    final match = RegExp(r'[?&]a=([a-z_]+)').firstMatch(href);
+    return match?.group(1) ?? '';
   }
 
   /// 从一句 `作者 · 2026-10-19` 里取出日期部分.

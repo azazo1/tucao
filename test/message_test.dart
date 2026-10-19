@@ -241,4 +241,52 @@ void main() {
       expect(CommentTarget.parse(''), isNull);
     });
   });
+
+  group('未读数解析', () {
+    // 站点把未读数渲染在会员中心的导航里, 私信的数字写在文字前面, 评论的
+    // 写在文字后面, 没有未读时那个 span 为空或不存在.
+    const page = '''
+<html><body>
+<div class="mnav">
+  <a href="/index.php?m=member&amp;c=index&amp;a=init">会员中心</a>
+  <a href="/index.php?m=message&amp;c=index&amp;a=inbox"><span class="m">1</span>私信</a>
+  <a href="/index.php?m=member&amp;c=index&amp;a=comment"><span class="m">2</span>评论</a>
+  <a href="/index.php?m=member&amp;c=index&amp;a=favorite">追番</a>
+</div>
+<div class="minbox">
+  <div class="item">
+    <div class="r">
+      <a href="index.php?m=message&amp;c=index&amp;a=read&amp;messageid=1">标题</a>
+    </div>
+  </div>
+</div>
+</body></html>
+''';
+
+    test('私信与评论各取自己的数字', () {
+      final counts = MessageHttp.parseUnread(page);
+      expect(counts.inbox, 1);
+      expect(counts.comment, 2);
+    });
+
+    test('没有未读标记时为 0', () {
+      const empty = '''
+<html><body>
+<div class="mnav">
+  <a href="/index.php?m=message&amp;c=index&amp;a=inbox">私信<span></span></a>
+  <a href="/index.php?m=member&amp;c=index&amp;a=comment">评论</a>
+</div>
+</body></html>
+''';
+      final counts = MessageHttp.parseUnread(empty);
+      expect(counts.inbox, 0);
+      expect(counts.comment, 0);
+    });
+
+    test('空页面没有未读', () {
+      final counts = MessageHttp.parseUnread('<html></html>');
+      expect(counts.inbox, 0);
+      expect(counts.comment, 0);
+    });
+  });
 }
