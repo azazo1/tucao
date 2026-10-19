@@ -56,65 +56,59 @@ abstract final class UpdateService {
     if (Pref.skippedUpdateVersion == release.tagName) {
       return;
     }
-    await _showDialog(context, release);
+    final message = await _showDialog(context, release);
+    if (message != null && context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    }
   }
 
   /// 手动检查, 无论用户是否跳过过该版本都给出结果.
-  static Future<void> checkManually(BuildContext context) async {
+  ///
+  /// 返回值是本次要提示给用户的文案, 由调用方决定显示位置: 关于对话框把它
+  /// 显示在框内, 因此这里不再自己弹提示条, 免得被对话框挡住.
+  /// 发现新版本时返回更新对话框给出的结果, 不需要补充提示时返回 null.
+  static Future<String?> checkManually(BuildContext context) async {
     final current = await _currentVersion();
     AppRelease? release;
     try {
       release = await UpdateHttp.fetchLatest();
     } catch (error) {
       Log.w('检查更新失败: $error');
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('检查更新失败, 请稍后重试')));
-      }
-      return;
+      return '检查更新失败, 请稍后重试';
     }
     if (!context.mounted) {
-      return;
+      return null;
     }
     if (release == null ||
         !Version.isNewer(current: current, candidate: release.tagName)) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('已是最新版本')));
-      return;
+      return '已是最新版本';
     }
-    await _showDialog(context, release);
+    return _showDialog(context, release);
   }
 
-  /// 手动检查 CI 上的开发版构建.
+  /// 手动检查 CI 上的开发版构建, 返回需要提示给用户的文案.
   ///
   /// 开发版是分支推送产生的滚动预发布, 产物会被后续推送覆盖,
   /// 因此只比较注入的版本串, 不提供"忽略此版本".
-  static Future<void> checkDevManually(BuildContext context) async {
+  static Future<String?> checkDevManually(BuildContext context) async {
     DevBuild? build;
     try {
       build = await UpdateHttp.fetchDevLatest();
     } catch (error) {
       Log.w('检查开发版更新失败: $error');
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('检查开发版更新失败, 请稍后重试')));
-      }
-      return;
+      return '检查开发版更新失败, 请稍后重试';
     }
     if (!context.mounted) {
-      return;
+      return null;
     }
     if (build == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('没能读取 CI 上的开发版信息')));
-      return;
+      return '没能读取 CI 上的开发版信息';
     }
     Log.i('CI 开发版 ${build.buildVersion}, 当前构建 ${BuildConfig.buildVersion}');
     await _showDevDialog(context, build);
+    return null;
   }
 
   /// 查询比当前版本新的发布, 没有或请求失败时返回 null.
@@ -154,14 +148,15 @@ abstract final class UpdateService {
   /// 更新提示对话框, 按用户选择决定是否记住该版本或开始应用内下载.
   ///
   /// 手动检查同样走这里, 因此忽略过的版本在手动检查时还会出现.
-  static Future<void> _showDialog(
+  /// 返回对话框之后还要提示给用户的文案.
+  static Future<String?> _showDialog(
     BuildContext context,
     AppRelease release,
   ) async {
     // 设备 ABI 决定取哪个安装包, 本机没有对应产物时只留发布页入口.
     final abis = await UpdateInstaller.supportedAbis();
     if (!context.mounted) {
-      return;
+      return null;
     }
     final asset = release.apkFor(abis);
     final choice = await showDialog<_UpdateChoice>(
@@ -237,20 +232,15 @@ abstract final class UpdateService {
       },
     );
     if (!context.mounted) {
-      return;
+      return null;
     }
     if (choice == _UpdateChoice.ignore) {
       Pref.skippedUpdateVersion = release.tagName;
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('已忽略 ${release.tagName}, 发布新版本时会再次提示')),
-        );
-      }
-      return;
+      return '已忽略 ${release.tagName}, 发布新版本时会再次提示';
     }
     if (choice == _UpdateChoice.page) {
       await _openUrl(context, release.pageUrl);
-      return;
+      return null;
     }
     if (choice == _UpdateChoice.download) {
       _startDownload(
@@ -262,6 +252,7 @@ abstract final class UpdateService {
       );
     }
     // 选稍后或直接关闭时不做记录, 下次启动的自动检查会重新提示.
+    return null;
   }
 
   /// 开始应用内下载.

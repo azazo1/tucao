@@ -69,46 +69,10 @@ class _MinePageState extends State<MinePage> {
   void _showAbout() {
     showDialog<void>(
       context: context,
-      builder: (dialogContext) => _AboutDialog(
-        version: _version,
-        onCheckUpdate: () {
-          Navigator.pop(dialogContext);
-          unawaited(_checkUpdate());
-        },
-        onCheckDevUpdate: () {
-          Navigator.pop(dialogContext);
-          unawaited(_checkDevUpdate());
-        },
-      ),
+      // 检查更新与下载都在对话框内部处理: 提示框叠在它上面, 关掉提示后
+      // 仍然停在关于页, 下载进度与安装入口就在眼前.
+      builder: (_) => _AboutDialog(version: _version),
     );
-  }
-
-  /// 手动检查更新, 关于对话框关闭后调用, 因此可以正常弹出提示.
-  Future<void> _checkUpdate() async {
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('正在检查更新...'),
-        duration: Duration(seconds: 2),
-      ),
-    );
-    await UpdateService.checkManually(context);
-  }
-
-  /// 检查 CI 上 dev-latest 的开发版构建是否有更新.
-  Future<void> _checkDevUpdate() async {
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('正在检查开发版更新...'),
-        duration: Duration(seconds: 2),
-      ),
-    );
-    await UpdateService.checkDevManually(context);
   }
 
   /// 刷新当前登录状态.
@@ -510,16 +474,47 @@ class VipBadge extends StatelessWidget {
 }
 
 /// 关于对话框.
-class _AboutDialog extends StatelessWidget {
-  const _AboutDialog({
-    required this.version,
-    required this.onCheckUpdate,
-    required this.onCheckDevUpdate,
-  });
+///
+/// 检查更新与下载状态都在这里: 更新提示对话框叠在它上面, 关掉提示后仍然
+/// 停在关于页, 下载进度与安装入口就近可见.
+class _AboutDialog extends StatefulWidget {
+  const _AboutDialog({required this.version});
 
   final String version;
-  final VoidCallback onCheckUpdate;
-  final VoidCallback onCheckDevUpdate;
+
+  @override
+  State<_AboutDialog> createState() => _AboutDialogState();
+}
+
+class _AboutDialogState extends State<_AboutDialog> {
+  /// 正在向 GitHub 查询, 期间禁用两个入口, 避免重复请求.
+  bool _checking = false;
+
+  /// 上一次检查的结果; 发现新版本时由更新提示对话框代替它.
+  String _message = '';
+
+  Future<void> _check({required bool dev}) async {
+    if (_checking) {
+      return;
+    }
+    setState(() {
+      _checking = true;
+      _message = '';
+    });
+    try {
+      final message = dev
+          ? await UpdateService.checkDevManually(context)
+          : await UpdateService.checkManually(context);
+      if (!mounted) {
+        return;
+      }
+      setState(() => _message = message ?? '');
+    } finally {
+      if (mounted) {
+        setState(() => _checking = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -545,9 +540,22 @@ class _AboutDialog extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              version.isEmpty ? '版本读取中' : '版本 $version',
+              widget.version.isEmpty ? '版本读取中' : '版本 ${widget.version}',
               style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
             ),
+            // 检查结果直接显示在框内, 提示条会被本对话框挡住.
+            if (_checking || _message.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  _checking ? '正在检查更新...' : _message,
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.5,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
             // 更新包的下载在对话框之外继续, 这里接着显示进度与安装入口.
             if (download != null) UpdateDownloadPanel(service: download),
             const SizedBox(height: 12),
@@ -569,8 +577,14 @@ class _AboutDialog extends StatelessWidget {
         ),
       ),
       actions: [
-        TextButton(onPressed: onCheckDevUpdate, child: const Text('检查开发版更新')),
-        TextButton(onPressed: onCheckUpdate, child: const Text('检查更新')),
+        TextButton(
+          onPressed: _checking ? null : () => _check(dev: true),
+          child: const Text('检查开发版更新'),
+        ),
+        TextButton(
+          onPressed: _checking ? null : () => _check(dev: false),
+          child: const Text('检查更新'),
+        ),
       ],
     );
   }
