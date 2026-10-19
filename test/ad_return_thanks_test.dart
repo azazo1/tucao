@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:tucao/common/widgets/cc/cc_peek_thanks.dart';
+import 'package:tucao/common/widgets/cc/comic_speech_bubble.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/http/ad_http.dart';
 import 'package:tucao/models/user.dart';
@@ -142,6 +143,14 @@ void main() {
     expect(find.byType(CcPeekThanks, skipOffstage: false), findsNothing);
     await finishPop(tester);
     await pumpUntil(tester, find.byType(CcPeekThanks), present: true);
+    final peekBubble = find.descendant(
+      of: find.byType(CcPeekThanks),
+      matching: find.byType(ComicSpeechBubble),
+    );
+    expect(
+      tester.widget<ComicSpeechBubble>(peekBubble).tail,
+      ComicBubbleTail.right,
+    );
     expect(find.byType(AdFinishedPanel), findsNothing);
     expect(find.byKey(const ValueKey('ad-t1')), findsNothing);
     expect(reports, 1);
@@ -307,6 +316,39 @@ void main() {
     expect(thanks, findsNothing);
     expect(find.byType(AdFinishedPanel), findsOneWidget);
     expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('矮屏收尾页按可用高度缩小人物并贴底', (tester) async {
+    tester.view.physicalSize = const Size(800, 300);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(body: AdFinishedPanel(completedHere: true)),
+    ));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    final panel = find.byType(AdFinishedPanel);
+    final image = find.descendant(of: panel, matching: find.byType(Image));
+    expect(image, findsOneWidget);
+    expect(tester.getSize(image).height, lessThan(232));
+    expect(
+      tester.getBottomLeft(image).dy,
+      moreOrLessEquals(tester.getBottomLeft(panel).dy),
+    );
+    expect(
+      find.descendant(of: panel, matching: find.byType(ShaderMask)),
+      findsOneWidget,
+    );
+    final bubble = find.descendant(
+      of: panel,
+      matching: find.byType(ComicSpeechBubble),
+    );
+    expect(
+      tester.widget<ComicSpeechBubble>(bubble).tail,
+      ComicBubbleTail.right,
+    );
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

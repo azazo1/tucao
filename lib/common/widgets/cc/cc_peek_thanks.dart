@@ -148,6 +148,7 @@ class _CcPeekThanksState extends State<CcPeekThanks>
                               child: GestureDetector(
                                 onTap: widget.onDismiss,
                                 child: ComicSpeechBubble(
+                                  tail: ComicBubbleTail.right,
                                   fill: scheme.surfaceContainerLow,
                                   ink: scheme.outlineVariant,
                                   child: Text(
