@@ -53,9 +53,9 @@ abstract final class AdHttp {
 
   /// 上报一次广告点击.
   ///
-  /// 打的是站点页面里 `adClick` 用的同一个地址, UA 也与抓广告位时一致,
-  /// 站点据此记积分与续命. 上报失败只记日志: 统计不该挡住用户看广告.
-  static Future<void> reportClick(String adId) async {
+  /// 返回站点是否明确接受本次点击, 不表示续命天数已到账.
+  /// 失败或未知响应不展示成功感谢, 也不挡住用户看广告.
+  static Future<bool> reportClick(String adId) async {
     final url = ApiPath.adClickUrl(
       adId,
       timestamp: DateTime.now().millisecondsSinceEpoch,
@@ -65,9 +65,18 @@ abstract final class AdHttp {
         url,
         options: Options(headers: {'user-agent': Constants.desktopUserAgent}),
       );
-      Log.i('广告点击上报 $adId 返回 ${response.data}');
+      final accepted = response.statusCode == 200 &&
+          response.data.toString().trim() == '1';
+      if (accepted) {
+        Log.i('广告点击上报已接受 $adId');
+      } else {
+        Log.w('广告点击上报未确认 $adId, HTTP ${response.statusCode}, '
+            '返回 ${response.data}');
+      }
+      return accepted;
     } catch (error, stackTrace) {
       Log.e('广告点击上报失败 $adId', error: error, stackTrace: stackTrace);
+      return false;
     }
   }
 
