@@ -1,5 +1,4 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 import 'package:html/dom.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:tucao/common/constants.dart';
@@ -116,8 +115,6 @@ abstract final class MessageHttp {
       cancelToken: cancelToken,
     );
     final raw = response.data.toString();
-    // todo remove 临时探针, 定位打开私信掉登录后删除.
-    _probe(response);
     if (container != null &&
         html_parser.parse(raw).querySelector(container) == null &&
         _looksLikeLoginPage(raw)) {
@@ -133,39 +130,6 @@ abstract final class MessageHttp {
   static bool _looksLikeLoginPage(String raw) {
     final head = raw.length > 4096 ? raw.substring(0, 4096) : raw;
     return head.contains('登录') || head.contains('登陆');
-  }
-
-  /// 临时探针: 把请求带的 cookie 名与响应里的登记信息打到日志里.
-  ///
-  /// 只记 cookie 名与是否被清除, 不记内容.
-  // todo remove
-  static void _probe(Response<dynamic> response) {
-    final request = response.requestOptions;
-    final sent = request.headers['cookie']?.toString() ?? '';
-    final sentNames = RegExp(r'(?:^|;\s*)([^=;\s]+)=')
-        .allMatches(sent)
-        .map((match) => match.group(1))
-        .join(',');
-    final setCookie = response.headers['set-cookie'] ?? const <String>[];
-    final setSummary = setCookie
-        .map((cookie) {
-          final name = cookie.split('=').first.trim();
-          final cleared = RegExp(
-            r'expires=[^;]*19\d\d|deleted',
-            caseSensitive: false,
-          ).hasMatch(cookie);
-          return '$name${cleared ? '-清' : '-置'}';
-        })
-        .join(' ');
-    final body = response.data.toString();
-    final mobile =
-        (request.headers['user-agent']?.toString() ?? '').contains('Android');
-    debugPrint(
-      '[probe] ${request.uri.path}?${request.uri.query} '
-      'ua=${mobile ? 'mobile' : 'desktop'} status=${response.statusCode} '
-      'len=${body.length} minbox=${body.contains('minbox')} '
-      'login=${body.contains('登录')} sent=[$sentNames] setcookie=[$setSummary]',
-    );
   }
 
   /// 发送私信, 成功返回空, 失败返回提示文本.
