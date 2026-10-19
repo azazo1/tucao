@@ -11,15 +11,23 @@ class SubjectField {
 
 /// 站点播放页里的番组信息.
 class VideoSubjectInfo {
-  const VideoSubjectInfo(this.fields);
+  const VideoSubjectInfo(this.fields, {this.cover = ''});
 
   static const empty = VideoSubjectInfo([]);
 
   final List<SubjectField> fields;
 
+  /// 番组封面, 取自播放页区块左侧的竖版图, 没有时为空串.
+  final String cover;
+
+  /// 字段是否为空, 摘要行据此决定要不要显示入口.
+  ///
+  /// 封面不参与判断: 摘要行本身排不下封面, 只有字段时才有可读的摘要文字.
   bool get isEmpty => fields.isEmpty;
 
   bool get isNotEmpty => fields.isNotEmpty;
+
+  bool get hasCover => cover.isNotEmpty;
 
   /// 按标签取值, 找不到时返回空串.
   String valueOf(String label) {

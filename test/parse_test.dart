@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tucao/common/constants.dart';
 import 'package:tucao/http/ad_http.dart';
 import 'package:tucao/http/api_path.dart';
 import 'package:tucao/http/rank_http.dart';
@@ -323,6 +324,35 @@ void main() {
 
     test('没有信息区块时返回空', () {
       expect(VideoHttp.parseSubjectInfoHtml('<html></html>').isEmpty, isTrue);
+    });
+
+    test('解析番组封面并补全相对地址', () {
+      const raw = '''
+      <div class="vdata">
+        <div class="vdata_thumb"><a class="vp" style="background-image:url(/uploadfile/2026/1007/thumb_320_428_20261007011649374.jpg);"><img src="/uploadfile/2023/1210/20231210080103248.png" /></a></div>
+        <div class="vdata_info"><div class="b">
+          <span class="n">类型：</span>搞笑 <br />
+        </div></div>
+      </div>
+      ''';
+      final info = VideoHttp.parseSubjectInfoHtml(raw);
+      expect(
+        info.cover,
+        '${Constants.baseUrl}uploadfile/2026/1007/thumb_320_428_20261007011649374.jpg',
+      );
+      expect(info.valueOf('类型'), '搞笑');
+    });
+
+    test('封面只认背景图, 不拿占位图的 src 兜底', () {
+      const raw = '''
+      <div class="vdata">
+        <div class="vdata_thumb"><a class="vp"><img src="/uploadfile/2023/1210/20231210080103248.png" /></a></div>
+        <div class="vdata_info"><div class="b">
+          <span class="n">类型：</span>搞笑 <br />
+        </div></div>
+      </div>
+      ''';
+      expect(VideoHttp.parseSubjectInfoHtml(raw).cover, isEmpty);
     });
   });
 }
