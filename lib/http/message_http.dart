@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:html/dom.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:tucao/common/constants.dart';
@@ -21,16 +22,34 @@ import 'package:tucao/utils/site_url.dart';
 ///   与自己 uid 相同的条目即为本人发出.
 /// - 系统公告列表同样是 `div.minbox div.item`, 但链接带 `group_id=数字`,
 ///   未读的条目多一个 `span.tip`; 详情是 `div.group_show` 里的一段富文本.
+/// 消息接口需要登录态, 站点认为没登录时抛出.
+///
+/// [toString] 直接给出可以显示的文案, 界面把异常文本原样当提示用.
+class MessageLoginException implements Exception {
+  const MessageLoginException();
+
+  @override
+  String toString() => '登录状态已过期, 请重新登录';
+}
+
 abstract final class MessageHttp {
+  /// 消息页面的请求 UA.
+  ///
+  /// 站点把登录态和 UA 绑在一起校验, 登录用的是手机 UA. 换成桌面 UA 抓这些
+  /// 页面会被判成未登录, 站点还会顺手让 cookie 失效, 用户那边的感受就是
+  /// "打开私信就掉登录". 会员中心遇到过同样的问题, 见 LifeHttp, 站点侧的说明
+  /// 记在 [Constants.desktopUserAgent] 上的 TOFIX(site).
+  static const _pageUserAgent = Constants.userAgent;
+
   static Future<List<MessageModel>> inbox({
     CancelToken? cancelToken,
   }) async {
-    final response = await HttpUtil.dio.get(
-      '${Constants.baseUrl}${ApiPath.messageList}',
-      options: Options(headers: {'user-agent': Constants.desktopUserAgent}),
+    final raw = await _fetchPage(
+      ApiPath.messageList,
+      container: 'div.minbox',
       cancelToken: cancelToken,
     );
-    final list = parseInboxHtml(response.data.toString());
+    final list = parseInboxHtml(raw);
     Log.i('收件箱解析完成, 共 ${list.length} 条');
     return list;
   }
@@ -40,13 +59,13 @@ abstract final class MessageHttp {
     required String selfUid,
     CancelToken? cancelToken,
   }) async {
-    final response = await HttpUtil.dio.get(
-      '${Constants.baseUrl}${ApiPath.messageDetail}',
-      queryParameters: {'messageid': messageId},
-      options: Options(headers: {'user-agent': Constants.desktopUserAgent}),
+    final raw = await _fetchPage(
+      ApiPath.messageDetail,
+      query: {'messageid': messageId},
+      container: 'div.mread',
       cancelToken: cancelToken,
     );
-    final list = parseDetailHtml(response.data.toString(), selfUid);
+    final list = parseDetailHtml(raw, selfUid);
     Log.i('私信详情解析完成, 共 ${list.length} 条');
     return list;
   }
@@ -55,12 +74,12 @@ abstract final class MessageHttp {
   static Future<List<SystemMessage>> groupList({
     CancelToken? cancelToken,
   }) async {
-    final response = await HttpUtil.dio.get(
-      '${Constants.baseUrl}${ApiPath.messageGroupList}',
-      options: Options(headers: {'user-agent': Constants.desktopUserAgent}),
+    final raw = await _fetchPage(
+      ApiPath.messageGroupList,
+      container: 'div.minbox',
       cancelToken: cancelToken,
     );
-    final list = parseGroupListHtml(response.data.toString());
+    final list = parseGroupListHtml(raw);
     Log.i('系统公告解析完成, 共 ${list.length} 条');
     return list;
   }
@@ -72,13 +91,81 @@ abstract final class MessageHttp {
     required String groupId,
     CancelToken? cancelToken,
   }) async {
-    final response = await HttpUtil.dio.get(
-      '${Constants.baseUrl}${ApiPath.messageGroupDetail}',
-      queryParameters: {'group_id': groupId},
-      options: Options(headers: {'user-agent': Constants.desktopUserAgent}),
+    final raw = await _fetchPage(
+      ApiPath.messageGroupDetail,
+      query: {'group_id': groupId},
+      container: 'div.group_show',
       cancelToken: cancelToken,
     );
-    return parseGroupDetailHtml(response.data.toString());
+    return parseGroupDetailHtml(raw);
+  }
+
+  /// 抓一个需要登录态的消息页面.
+  ///
+  /// [container] 是这一页必须有的容器, 页面里没有它说明站点给的不是这个页面.
+  static Future<String> _fetchPage(
+    String path, {
+    Map<String, String>? query,
+    String? container,
+    CancelToken? cancelToken,
+  }) async {
+    final response = await HttpUtil.dio.get(
+      '${Constants.baseUrl}$path',
+      queryParameters: query,
+      options: Options(headers: {'user-agent': _pageUserAgent}),
+      cancelToken: cancelToken,
+    );
+    final raw = response.data.toString();
+    // todo remove 临时探针, 定位打开私信掉登录后删除.
+    _probe(response);
+    if (container != null &&
+        html_parser.parse(raw).querySelector(container) == null &&
+        _looksLikeLoginPage(raw)) {
+      throw const MessageLoginException();
+    }
+    return raw;
+  }
+
+  /// 页面是不是在要求登录.
+  ///
+  /// 登录态失效时站点返回一个很短的提示页, 里面没有消息容器; 只有页面里出现
+  /// 登录字样才当成登录失效, 免得站点改版时把别的页面误报成掉登录.
+  static bool _looksLikeLoginPage(String raw) {
+    final head = raw.length > 4096 ? raw.substring(0, 4096) : raw;
+    return head.contains('登录') || head.contains('登陆');
+  }
+
+  /// 临时探针: 把请求带的 cookie 名与响应里的登记信息打到日志里.
+  ///
+  /// 只记 cookie 名与是否被清除, 不记内容.
+  // todo remove
+  static void _probe(Response<dynamic> response) {
+    final request = response.requestOptions;
+    final sent = request.headers['cookie']?.toString() ?? '';
+    final sentNames = RegExp(r'(?:^|;\s*)([^=;\s]+)=')
+        .allMatches(sent)
+        .map((match) => match.group(1))
+        .join(',');
+    final setCookie = response.headers['set-cookie'] ?? const <String>[];
+    final setSummary = setCookie
+        .map((cookie) {
+          final name = cookie.split('=').first.trim();
+          final cleared = RegExp(
+            r'expires=[^;]*19\d\d|deleted',
+            caseSensitive: false,
+          ).hasMatch(cookie);
+          return '$name${cleared ? '-清' : '-置'}';
+        })
+        .join(' ');
+    final body = response.data.toString();
+    final mobile =
+        (request.headers['user-agent']?.toString() ?? '').contains('Android');
+    debugPrint(
+      '[probe] ${request.uri.path}?${request.uri.query} '
+      'ua=${mobile ? 'mobile' : 'desktop'} status=${response.statusCode} '
+      'len=${body.length} minbox=${body.contains('minbox')} '
+      'login=${body.contains('登录')} sent=[$sentNames] setcookie=[$setSummary]',
+    );
   }
 
   /// 发送私信, 成功返回空, 失败返回提示文本.

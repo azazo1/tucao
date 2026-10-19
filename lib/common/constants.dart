@@ -33,6 +33,15 @@ abstract final class Constants {
   ///
   /// 排行榜等 html 页面按 UA 裁剪内容, 只有桌面 UA 才能拿到
   /// 今天/本周/本月/今年 四个时间维度的完整榜单.
+  ///
+  /// TOFIX(site): 站点的登录态是跟 UA 一起校验的, 会话只在登录时的 UA 下才被认.
+  /// 第三方客户端一旦对同一个会话混用两套 UA, 站点就判成未登录, 还会顺手让
+  /// cookie 失效, 用户那边表现为"打开某个页面就掉登录". 安卓端的私信页用桌面
+  /// UA 抓收件箱与系统公告时踩到的就是这个坑, 会员中心的续命区块也遇到过.
+  ///
+  /// 站点侧最好把会话校验与 UA 解耦, 至少判定未登录时不要清掉 cookie. 在站点
+  /// 修好之前, 客户端这边遵守: 与登录态有关的请求统一用 [userAgent], 只有为了
+  /// 拿完整模板才需要桌面 UA 的公开页面才用 [desktopUserAgent].
   static const desktopUserAgent =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
       '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
