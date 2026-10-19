@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -239,11 +241,15 @@ func (a *App) downloadImages(ctx context.Context, client *api.Client, space mode
 //
 // 先落在 .download 暂存文件上, 通过校验才改名; 认不出内容的一律删掉, 免得
 // 像站点上的坏头像那样留下一个打不开的文件, 还让人以为下载成功了.
+//
+// 请求时给地址补一个一次性参数, 理由见 withCacheBust; 结果里的地址仍写站点
+// 原本给出的那个, 免得表格与全量输出里出现一堆只有本次有效的参数.
 func (a *App) downloadImage(ctx context.Context, client *api.Client, target imageTarget,
 	base, directory, referer string, overwrite bool) (imageItem, error) {
 	label := imageLabel(target.kind)
 	staging := filepath.Join(directory, base+"-"+target.kind+".download")
-	result, err := download.File(ctx, client.HTTP, target.source, staging, download.Options{
+	source := withCacheBust(target.source, time.Now())
+	result, err := download.File(ctx, client.HTTP, source, staging, download.Options{
 		UserAgent: api.DesktopUserAgent,
 		Referer:   referer,
 		// 暂存文件是本次下载的中间产物, 每次都从头写.
@@ -276,6 +282,23 @@ func (a *App) downloadImage(ctx context.Context, client *api.Client, target imag
 		Height: info.Height,
 		Bytes:  result.Bytes,
 	}, nil
+}
+
+// withCacheBust 给图片地址补一个一次性查询参数, 用来绕开站点缓存.
+//
+// 站点给图片设了 30 天缓存, 缓存键包含查询串. 换过头像的账号在旧缓存过期之前,
+// 用空间页里的原地址只会拿到早就失效的坏内容(实测是 8 字节的文件头), 网页端
+// 因此每次访问都带一个新的时间戳; 这里照网页的做法处理, 地址里原有的查询参数
+// 一律保留, 只把版本参数换成新的.
+func withCacheBust(source string, stamp time.Time) string {
+	parsed, err := url.Parse(strings.TrimSpace(source))
+	if err != nil || parsed.Scheme == "" {
+		return source
+	}
+	query := parsed.Query()
+	query.Set("_t", stamp.Format("20060102150405"))
+	parsed.RawQuery = query.Encode()
+	return parsed.String()
 }
 
 // imageFileName 拼出最终文件名: 前缀加类型与识别出来的扩展名.

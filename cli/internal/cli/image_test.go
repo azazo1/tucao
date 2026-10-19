@@ -3,6 +3,7 @@ package cli
 import (
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/azazo1/tucao/cli/internal/model"
 )
@@ -58,5 +59,27 @@ func TestImageTargets(t *testing.T) {
 	got := imageTargets(space, []string{imageBanner, imageAvatar})
 	if len(got) != 2 || got[0].kind != imageBanner || got[1].kind != imageAvatar {
 		t.Fatalf("下载顺序应当跟随 kinds: %+v", got)
+	}
+}
+
+func TestWithCacheBust(t *testing.T) {
+	stamp := time.Date(2026, 10, 19, 19, 30, 0, 0, time.UTC)
+	avatar := "https://www.tucao.my/phpsso_server/uploadfile/avatar/47/6/465088/180x180.jpg"
+
+	if got, want := withCacheBust(avatar, stamp), avatar+"?_t=20261019193000"; got != want {
+		t.Fatalf("withCacheBust = %q, 期望 %q", got, want)
+	}
+
+	// 站点自己带的参数要留着, 旧的版本参数换成新的.
+	withQuery := "https://www.tucao.my/a.jpg?size=180&_t=old"
+	if got, want := withCacheBust(withQuery, stamp), "https://www.tucao.my/a.jpg?_t=20261019193000&size=180"; got != want {
+		t.Fatalf("带原有参数时 withCacheBust = %q, 期望 %q", got, want)
+	}
+
+	// 空地址与相对地址原样返回, 免得把站点给的原样地址改坏.
+	for _, raw := range []string{"", "   ", "/uploadfile/a.jpg"} {
+		if got := withCacheBust(raw, stamp); got != raw {
+			t.Fatalf("withCacheBust(%q) 不该改写, 实际 %q", raw, got)
+		}
 	}
 }
