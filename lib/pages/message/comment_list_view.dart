@@ -74,7 +74,7 @@ class CommentListController extends GetxController {
   }
 }
 
-/// 评论列表, 作为消息页里的第二个标签.
+/// 评论列表, 供评论页使用.
 class CommentListView extends StatefulWidget {
   const CommentListView({super.key});
 

@@ -13,6 +13,7 @@ import 'package:tucao/pages/login/forgot_password_page.dart';
 import 'package:tucao/pages/login/login_page.dart';
 import 'package:tucao/pages/login/register_page.dart';
 import 'package:tucao/pages/main/main_page.dart';
+import 'package:tucao/pages/message/comment_page.dart';
 import 'package:tucao/pages/message/message_center_page.dart';
 import 'package:tucao/pages/message/message_page.dart';
 import 'package:tucao/pages/message/system_detail_page.dart';
@@ -53,6 +54,7 @@ abstract final class AppPages {
     GetPage(name: Routes.userRank, page: () => const UserRankPage()),
     GetPage(name: Routes.lifeRank, page: () => const LifeRankPage()),
     GetPage(name: Routes.inbox, page: () => const MessageCenterPage()),
+    GetPage(name: Routes.comment, page: () => const CommentPage()),
     GetPage(
       name: Routes.message,
       page: () => MessagePage(

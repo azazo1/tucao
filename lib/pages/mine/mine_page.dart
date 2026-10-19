@@ -170,6 +170,12 @@ class _MinePageState extends State<MinePage> {
               onTap: () => Get.toNamed(Routes.inbox),
             ),
             ListTile(
+              leading: const Icon(Icons.comment_outlined),
+              title: const Text('评论'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Get.toNamed(Routes.comment),
+            ),
+            ListTile(
               leading: const Icon(Icons.history),
               title: const Text('播放历史'),
               trailing: const Icon(Icons.chevron_right),
