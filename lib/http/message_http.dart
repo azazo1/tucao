@@ -356,7 +356,7 @@ abstract final class MessageHttp {
         continue;
       }
       final meta = item.querySelector('div.r div.tt');
-      final authorLink = meta?.querySelector('a[href*=play/u]');
+      final authorLink = meta?.querySelector('a[href*="/play/u"]');
       list.add(
         CommentMessage(
           title: title,
