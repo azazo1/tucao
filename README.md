@@ -5,6 +5,12 @@ Flutter 重建的吐槽弹幕网 (`tucao.my`) 第三方安卓客户端.
 
 本项目仅供学习交流, 与站点官方无关.
 
+<p align="center">
+  <img src="assets/images/screenshots/home.jpg" width="27%" alt="首页时间表">
+  <img src="assets/images/screenshots/rank.jpg" width="27%" alt="排行榜">
+  <img src="assets/images/screenshots/profile.jpg" width="27%" alt="我的">
+</p>
+
 ## 功能
 
 - 首页分区浏览: 新番 / 影剧 / 综合, 含子分区切换
