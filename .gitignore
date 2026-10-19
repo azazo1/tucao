@@ -37,3 +37,5 @@ android/app/release/
 
 # 系统
 .DS_Store
+
+AGENTS.local.md
