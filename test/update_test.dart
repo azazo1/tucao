@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tucao/http/update_http.dart';
+import 'package:tucao/models/dev_build.dart';
 import 'package:tucao/utils/version.dart';
 
 void main() {
@@ -46,6 +47,69 @@ void main() {
         }),
         isNull,
       );
+    });
+  });
+
+  group('开发版构建解析', () {
+    test('从说明里读出版本号与发布页', () {
+      final build = DevBuild.fromJson({
+        'tag_name': 'dev-latest',
+        'name': '吐槽 最新构建 v1.2.3-a1b2c3d',
+        'body':
+            '分支 `main` 最新一次 push 的预发布.\n\n'
+            '- 提交: [`a1b2c3d`](https://github.com/azazo1/tucao/commit/a1b2c3d)\n'
+            '- 构建版本: `v1.2.3-a1b2c3d`\n',
+        'html_url': 'https://github.com/azazo1/tucao/releases/tag/dev-latest',
+        'prerelease': true,
+      });
+      expect(build, isNotNull);
+      expect(build!.buildVersion, 'v1.2.3-a1b2c3d');
+      expect(build.pageUrl, endsWith('/dev-latest'));
+    });
+
+    test('说明没有版本行时退回标题', () {
+      final build = DevBuild.fromJson({
+        'name': '吐槽 最新构建 v1.2.3-def5678',
+        'body': '',
+        'html_url': 'https://github.com/azazo1/tucao/releases/tag/dev-latest',
+      });
+      expect(build, isNotNull);
+      expect(build!.buildVersion, 'v1.2.3-def5678');
+    });
+
+    test('缺少发布页时返回 null', () {
+      expect(DevBuild.fromJson({'name': '吐槽 最新构建 v1.2.3'}), isNull);
+    });
+  });
+
+  group('开发版更新判定', () {
+    const build = DevBuild(
+      buildVersion: 'v1.2.3-a1b2c3d',
+      body: '',
+      pageUrl: 'https://github.com/azazo1/tucao/releases/tag/dev-latest',
+    );
+
+    test('版本串一致时为最新', () {
+      expect(build.statusFor('v1.2.3-a1b2c3d'), DevBuildStatus.latest);
+      expect(build.statusFor('1.2.3-a1b2c3d'), DevBuildStatus.latest);
+    });
+
+    test('同一基础版本的不同提交算更新', () {
+      expect(build.statusFor('v1.2.3-def5678'), DevBuildStatus.outdated);
+      expect(build.statusFor('v1.2.3'), DevBuildStatus.outdated);
+    });
+
+    test('基础版本更高时视为本机构建更新', () {
+      expect(build.statusFor('v1.3.0-def5678'), DevBuildStatus.localNewer);
+    });
+
+    test('本地构建无法比较', () {
+      expect(build.statusFor('dev-build'), DevBuildStatus.unknown);
+    });
+
+    test('CI 版本号缺失时无法比较', () {
+      const missing = DevBuild(buildVersion: '', body: '', pageUrl: '');
+      expect(missing.statusFor('v1.2.3-a1b2c3d'), DevBuildStatus.unknown);
     });
   });
 }

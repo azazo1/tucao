@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:tucao/models/app_release.dart';
+import 'package:tucao/models/dev_build.dart';
 
 /// GitHub Release 查询.
 ///
@@ -9,6 +10,10 @@ abstract final class UpdateHttp {
   /// 仓库的最新正式发布接口.
   static const latestUrl =
       'https://api.github.com/repos/azazo1/tucao/releases/latest';
+
+  /// CI 从分支构建出来的滚动预发布, tag 固定为 `dev-latest`.
+  static const devLatestUrl =
+      'https://api.github.com/repos/azazo1/tucao/releases/tags/dev-latest';
 
   static final Dio _dio = Dio(
     BaseOptions(
@@ -26,6 +31,14 @@ abstract final class UpdateHttp {
   static Future<AppRelease?> fetchLatest() async {
     final response = await _dio.get<Map<String, dynamic>>(latestUrl);
     return parseRelease(response.data);
+  }
+
+  /// 拉取 CI 上最新的分支构建.
+  ///
+  /// 该发布的 tag 不随构建移动, 版本号以说明里的内容为准.
+  static Future<DevBuild?> fetchDevLatest() async {
+    final response = await _dio.get<Map<String, dynamic>>(devLatestUrl);
+    return DevBuild.fromJson(response.data ?? const {});
   }
 
   /// 解析最新发布的响应, 结构不合法或不是正式版本时返回 null.

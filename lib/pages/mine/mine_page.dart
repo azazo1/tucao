@@ -72,6 +72,10 @@ class _MinePageState extends State<MinePage> {
           Navigator.pop(dialogContext);
           unawaited(_checkUpdate());
         },
+        onCheckDevUpdate: () {
+          Navigator.pop(dialogContext);
+          unawaited(_checkDevUpdate());
+        },
       ),
     );
   }
@@ -88,6 +92,20 @@ class _MinePageState extends State<MinePage> {
       ),
     );
     await UpdateService.checkManually(context);
+  }
+
+  /// 检查 CI 上 dev-latest 的开发版构建是否有更新.
+  Future<void> _checkDevUpdate() async {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('正在检查开发版更新...'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+    await UpdateService.checkDevManually(context);
   }
 
   /// 刷新当前登录状态.
@@ -511,16 +529,32 @@ class VipBadge extends StatelessWidget {
 
 /// 关于对话框.
 class _AboutDialog extends StatelessWidget {
-  const _AboutDialog({required this.version, required this.onCheckUpdate});
+  const _AboutDialog({
+    required this.version,
+    required this.onCheckUpdate,
+    required this.onCheckDevUpdate,
+  });
 
   final String version;
   final VoidCallback onCheckUpdate;
+  final VoidCallback onCheckDevUpdate;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return AlertDialog(
-      title: const Text(Constants.appName),
+      // 关闭改到右上角, 底部只留两个检查入口, 360dp 下也能排成一行.
+      title: Row(
+        children: [
+          Expanded(child: Text(Constants.appName)),
+          IconButton(
+            onPressed: () => Get.back(),
+            tooltip: '关闭',
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.close),
+          ),
+        ],
+      ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -547,8 +581,8 @@ class _AboutDialog extends StatelessWidget {
         ],
       ),
       actions: [
+        TextButton(onPressed: onCheckDevUpdate, child: const Text('检查开发版更新')),
         TextButton(onPressed: onCheckUpdate, child: const Text('检查更新')),
-        TextButton(onPressed: () => Get.back(), child: const Text('关闭')),
       ],
     );
   }

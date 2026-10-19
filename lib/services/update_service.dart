@@ -4,6 +4,7 @@ import 'package:tucao/build_config.dart';
 import 'package:tucao/common/constants.dart';
 import 'package:tucao/http/update_http.dart';
 import 'package:tucao/models/app_release.dart';
+import 'package:tucao/models/dev_build.dart';
 import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/storage_pref.dart';
 import 'package:tucao/utils/version.dart';
@@ -73,6 +74,36 @@ abstract final class UpdateService {
       return;
     }
     await _showDialog(context, release);
+  }
+
+  /// 手动检查 CI 上的开发版构建.
+  ///
+  /// 开发版是分支推送产生的滚动预发布, 产物会被后续推送覆盖,
+  /// 因此只比较注入的版本串, 不提供"忽略此版本".
+  static Future<void> checkDevManually(BuildContext context) async {
+    DevBuild? build;
+    try {
+      build = await UpdateHttp.fetchDevLatest();
+    } catch (error) {
+      Log.w('检查开发版更新失败: $error');
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('检查开发版更新失败, 请稍后重试')));
+      }
+      return;
+    }
+    if (!context.mounted) {
+      return;
+    }
+    if (build == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('没能读取 CI 上的开发版信息')));
+      return;
+    }
+    Log.i('CI 开发版 ${build.buildVersion}, 当前构建 ${BuildConfig.buildVersion}');
+    await _showDevDialog(context, build);
   }
 
   /// 查询比当前版本新的发布, 没有或请求失败时返回 null.
@@ -210,6 +241,115 @@ abstract final class UpdateService {
     }
     // 选稍后或直接关闭时不做记录, 下次启动的自动检查会重新提示.
   }
+
+  /// 开发版检查结果对话框.
+  ///
+  /// 结果显示当前构建与 CI 构建的版本串, 只有 CI 上有另一份构建时
+  /// 才给出下载入口; 本地构建没有注入版本号时无法比较, 也允许直接去下载.
+  static Future<void> _showDevDialog(
+    BuildContext context,
+    DevBuild build,
+  ) async {
+    final current = BuildConfig.buildVersion;
+    final status = build.statusFor(current);
+    final canDownload =
+        status == DevBuildStatus.outdated || status == DevBuildStatus.unknown;
+    final download = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        final scheme = Theme.of(dialogContext).colorScheme;
+        final noteStyle = TextStyle(
+          fontSize: 12,
+          height: 1.5,
+          color: scheme.onSurfaceVariant,
+        );
+        return AlertDialog(
+          title: Text(switch (status) {
+            DevBuildStatus.latest => '开发版已是最新',
+            DevBuildStatus.localNewer => '当前构建比 CI 开发版新',
+            DevBuildStatus.outdated => '发现新的开发版',
+            DevBuildStatus.unknown => 'CI 上的最新开发版',
+          }),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '当前构建: ${_describeVersion(current)}',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'CI 构建: ${build.buildVersion.isEmpty ? '未读取到版本号' : build.buildVersion}',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  if (status == DevBuildStatus.latest) ...[
+                    const SizedBox(height: 8),
+                    Text('与本机版本一致, 不需要重新下载.', style: noteStyle),
+                  ],
+                  if (status == DevBuildStatus.unknown) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      build.buildVersion.isEmpty
+                          ? 'CI 说明里没有写出版本号, 无法判断是否同一份构建.'
+                          : '本地构建没有注入版本号, 无法判断是否同一份构建.',
+                      style: noteStyle,
+                    ),
+                  ],
+                  if (build.body.trim().isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      build.body.trim(),
+                      style: const TextStyle(fontSize: 12, height: 1.5),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  Text(
+                    '开发版由 CI 从分支构建, 每条说明与产物都会被后续推送覆盖,'
+                    '下载后在系统里覆盖安装即可.',
+                    style: noteStyle,
+                  ),
+                  const SizedBox(height: 12),
+                  Text('发布页:', style: noteStyle),
+                  InkWell(
+                    onTap: () => _openUrl(dialogContext, build.pageUrl),
+                    child: Text(
+                      build.pageUrl,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: scheme.primary,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('关闭'),
+            ),
+            if (canDownload)
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('前往下载'),
+              ),
+          ],
+        );
+      },
+    );
+    if (download == true) {
+      await _openUrl(context, build.pageUrl);
+    }
+  }
+
+  /// 对话框里的当前构建说明, 本地开发构建没有注入版本号.
+  static String _describeVersion(String version) =>
+      version == 'dev-build' ? '本地开发构建 (未注入版本号)' : version;
 
   /// 用系统浏览器打开链接, 失败时给出提示.
   static Future<void> _openUrl(BuildContext context, String url) async {
