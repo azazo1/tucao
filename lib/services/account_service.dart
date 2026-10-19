@@ -6,18 +6,6 @@ import 'package:tucao/http/user_http.dart';
 import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/storage.dart';
 
-/// 手动刷新登录状态的结果.
-enum LoginRefreshResult {
-  /// 服务端确认已登录, 本地账号信息已更新.
-  loggedIn,
-
-  /// 服务端确认登录失效, 本地账号信息已清除.
-  loggedOut,
-
-  /// 没拿到确认结果: 请求失败, 或查询期间登录状态已被其他操作改写.
-  failed,
-}
-
 /// 账户状态.
 ///
 /// 站点通过 cookie 维持登录态, 这里把登录用户信息缓存到本地,
@@ -47,38 +35,24 @@ class AccountService extends GetxController {
     }
   }
 
-  /// 向服务端确认登录状态, 应用启动时调用.
+  /// 向服务端确认登录状态.
   @override
   Future<void> refresh() async {
-    await _confirmSession();
-  }
-
-  /// 手动刷新登录状态.
-  ///
-  /// 与 [refresh] 查询的是同一份服务端状态, 区别只是把结果交给调用页面提示,
-  /// 请求失败时本地缓存保持原样, 不会假装登录或退出.
-  Future<LoginRefreshResult> refreshSession() => _confirmSession();
-
-  /// 查询服务端确认的登录状态, 并写回本地缓存.
-  Future<LoginRefreshResult> _confirmSession() async {
     final sessionVersion = _sessionVersion;
     try {
       final info = await UserHttp.info();
       if (sessionVersion != _sessionVersion) {
-        // 查询期间登录状态已被登录, 退出等操作改写, 这次结果作废.
-        return LoginRefreshResult.failed;
+        return;
       }
       if (info == null) {
         await _clear();
-        return LoginRefreshResult.loggedOut;
+        return;
       }
       user.value = info;
       await GStorage.account.put(_kUser, info.toJson());
       Log.i('登录状态确认成功: ${info.displayName}');
-      return LoginRefreshResult.loggedIn;
     } catch (e, stackTrace) {
       Log.e('查询登录状态失败', error: e, stackTrace: stackTrace);
-      return LoginRefreshResult.failed;
     }
   }
 

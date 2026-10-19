@@ -197,22 +197,4 @@ void main() {
     expect((box.data['user'] as Map)['userid'], 2);
     expect((box.data['user'] as Map).containsKey('password'), isFalse);
   });
-
-  test('手动刷新登录状态返回明确结果, 请求失败时保留本地缓存', () async {
-    adapter.respond = (_) => info();
-    expect(await account.refreshSession(), LoginRefreshResult.loggedIn);
-    expect(account.user.value?.userId, 2);
-
-    adapter.respond = (_) => ResponseBody.fromString('{"islogin":false}', 200);
-    expect(await account.refreshSession(), LoginRefreshResult.loggedOut);
-    expect(account.isLogin, isFalse);
-
-    // 查询失败只报告失败, 不能动本地缓存.
-    account.user.value = cached;
-    box.data['user'] = cached.toJson();
-    adapter.respond = (_) => ResponseBody.fromString('unavailable', 503);
-    expect(await account.refreshSession(), LoginRefreshResult.failed);
-    expect(account.user.value, cached);
-    expect(box.data['user'], cached.toJson());
-  });
 }

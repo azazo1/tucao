@@ -98,31 +98,15 @@ class _MinePageState extends State<MinePage> {
       return;
     }
     _refreshing = true;
-    final wasLogin = AccountService.instance.isLogin;
     try {
-      final result = await AccountService.instance.refreshSession();
+      await AccountService.instance.refresh();
       if (!mounted) {
         return;
       }
       setState(() => _refreshTick++);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_refreshMessage(result, wasLogin: wasLogin)),
-          duration: const Duration(seconds: 2),
-        ),
-      );
     } finally {
       _refreshing = false;
     }
-  }
-
-  /// 刷新结果提示. 未登录时刷新只是确认状态, 不能提示登录失效.
-  String _refreshMessage(LoginRefreshResult result, {required bool wasLogin}) {
-    return switch (result) {
-      LoginRefreshResult.loggedIn => '登录状态已刷新',
-      LoginRefreshResult.loggedOut => wasLogin ? '登录已失效, 请重新登录' : '当前未登录',
-      LoginRefreshResult.failed => '刷新登录状态失败, 请稍后重试',
-    };
   }
 
   /// 续命卡片.
