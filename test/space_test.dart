@@ -60,7 +60,9 @@ void main() {
         avatarRevision: 100,
       );
       final avatar = Uri.parse(parsed.info.avatar);
-      expect(avatar.isAbsolute, isTrue);
+      // 带 fragment 的地址在 Dart 里不算绝对地址, 这里按 scheme 与 host 判断补全结果.
+      expect(avatar.scheme, 'https');
+      expect(avatar.host, 'www.tucao.my');
       expect(avatar.path, '/avatar/180x180.jpg');
       expect(avatar.queryParametersAll, {
         'size': ['180'],
