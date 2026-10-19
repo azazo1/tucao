@@ -145,6 +145,20 @@ abstract final class UpdateService {
     }
   }
 
+  /// 对话框动作按钮的紧凑样式.
+  ///
+  /// AlertDialog 把动作交给 OverflowBar, 一排排不下时会把按钮竖着摞起来,
+  /// 窄屏上 "稍后 / 忽略此版本 / 下载" 正好越过这条线. M3 的按钮各自带
+  /// 64 的最小宽度与 16 到 24 的横向内边距, 收掉最小宽度并把内边距统一到
+  /// 12 之后, 一排留出两成以上的余量, 系统字号放大一档也还排得下.
+  static ButtonStyle _actionStyle({bool filled = false}) {
+    const padding = EdgeInsets.symmetric(horizontal: 12);
+    const minimumSize = Size(0, 40);
+    return filled
+        ? FilledButton.styleFrom(padding: padding, minimumSize: minimumSize)
+        : TextButton.styleFrom(padding: padding, minimumSize: minimumSize);
+  }
+
   /// 更新提示对话框, 按用户选择决定是否记住该版本或开始应用内下载.
   ///
   /// 手动检查同样走这里, 因此忽略过的版本在手动检查时还会出现.
@@ -211,21 +225,24 @@ abstract final class UpdateService {
           ),
           actions: [
             TextButton(
+              style: _actionStyle(),
               onPressed: () =>
                   Navigator.pop(dialogContext, _UpdateChoice.later),
               child: const Text('稍后'),
             ),
             TextButton(
+              style: _actionStyle(),
               onPressed: () =>
                   Navigator.pop(dialogContext, _UpdateChoice.ignore),
               child: const Text('忽略此版本'),
             ),
             FilledButton(
+              style: _actionStyle(filled: true),
               onPressed: () => Navigator.pop(
                 dialogContext,
                 asset == null ? _UpdateChoice.page : _UpdateChoice.download,
               ),
-              child: Text(asset == null ? '前往发布页' : '下载安装包'),
+              child: Text(asset == null ? '前往发布页' : '下载'),
             ),
           ],
         );
@@ -409,13 +426,15 @@ abstract final class UpdateService {
           ),
           actions: [
             TextButton(
+              style: _actionStyle(),
               onPressed: () => Navigator.pop(dialogContext, false),
               child: const Text('关闭'),
             ),
             if (canDownload)
               FilledButton(
+                style: _actionStyle(filled: true),
                 onPressed: () => Navigator.pop(dialogContext, true),
-                child: Text(asset == null ? '前往发布页' : '下载安装包'),
+                child: Text(asset == null ? '前往发布页' : '下载'),
               ),
           ],
         );
