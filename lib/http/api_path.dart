@@ -46,6 +46,13 @@ abstract final class ApiPath {
   static const replySupport =
       'index.php?m=comment&c=index&a=support&format=json';
 
+  /// 图评图片上传, 只对破会员开放.
+  ///
+  /// commentid 是查询参数, 图片以 multipart 的 `file` 字段提交, 站点限制
+  /// 单张 2MB. 上传成功后返回的片段插进评论正文, 再走 [replySend] 发送,
+  /// 见 `ReplyHttp.uploadImage`.
+  static const replyUploadImage = 'index.php?m=comment&c=index&a=upload_img';
+
   /// 用户.
   static const userInfo = 'api.php?op=user';
   static const userSpace = 'index.php?m=member&c=space';

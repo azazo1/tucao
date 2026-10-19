@@ -189,4 +189,95 @@ void main() {
       expect(options.queryParameters['replyid'], 316510);
     });
   });
+
+  group('上传图评的参数位置', () {
+    RequestOptions? captured;
+
+    setUpAll(() {
+      HttpUtil.dio.interceptors.insert(
+        0,
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            captured = options;
+            handler.reject(
+              DioException(requestOptions: options, message: 'captured'),
+              true,
+            );
+          },
+        ),
+      );
+    });
+
+    setUp(() => captured = null);
+
+    test('commentid 是查询参数, 图片放在 file 字段', () async {
+      await expectLater(
+        ReplyHttp.uploadImage(
+          typeId: 11,
+          hid: '4107869',
+          fileName: 'shot.png',
+          bytes: const [1, 2, 3],
+        ),
+        throwsA(isA<DioException>()),
+      );
+
+      final options = captured!;
+      expect(options.queryParameters, {'commentid': 'content_11-4107869-1'});
+      final data = options.data as FormData;
+      expect(data.fields, isEmpty);
+      expect(data.files, hasLength(1));
+      expect(data.files.single.key, 'file');
+      // 原名只用来取后缀, 其余换成 ASCII 与时间戳.
+      expect(
+        data.files.single.value.filename,
+        matches(RegExp(r'^tucao_\d+\.png$')),
+      );
+    });
+
+    test('上传文件名只保留后缀', () {
+      expect(ReplyHttp.uploadFileName('截图 1.PNG'), matches(RegExp(r'\.png$')));
+      expect(ReplyHttp.uploadFileName('noext'), matches(RegExp(r'\.jpg$')));
+    });
+
+    test('成功时返回站点片段', () {
+      const raw = '{"status":1,"bbcode":"[img]https://a/b.png[/img]"}';
+      expect(ReplyHttp.parseUploadResponse(raw), '[img]https://a/b.png[/img]');
+    });
+
+    test('status 是字符串时也按成功处理', () {
+      expect(ReplyHttp.parseUploadResponse('{"status":"1","bbcode":"x"}'), 'x');
+    });
+
+    test('失败时抛出站点给出的提示', () {
+      expect(
+        () => ReplyHttp.parseUploadResponse('{"status":0,"msg":"只有破会员才能发图评"}'),
+        throwsA(
+          predicate((e) => e.toString().contains('只有破会员才能发图评'), '带站点提示的异常'),
+        ),
+      );
+    });
+
+    test('成功但缺少片段时抛格式错误', () {
+      expect(
+        () => ReplyHttp.parseUploadResponse('{"status":1}'),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('会话过期的 html 页面提示重新登录', () {
+      expect(
+        () => ReplyHttp.parseUploadResponse(
+          '<html><body><a>您的会话已过期，请重新登录。</a></body></html>',
+        ),
+        throwsA(predicate((e) => e.toString().contains('登录已失效'), '登录失效提示')),
+      );
+    });
+
+    test('无法识别的内容给出上传失败提示', () {
+      expect(
+        () => ReplyHttp.parseUploadResponse('0'),
+        throwsA(predicate((e) => e.toString().contains('图片上传失败'), '上传失败提示')),
+      );
+    });
+  });
 }

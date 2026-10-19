@@ -314,7 +314,16 @@ class _ReplyPanelState extends State<ReplyPanel>
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (context) => ReplyInputSheet(replyToName: replyTo?.userName),
+      builder: (context) => ReplyInputSheet(
+        replyToName: replyTo?.userName,
+        // 站点网页端只有一级评论的输入框带图片按钮, 楼中楼回复不提供图评,
+        // 这里保持一致, 免得传上一张图才被站点拒掉.
+        onUploadImage: replyTo != null
+            ? null
+            : (bytes, fileName) =>
+                  inputController.uploadImage(bytes: bytes, fileName: fileName),
+        imageEnabled: AccountService.instance.user.value?.isVip ?? false,
+      ),
     );
     if (!mounted ||
         !identical(controller, inputController) ||

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:get/get.dart';
 import 'package:tucao/common/controller/paging_controller.dart';
@@ -265,6 +266,34 @@ class ReplyController extends PagingController<ReplyModel> {
       return loadReplies(comment, force: true);
     }
     return loadMoreReplies(comment);
+  }
+
+  /// 上传一张图评图片, 返回可插进评论正文的站点片段.
+  ///
+  /// 图评是站点的破会员特权, 非会员即使知道接口也会被拒, 先在这里挡掉,
+  /// 免得上传完整张图才看到失败. 站点限制单张 2MB, 同样在本地按下限拦截.
+  /// 上传成功不等于已经发出评论, 片段仍由用户确认后随正文一起发送.
+  Future<String> uploadImage({
+    required Uint8List bytes,
+    required String fileName,
+  }) async {
+    _requireLogin();
+    final user = AccountService.instance.user.value;
+    if (!(user?.isVip ?? false)) {
+      throw Exception('图评是破会员特权, 需要先开通破会员');
+    }
+    if (bytes.isEmpty) {
+      throw Exception('图片内容为空');
+    }
+    if (bytes.length > ReplyHttp.maxImageBytes) {
+      throw Exception('图片不能超过 2MB');
+    }
+    return ReplyHttp.uploadImage(
+      typeId: typeId,
+      hid: hid,
+      fileName: fileName,
+      bytes: bytes,
+    );
   }
 
   /// 发送评论, 成功后刷新对应列表.
