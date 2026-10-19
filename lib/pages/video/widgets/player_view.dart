@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:tucao/models/danmaku.dart';
 import 'package:tucao/pages/video/widgets/danmaku_settings_sheet.dart';
+import 'package:tucao/pages/video/widgets/part_picker_sheet.dart';
 import 'package:tucao/pages/video/widgets/player_gesture.dart';
 import 'package:tucao/utils/danmaku_preferences_store.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
@@ -64,6 +65,9 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
   bool _showControls = true;
   bool _settingsOpen = false;
 
+  /// 选集弹层是否打开, 打开期间控制条不自动隐藏.
+  bool _partPickerOpen = false;
+
   /// 手势横向拖动的预览位置, 非空时进度条游标跟随手指.
   Duration? _seekPreview;
 
@@ -97,7 +101,10 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
 
   void _restartHideTimer() {
     _hideTimer?.cancel();
-    if (widget.pipMode || !widget.fullscreen || _settingsOpen) {
+    if (widget.pipMode ||
+        !widget.fullscreen ||
+        _settingsOpen ||
+        _partPickerOpen) {
       return;
     }
     _hideTimer = Timer(_hideDelay, () {
@@ -566,6 +573,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
         _iconButton(Icons.forward_5, () => _seekBy(const Duration(seconds: 5))),
         _buildSeekStepButton(),
         const Spacer(),
+        _buildPartButton(),
         Obx(
           () => _iconButton(
             _controller.danmakuEnabled.value
@@ -590,6 +598,45 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
         ),
       ],
     );
+  }
+
+  /// 全屏时的选集入口, 只有一个分P或者没全屏时不给按钮.
+  ///
+  /// 竖屏下页面下方本来就有分P条, 控制条再挤一个按钮会把窄屏占满;
+  /// 全屏时那条列表在画面之外, 才需要直接从画面上换集.
+  Widget _buildPartButton() {
+    return Obx(() {
+      if (!widget.fullscreen || _controller.parts.length <= 1) {
+        return const SizedBox.shrink();
+      }
+      return Tooltip(
+        message: '选集',
+        child: _iconButton(Icons.playlist_play, _openPartPicker),
+      );
+    });
+  }
+
+  /// 打开选集弹层, 期间控制条保持可见.
+  Future<void> _openPartPicker() async {
+    if (_partPickerOpen) {
+      return;
+    }
+    final controller = _controller;
+    _partPickerOpen = true;
+    _hideTimer?.cancel();
+    try {
+      await showPartPickerSheet(
+        context,
+        parts: controller.parts,
+        current: controller.part.value,
+        onSelected: (index) => unawaited(controller.switchPart(index)),
+      );
+    } finally {
+      if (mounted && identical(controller, _controller)) {
+        _partPickerOpen = false;
+        _restartHideTimer();
+      }
+    }
   }
 
   Future<void> _openDanmakuSettings() async {
