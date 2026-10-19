@@ -26,6 +26,7 @@ abstract final class Routes {
   static const userRank = '/user-rank';
   static const lifeRank = '/life-rank';
   static const inbox = '/inbox';
+  static const comment = '/comment';
   static const message = '/message';
   static const systemMessage = '/system-message';
 }
