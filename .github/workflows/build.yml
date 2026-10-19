@@ -185,7 +185,7 @@ jobs:
           ref: ${{ needs.version.outputs.source_ref }}
 
       - name: 设置 Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: cli/go.mod
           cache: true
@@ -219,7 +219,7 @@ jobs:
           fi
 
       - name: 上传发布归档
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: tucao-cli-${{ needs.version.outputs.build_version }}
           path: cli/dist/tucao-cli-*
@@ -245,7 +245,7 @@ jobs:
           ref: ${{ needs.version.outputs.source_ref }}
 
       - name: 设置 Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: cli/go.mod
           cache: true
@@ -287,7 +287,7 @@ jobs:
           java-version: "17"
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v5
         with:
           cache-read-only: ${{ github.event_name == 'pull_request' }}
           # 取值是 never / always / on-success, 不是布尔值.
@@ -307,7 +307,7 @@ jobs:
       # 单次约 100MB, 而 build 目录不随仓库或 Gradle 缓存保留, 因此单独缓存.
       # 缓存只是加速手段, 缺失时构建脚本会自行重新下载.
       - name: 恢复 libmpv 原生库缓存
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: build/media_kit_libs_android_video
           key: ${{ runner.os }}-libmpv-${{ matrix.arch }}-v1.1.7
@@ -338,7 +338,7 @@ jobs:
         run: uv run --no-project python scripts/dist.py
 
       - name: 上传构建产物
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: tucao-${{ needs.version.outputs.build_version }}-android-${{ matrix.arch }}
           path: dist/tucao-*-android-${{ matrix.arch }}.apk
@@ -435,7 +435,7 @@ jobs:
           fi
 
       - name: 下载构建产物
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           path: release-artifacts
           merge-multiple: true
@@ -545,7 +545,7 @@ jobs:
 
       - name: 下载构建产物
         if: steps.freshness.outputs.is_latest == 'true'
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           path: prerelease-artifacts
           merge-multiple: true
