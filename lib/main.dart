@@ -12,6 +12,8 @@ import 'package:tucao/services/download/download_transport.dart';
 import 'package:tucao/services/history_service.dart';
 import 'package:tucao/services/favorite_service.dart';
 import 'package:tucao/services/theme_service.dart';
+import 'package:tucao/services/update/update_download_service.dart';
+import 'package:tucao/services/update/update_transport.dart';
 import 'package:tucao/services/vip_service.dart';
 import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/http_util.dart';
@@ -46,6 +48,12 @@ Future<void> main() async {
     // 外部存储不可用时其他页面照常启动, 缓存页提供重试.
     Log.w('外部缓存目录未就绪: $error');
   }
+  // 更新包另走一条道: 产物是 apk, 校验与目录都和媒体缓存不同,
+  // 也不共用站点客户端, 免得把 cookie 带去 GitHub.
+  Get.put(
+    UpdateDownloadService(transport: DioUpdateTransport()),
+    permanent: true,
+  );
 
   Log.i('应用启动完成, 耗时 ${DateTime.now().difference(start).inMilliseconds}ms');
   runApp(const TucaoApp());

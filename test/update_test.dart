@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tucao/http/update_http.dart';
 import 'package:tucao/models/dev_build.dart';
+import 'package:tucao/models/release_asset.dart';
 import 'package:tucao/utils/version.dart';
 
 void main() {
@@ -110,6 +111,100 @@ void main() {
     test('CI 版本号缺失时无法比较', () {
       const missing = DevBuild(buildVersion: '', body: '', pageUrl: '');
       expect(missing.statusFor('v1.2.3-a1b2c3d'), DevBuildStatus.unknown);
+    });
+  });
+
+  group('产物与架构选择', () {
+    Map<String, dynamic> releaseJson(List<Map<String, dynamic>> assets) => {
+      'tag_name': 'v1.3.0',
+      'name': '吐槽 v1.3.0',
+      'body': '说明',
+      'html_url': 'https://github.com/azazo1/tucao/releases/tag/v1.3.0',
+      'assets': assets,
+    };
+
+    Map<String, dynamic> apk(String name, {int size = 1024}) => {
+      'name': name,
+      'size': size,
+      'browser_download_url': 'https://example.com/$name',
+    };
+
+    test('读取产物列表, 丢掉名字不可用的条目', () {
+      final release = UpdateHttp.parseRelease(
+        releaseJson([
+          apk('tucao-1.3.0-android-arm64-v8a.apk'),
+          apk('SHA256SUMS'),
+          {'name': '../escape.apk', 'browser_download_url': 'https://e/1'},
+          {'name': 'no-url.apk'},
+        ]),
+      );
+      expect(release, isNotNull);
+      expect(release!.assets.length, 1);
+      expect(release.assets.single.name, endsWith('arm64-v8a.apk'));
+    });
+
+    test('没有 assets 字段时按空列表处理', () {
+      final release = UpdateHttp.parseRelease({
+        'tag_name': 'v1.3.0',
+        'html_url': 'https://github.com/azazo1/tucao/releases/tag/v1.3.0',
+      });
+      expect(release!.assets, isEmpty);
+      expect(release.apkFor(['arm64-v8a']), isNull);
+    });
+
+    test('按设备 ABI 的优先顺序取包', () {
+      final release = UpdateHttp.parseRelease(
+        releaseJson([
+          apk('tucao-1.3.0-android-armeabi-v7a.apk'),
+          apk('tucao-1.3.0-android-arm64-v8a.apk'),
+        ]),
+      )!;
+      expect(
+        release.apkFor(['arm64-v8a', 'armeabi-v7a'])?.name,
+        'tucao-1.3.0-android-arm64-v8a.apk',
+      );
+      expect(
+        release.apkFor(['armeabi-v7a'])?.name,
+        'tucao-1.3.0-android-armeabi-v7a.apk',
+      );
+      // 设备报出应用没发布的架构时退回到发布页.
+      expect(release.apkFor(['x86']), isNull);
+      expect(release.apkFor(const []), isNull);
+    });
+
+    test('开发版构建同样解析产物', () {
+      final build = DevBuild.fromJson({
+        'name': '吐槽 最新构建 v1.2.3-a1b2c3d',
+        'body': '',
+        'html_url': 'https://github.com/azazo1/tucao/releases/tag/dev-latest',
+        'assets': [apk('tucao-1.2.3-android-x86_64.apk')],
+      });
+      expect(build, isNotNull);
+      expect(build!.apkFor(['x86_64'])?.name, 'tucao-1.2.3-android-x86_64.apk');
+      expect(build.apkFor(['arm64-v8a']), isNull);
+    });
+
+    test('产物体积按可读单位展示', () {
+      expect(
+        const ReleaseAsset(name: 'a.apk', size: 0, downloadUrl: 'u').sizeText,
+        '大小未知',
+      );
+      expect(
+        const ReleaseAsset(
+          name: 'a.apk',
+          size: 2048,
+          downloadUrl: 'u',
+        ).sizeText,
+        '2 KB',
+      );
+      expect(
+        const ReleaseAsset(
+          name: 'a.apk',
+          size: 20526836,
+          downloadUrl: 'u',
+        ).sizeText,
+        '19.6 MB',
+      );
     });
   });
 }

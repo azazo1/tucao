@@ -1,3 +1,4 @@
+import 'package:tucao/models/release_asset.dart';
 import 'package:tucao/utils/version.dart';
 
 /// CI 预发布 `dev-latest` 里最新一次分支构建.
@@ -9,6 +10,7 @@ class DevBuild {
     required this.buildVersion,
     required this.body,
     required this.pageUrl,
+    this.assets = const [],
   });
 
   /// CI 注入的构建版本, 形如 `v1.2.3-a1b2c3d`; 说明里读不到时为空.
@@ -17,8 +19,14 @@ class DevBuild {
   /// release 说明原文.
   final String body;
 
-  /// 发布页地址, 用户在页面里按架构选 apk.
+  /// 发布页地址, 没有匹配的安装包时留给用户在页面里自己挑.
   final String pageUrl;
+
+  /// 本次构建提供的产物文件.
+  final List<ReleaseAsset> assets;
+
+  /// 按设备 ABI 的优先顺序挑出对应的安装包, 没有匹配时返回 null.
+  ReleaseAsset? apkFor(List<String> abis) => ReleaseAsset.pickFor(assets, abis);
 
   /// 从 GitHub API 的 release json 构造, 缺少发布页地址时返回 null.
   static DevBuild? fromJson(Map<String, dynamic> json) {
@@ -34,6 +42,7 @@ class DevBuild {
           _versionIn(text) ?? _versionIn(name is String ? name : '') ?? '',
       body: text,
       pageUrl: url,
+      assets: ReleaseAsset.listFrom(json['assets']),
     );
   }
 
