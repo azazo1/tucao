@@ -1,5 +1,5 @@
-import 'package:tucao/common/constants.dart';
 import 'package:tucao/utils/html_text.dart';
+import 'package:tucao/utils/site_url.dart';
 
 /// 评论正文里的一段, 可能是文字, 也可能是站点表情.
 sealed class ReplyContentPart {
@@ -67,7 +67,7 @@ ReplyContent parseReplyContent(String raw) {
       parts.add(emoji);
     } else if (src.isNotEmpty) {
       _flushText(parts, buffer);
-      parts.add(ReplyImagePart(_absolute(src)));
+      parts.add(ReplyImagePart(absoluteSiteUrl(src)));
     }
     cursor = match.end;
   }
@@ -94,7 +94,7 @@ ReplyEmojiPart? _emojiOf(String src) {
   if (src.isEmpty) {
     return null;
   }
-  final url = _absolute(src);
+  final url = absoluteSiteUrl(src);
   // 站外地址一律不当表情, 否则别人的评论能让本机自动请求外部主机.
   if (!isSiteImage(url)) {
     return null;
@@ -111,42 +111,6 @@ ReplyEmojiPart? _emojiOf(String src) {
   }
   return ReplyEmojiPart(name: name, url: url);
 }
-
-String _absolute(String url) {
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    return url;
-  }
-  return '${Constants.baseUrl}${url.replaceFirst(RegExp(r'^/'), '')}';
-}
-
-/// 图片地址是否属于站点自己, 子域名与去掉 www 的主域名都算.
-///
-/// 评论里的图片地址由别人提交, 站外的地址不该在列表滚动时自动联网,
-/// 否则一条评论就能让本机向任意主机发请求, 界面据此改为等用户点击.
-bool isSiteImage(String url) {
-  final uri = Uri.tryParse(url);
-  if (uri == null) {
-    return false;
-  }
-  final scheme = uri.scheme.toLowerCase();
-  if (scheme != 'http' && scheme != 'https') {
-    return false;
-  }
-  final siteHost = Uri.tryParse(Constants.baseUrl)?.host.toLowerCase() ?? '';
-  if (siteHost.isEmpty) {
-    return false;
-  }
-  // 站点主域名可能是 www 开头, 图片地址却用裸域名或图片子域名.
-  final bareHost = siteHost.startsWith('www.')
-      ? siteHost.substring('www.'.length)
-      : siteHost;
-  final host = uri.host.toLowerCase();
-  return _sameOrSubDomainOf(host, siteHost) ||
-      _sameOrSubDomainOf(host, bareHost);
-}
-
-bool _sameOrSubDomainOf(String host, String domain) =>
-    host == domain || host.endsWith('.$domain');
 
 /// 去掉正文整体首尾的空白, 但不影响表情与图片两侧的文本.
 void _trimEdges(List<ReplyContentPart> parts) {

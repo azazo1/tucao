@@ -5,7 +5,7 @@ import 'package:tucao/models/life.dart';
 
 /// 贡献榜的一条记录.
 ///
-/// 条目不可点: 站点没给用户 id, 见 [LifeRankItem] 上的 TODO(site).
+/// 条目不可点: 站点没给用户 id, 见 [LifeRankItem] 上的 TOFIX(site).
 class LifeRankTile extends StatelessWidget {
   const LifeRankTile({super.key, required this.item, this.maxRatio = 0});
 

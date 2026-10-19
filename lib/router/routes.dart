@@ -27,6 +27,7 @@ abstract final class Routes {
   static const lifeRank = '/life-rank';
   static const inbox = '/inbox';
   static const message = '/message';
+  static const systemMessage = '/system-message';
 }
 
 /// 路由过渡动画, 与站点轻量的观感一致.

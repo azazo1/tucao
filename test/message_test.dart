@@ -1,7 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tucao/common/constants.dart';
 import 'package:tucao/http/message_http.dart';
+import 'package:tucao/models/message.dart';
 
 void main() {
   group('私信收件箱解析', () {
@@ -65,6 +67,112 @@ void main() {
       final raw = File('test/fixtures/message_detail.html').readAsStringSync();
       final result = MessageHttp.parseDetailHtml(raw, '');
       expect(result.every((e) => !e.isMine), isTrue);
+    });
+  });
+
+  group('系统公告列表解析', () {
+    late List<SystemMessage> list;
+
+    setUpAll(() {
+      final raw = File(
+        'test/fixtures/message_group_list.html',
+      ).readAsStringSync();
+      list = MessageHttp.parseGroupListHtml(raw);
+    });
+
+    test('解析出公告条目', () {
+      expect(list, hasLength(2));
+      expect(list[0].id, '21');
+      expect(list[0].time, '2026-09-17 22:34:37');
+    });
+
+    test('标题取摘要第一行, 其余作为摘要', () {
+      expect(list[0].title, '做任务, 得破会员');
+      expect(
+        list[0].summary,
+        '破会员有什么主要特权: 1 无广告, 2 亮眼 发布内容都有效',
+      );
+      expect(list[1].title, '全新 app');
+      expect(list[1].summary, isEmpty);
+    });
+
+    test('未读标记与头像地址', () {
+      expect(list[0].unread, isTrue);
+      expect(list[1].unread, isFalse);
+      expect(
+        list[0].avatar,
+        '${Constants.baseUrl}uploadfile/2026/0629/system.png',
+      );
+      expect(
+        list[1].avatar,
+        'https://www.tucao.my/uploadfile/2026/0629/system.png',
+      );
+    });
+
+    test('私信条目与重复的 group_id 都被忽略', () {
+      expect(list.map((e) => e.id).toList(), ['21', '19']);
+    });
+
+    test('空页面返回空列表而不是抛异常', () {
+      expect(MessageHttp.parseGroupListHtml('<html></html>'), isEmpty);
+    });
+  });
+
+  group('系统公告详情解析', () {
+    late SystemMessageDetail detail;
+
+    setUpAll(() {
+      final raw = File(
+        'test/fixtures/message_group_detail.html',
+      ).readAsStringSync();
+      detail = MessageHttp.parseGroupDetailHtml(raw);
+    });
+
+    test('解析标题与时间', () {
+      expect(detail.title, '面板升级公告');
+      expect(detail.time, '2026-06-29 14:25:04');
+    });
+
+    test('正文按段落与图片分块', () {
+      expect(detail.blocks, hasLength(4));
+      expect(detail.blocks[0], isA<SystemImage>());
+      expect(
+        (detail.blocks[0] as SystemImage).url,
+        '${Constants.baseUrl}uploadfile/2026/0620/cover.jpg',
+      );
+      final first = detail.blocks[1] as SystemParagraph;
+      expect(first.parts.single.text, '第一段文字');
+    });
+
+    test('段落里的链接单独成段并补成绝对地址', () {
+      final paragraph = detail.blocks[2] as SystemParagraph;
+      expect(
+        paragraph.parts.map((e) => e.text).toList(),
+        ['带着', '外部链接', '的段落'],
+      );
+      expect(paragraph.parts[1].url, 'https://store.rg-adguard.net/');
+      expect(paragraph.parts[0].url, isNull);
+    });
+
+    test('只有空白的段落不产生块', () {
+      // 正文里的空行是站点用一行空段落撑出来的, 不该变成空的一段.
+      final texts = detail.blocks
+          .whereType<SystemParagraph>()
+          .expand((block) => block.parts)
+          .map((part) => part.text);
+      expect(texts.every((text) => text.trim().isNotEmpty), isTrue);
+    });
+
+    test('br 换行保留在段落里', () {
+      final last = detail.blocks[3] as SystemParagraph;
+      expect(last.parts.single.text, '第一行\n第二行');
+    });
+
+    test('空页面不抛异常', () {
+      final empty = MessageHttp.parseGroupDetailHtml('<html></html>');
+      expect(empty.title, isEmpty);
+      expect(empty.time, isEmpty);
+      expect(empty.blocks, isEmpty);
     });
   });
 }

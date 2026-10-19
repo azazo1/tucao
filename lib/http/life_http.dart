@@ -120,7 +120,7 @@ abstract final class LifeHttp {
   /// 页脚的 "数据来源AD" 指向说明用的公告, 这里一并取回来.
   ///
   /// 条目不带用户 id, 因此这里只能拿到昵称, 列表也就不可点.
-  /// 缺什么见 [LifeRankItem] 上的 TODO(site).
+  /// 缺什么见 [LifeRankItem] 上的 TOFIX(site).
   static LifeRank parseRankHtml(String raw) {
     if (raw.trim().isEmpty) {
       return const LifeRank(items: [], requiresLogin: true);
