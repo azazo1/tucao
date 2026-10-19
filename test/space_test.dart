@@ -20,6 +20,66 @@ void main() {
       expect(page.info.total, greaterThan(0));
     });
 
+    test('头像随资料刷新更新缓存键, 横幅与投稿封面不受影响', () {
+      final raw = File('test/fixtures/space.html').readAsStringSync();
+      final first = SpaceHttp.parseSpaceHtml(
+        raw,
+        9599,
+        1,
+        avatarRevision: 100,
+      );
+      final refreshed = SpaceHttp.parseSpaceHtml(
+        raw,
+        9599,
+        1,
+        avatarRevision: 101,
+      );
+      final originalUrl = Uri.parse(page.info.avatar);
+      final firstUrl = Uri.parse(first.info.avatar);
+      final refreshedUrl = Uri.parse(refreshed.info.avatar);
+
+      expect(firstUrl.path, originalUrl.path);
+      expect(firstUrl.origin, originalUrl.origin);
+      expect(firstUrl.queryParameters['_avatar_v'], '100');
+      expect(refreshedUrl.queryParameters['_avatar_v'], '101');
+      expect(refreshed.info.avatar, isNot(first.info.avatar));
+      expect(refreshed.info.banner, page.info.banner);
+      expect(
+        refreshed.list.map((item) => item.cover),
+        page.list.map((item) => item.cover),
+      );
+    });
+
+    test('头像相对路径补全并保留已有参数, 旧版本参数被替换', () {
+      final parsed = SpaceHttp.parseSpaceHtml(
+        '<div class="sheader"><img class="avatar" '
+        'src="/avatar/180x180.jpg?size=180&amp;tag=a&amp;tag=b'
+        '&amp;_avatar_v=99#preview"></div>',
+        1,
+        1,
+        avatarRevision: 100,
+      );
+      final avatar = Uri.parse(parsed.info.avatar);
+      expect(avatar.isAbsolute, isTrue);
+      expect(avatar.path, '/avatar/180x180.jpg');
+      expect(avatar.queryParametersAll, {
+        'size': ['180'],
+        'tag': ['a', 'b'],
+        '_avatar_v': ['100'],
+      });
+      expect(avatar.fragment, 'preview');
+    });
+
+    test('缺少头像时不生成只有版本参数的图片地址', () {
+      final parsed = SpaceHttp.parseSpaceHtml(
+        '<div class="sheader"></div>',
+        1,
+        1,
+        avatarRevision: 100,
+      );
+      expect(parsed.info.avatar, isEmpty);
+    });
+
     test('解析出投稿列表且字段完整', () {
       expect(page.list, isNotEmpty);
       for (final item in page.list) {

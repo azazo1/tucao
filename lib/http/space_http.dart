@@ -79,14 +79,25 @@ abstract final class SpaceHttp {
       options: Options(headers: {'user-agent': Constants.desktopUserAgent}),
       cancelToken: cancelToken,
     );
-    return parseSpaceHtml(response.data.toString(), userId, page);
+    return parseSpaceHtml(
+      response.data.toString(),
+      userId,
+      page,
+      avatarRevision: DateTime.now().microsecondsSinceEpoch,
+    );
   }
 
   /// 解析用户空间页面.
   ///
   /// 头部是 `div.sheader`: `img.avatar` 头像, `img.banner` 背景,
   /// `h1` 昵称, 两个 `p` 分别是标签与签名; 下面是 `div.list` 里的投稿列表.
-  static SpacePage parseSpaceHtml(String raw, int userId, int page) {
+  /// [avatarRevision] 随资料请求更新, 而不是随界面重绘更新.
+  static SpacePage parseSpaceHtml(
+    String raw,
+    int userId,
+    int page, {
+    int? avatarRevision,
+  }) {
     final document = html_parser.parse(raw);
     final header = document.querySelector('.sheader');
     final nameNode = header?.querySelector('h1');
@@ -146,7 +157,7 @@ abstract final class SpaceHttp {
       info: SpaceInfo(
         userId: userId,
         userName: nameNode?.text.trim() ?? '',
-        avatar: _absolute(avatar),
+        avatar: _avatarUrl(avatar, avatarRevision),
         banner: _absolute(banner),
         sign: sign,
         meta: meta,
@@ -156,6 +167,24 @@ abstract final class SpaceHttp {
       list: list,
       hasMore: hasMore,
     );
+  }
+
+  /// 官网换头像后路径不变, CDN 仍可能把旧的无效图片缓存 30 天.
+  /// 与官网修改头像页一样附加版本参数, 同时更新本地图片缓存的键.
+  static String _avatarUrl(String raw, int? revision) {
+    final url = _absolute(raw.trim());
+    if (url.isEmpty || revision == null) {
+      return url;
+    }
+    final uri = Uri.parse(url);
+    return uri
+        .replace(
+          queryParameters: {
+            ...uri.queryParametersAll,
+            '_avatar_v': revision.toString(),
+          },
+        )
+        .toString();
   }
 
   static String? _parseHid(String href) {
