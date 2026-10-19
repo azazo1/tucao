@@ -1,5 +1,6 @@
 package com.azazo1.tucao
 
+import android.content.Intent
 import android.content.res.Configuration
 import android.os.Build
 import io.flutter.embedding.android.FlutterActivity
@@ -12,11 +13,25 @@ class MainActivity : FlutterActivity() {
     /** 保存图片到相册的平台通道. */
     private val imageSaver by lazy { ImageSaverController(this) }
 
+    /** 图评选图的平台通道. */
+    private val imagePicker by lazy { ImagePickerController(this) }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         val messenger = flutterEngine.dartExecutor.binaryMessenger
         pip.attach(messenger)
         imageSaver.attach(messenger)
+        imagePicker.attach(messenger)
+    }
+
+    override fun onActivityResult(
+        requestCode: Int,
+        resultCode: Int,
+        data: Intent?,
+    ) {
+        // 先交给框架分发给各插件, 再处理本活动自己的请求码.
+        super.onActivityResult(requestCode, resultCode, data)
+        imagePicker.onActivityResult(requestCode, resultCode, data)
     }
 
     override fun onUserLeaveHint() {
