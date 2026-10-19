@@ -82,6 +82,21 @@ abstract final class Style {
     );
   }
 
+  /// 用户横幅的回退底色.
+  ///
+  /// 没有横幅, 横幅加载失败, 或者横幅本身就是一张近乎全黑的图时, 页头改用
+  /// 主题容器色拼一层渐变, 免得整块糊成黑色.
+  static LinearGradient bannerGradient(ColorScheme scheme) {
+    return LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        scheme.primaryContainer.withValues(alpha: 0.9),
+        scheme.secondaryContainer.withValues(alpha: 0.9),
+      ],
+    );
+  }
+
   static ThemeData light(ColorScheme? dynamicScheme) => _build(
     dynamicScheme ?? ColorScheme.fromSeed(seedColor: seedColor),
   );
@@ -119,12 +134,17 @@ abstract final class Style {
         labelColor: scheme.primary,
         unselectedLabelColor: scheme.onSurfaceVariant,
       ),
+      // 卡片底色取容器色的高一档, 再描一圈轮廓.
+      //
+      // 暗色下 surface 与 surfaceContainerLow 的亮度差几乎看不出来, 卡片和
+      // 页面背景糊成一片, 描边能给出确定的边界, 底色高两档则拉开层次.
       cardTheme: CardThemeData(
         elevation: 0,
-        color: scheme.surfaceContainerLow,
+        color: scheme.surfaceContainerHigh,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(cardRadius),
+          side: BorderSide(color: scheme.outlineVariant),
         ),
       ),
       listTileTheme: const ListTileThemeData(

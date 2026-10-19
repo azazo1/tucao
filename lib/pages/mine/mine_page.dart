@@ -13,6 +13,7 @@ import 'package:tucao/common/widgets/vip_gold.dart';
 import 'package:tucao/http/space_http.dart';
 import 'package:tucao/models/user.dart';
 import 'package:tucao/pages/life/widgets/life_card.dart';
+import 'package:tucao/common/widgets/user_banner.dart';
 import 'package:tucao/pages/mine/widgets/update_download_panel.dart';
 import 'package:tucao/router/routes.dart';
 import 'package:tucao/services/account_service.dart';
@@ -230,8 +231,10 @@ class _UserHeader extends StatefulWidget {
 }
 
 class _UserHeaderState extends State<_UserHeader> {
-  static const _bannerHeight = 104.0;
-  static const _avatarSize = 56.0;
+  /// 横幅与头像都比默认小一圈, 让这张卡片不至于占掉半个屏幕,
+  /// 列表底部的条目也不会被弹出的提示条压住.
+  static const _bannerHeight = 80.0;
+  static const _avatarSize = 48.0;
 
   Worker? _userWorker;
 
@@ -364,7 +367,7 @@ class _UserHeaderState extends State<_UserHeader> {
                     right: 0,
                     top: 0,
                     height: _bannerHeight,
-                    child: _buildBanner(scheme, banner),
+                    child: UserBanner(url: banner),
                   ),
                   Positioned(
                     left: 14,
@@ -375,7 +378,7 @@ class _UserHeaderState extends State<_UserHeader> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+              padding: const EdgeInsets.fromLTRB(14, 6, 14, 10),
               child: Row(
                 children: [
                   Expanded(
@@ -427,35 +430,6 @@ class _UserHeaderState extends State<_UserHeader> {
       return name;
     }
     return VipGold(particleSeed: user.userId, child: name);
-  }
-
-  /// 没有横幅时的底色: 用主题容器色拼一层渐变.
-  Widget _bannerBackground(ColorScheme scheme) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            scheme.primaryContainer.withValues(alpha: 0.9),
-            scheme.secondaryContainer.withValues(alpha: 0.9),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBanner(ColorScheme scheme, String banner) {
-    final placeholder = _bannerBackground(scheme);
-    if (banner.isEmpty) {
-      return placeholder;
-    }
-    return CachedNetworkImage(
-      imageUrl: banner,
-      fit: BoxFit.cover,
-      placeholder: (context, url) => placeholder,
-      errorWidget: (context, url, error) => placeholder,
-    );
   }
 
   Widget _buildAvatar(ColorScheme scheme, String avatar) {

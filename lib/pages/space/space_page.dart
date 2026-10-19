@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
+import 'package:tucao/common/widgets/user_banner.dart';
 import 'package:tucao/common/widgets/video_card.dart';
 import 'package:tucao/common/widgets/vip_gold.dart';
 import 'package:tucao/http/space_http.dart';
@@ -159,22 +160,11 @@ class _SpacePageState extends State<SpacePage> {
   ///
   /// 背景图与头像是站点给的原图, 点一下可以放大查看, 长按保存.
   Widget _buildHeader(BuildContext context, SpaceInfo? info) {
-    final scheme = Theme.of(context).colorScheme;
     final banner = info?.banner ?? '';
     final background = Stack(
       fit: StackFit.expand,
       children: [
-        if (banner.isNotEmpty)
-          CachedNetworkImage(
-            imageUrl: banner,
-            fit: BoxFit.cover,
-            placeholder: (context, url) =>
-                ColoredBox(color: scheme.surfaceContainerHighest),
-            errorWidget: (context, url, error) =>
-                ColoredBox(color: scheme.surfaceContainerHighest),
-          )
-        else
-          ColoredBox(color: scheme.surfaceContainerHighest),
+        UserBanner(url: banner),
         // 压暗背景, 保证上方标题可读.
         DecoratedBox(
           decoration: BoxDecoration(
