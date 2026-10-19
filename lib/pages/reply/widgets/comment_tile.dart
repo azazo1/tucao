@@ -5,6 +5,7 @@ import 'package:tucao/common/constants.dart';
 import 'package:tucao/common/vip.dart';
 import 'package:tucao/models/reply.dart';
 import 'package:tucao/pages/reply/reply_content.dart';
+import 'package:tucao/pages/reply/widgets/comment_image.dart';
 import 'package:tucao/router/routes.dart';
 
 /// 单条评论.
@@ -164,6 +165,11 @@ class CommentTile extends StatelessWidget {
                 ),
               ),
             ),
+          )
+        else if (part is ReplyImagePart)
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: CommentImage(url: part.url, height: dense ? 72 : 96),
           ),
     ];
     return Text.rich(TextSpan(children: spans), style: style);

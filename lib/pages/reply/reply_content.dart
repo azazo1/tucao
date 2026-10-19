@@ -1,4 +1,5 @@
 import 'package:tucao/common/constants.dart';
+import 'package:tucao/utils/html_text.dart';
 
 /// 评论正文里的一段, 可能是文字, 也可能是站点表情.
 sealed class ReplyContentPart {
@@ -16,6 +17,13 @@ class ReplyEmojiPart extends ReplyContentPart {
   const ReplyEmojiPart({required this.name, required this.url});
 
   final String name;
+  final String url;
+}
+
+/// 评论里贴的图片, [url] 已经补成绝对地址.
+class ReplyImagePart extends ReplyContentPart {
+  const ReplyImagePart(this.url);
+
   final String url;
 }
 
@@ -38,9 +46,10 @@ final _smilePath = RegExp(
   caseSensitive: false,
 );
 
-/// 站点评论里的表情以图片形式返回, 这里把图片和文字拆开.
+/// 站点评论里的表情与图片都以图片形式返回, 这里把它们和文字拆开.
 ///
-/// 普通图片暂不内联, 用 `[图片]` 占位; 表情按图片地址识别.
+/// 表情按图片地址识别, 其余图片交给界面内联显示. 文字部分交给
+/// [decodeHtmlText] 处理, 站点偶尔会把整条评论写成 HTML 实体.
 ReplyContent parseReplyContent(String raw) {
   final source = raw.replaceAll(
     RegExp(r'<br\s*/?>', caseSensitive: false),
@@ -57,7 +66,8 @@ ReplyContent parseReplyContent(String raw) {
       _flushText(parts, buffer);
       parts.add(emoji);
     } else if (src.isNotEmpty) {
-      buffer.write('[图片]');
+      _flushText(parts, buffer);
+      parts.add(ReplyImagePart(_absolute(src)));
     }
     cursor = match.end;
   }
@@ -70,35 +80,23 @@ ReplyContent parseReplyContent(String raw) {
 /// 清洗评论正文, 只保留文字, 表情图片也会被去掉.
 ///
 /// 纯文本场景使用, 需要显示表情时用 [parseReplyContent].
-String cleanReplyContent(String raw) {
-  final text = raw
-      .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
-      .replaceAll(RegExp(r'<[^>]+>'), '');
-  var result = text;
-  for (final entry in _entities.entries) {
-    result = result.replaceAll(entry.key, entry.value);
-  }
-  return result.trim();
-}
+String cleanReplyContent(String raw) => decodeHtmlText(raw).trim();
 
 void _flushText(List<ReplyContentPart> parts, StringBuffer buffer) {
-  final text = _cleanInline(buffer.toString());
+  final text = decodeHtmlText(buffer.toString());
   buffer.clear();
   if (text.isNotEmpty) {
     parts.add(ReplyTextPart(text));
   }
 }
 
-String _cleanInline(String raw) {
-  var text = raw.replaceAll(RegExp(r'<[^>]+>'), '');
-  for (final entry in _entities.entries) {
-    text = text.replaceAll(entry.key, entry.value);
-  }
-  return text;
-}
-
 ReplyEmojiPart? _emojiOf(String src) {
   if (src.isEmpty) {
+    return null;
+  }
+  final url = _absolute(src);
+  // 站外地址一律不当表情, 否则别人的评论能让本机自动请求外部主机.
+  if (!isSiteImage(url)) {
     return null;
   }
   final match = _smilePath.firstMatch(src);
@@ -111,7 +109,7 @@ ReplyEmojiPart? _emojiOf(String src) {
   } on ArgumentError {
     // 保持原始名字, 不影响后续显示.
   }
-  return ReplyEmojiPart(name: name, url: _absolute(src));
+  return ReplyEmojiPart(name: name, url: url);
 }
 
 String _absolute(String url) {
@@ -121,7 +119,36 @@ String _absolute(String url) {
   return '${Constants.baseUrl}${url.replaceFirst(RegExp(r'^/'), '')}';
 }
 
-/// 去掉正文整体首尾的空白, 但不影响表情两侧的文本.
+/// 图片地址是否属于站点自己, 子域名与去掉 www 的主域名都算.
+///
+/// 评论里的图片地址由别人提交, 站外的地址不该在列表滚动时自动联网,
+/// 否则一条评论就能让本机向任意主机发请求, 界面据此改为等用户点击.
+bool isSiteImage(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri == null) {
+    return false;
+  }
+  final scheme = uri.scheme.toLowerCase();
+  if (scheme != 'http' && scheme != 'https') {
+    return false;
+  }
+  final siteHost = Uri.tryParse(Constants.baseUrl)?.host.toLowerCase() ?? '';
+  if (siteHost.isEmpty) {
+    return false;
+  }
+  // 站点主域名可能是 www 开头, 图片地址却用裸域名或图片子域名.
+  final bareHost = siteHost.startsWith('www.')
+      ? siteHost.substring('www.'.length)
+      : siteHost;
+  final host = uri.host.toLowerCase();
+  return _sameOrSubDomainOf(host, siteHost) ||
+      _sameOrSubDomainOf(host, bareHost);
+}
+
+bool _sameOrSubDomainOf(String host, String domain) =>
+    host == domain || host.endsWith('.$domain');
+
+/// 去掉正文整体首尾的空白, 但不影响表情与图片两侧的文本.
 void _trimEdges(List<ReplyContentPart> parts) {
   if (parts.isNotEmpty && parts.first is ReplyTextPart) {
     final text = (parts.first as ReplyTextPart).text.trimLeft();
@@ -140,13 +167,3 @@ void _trimEdges(List<ReplyContentPart> parts) {
     }
   }
 }
-
-/// `&amp;` 放在最后替换, 避免二次解码.
-const _entities = <String, String>{
-  '&lt;': '<',
-  '&gt;': '>',
-  '&quot;': '"',
-  '&#39;': "'",
-  '&nbsp;': ' ',
-  '&amp;': '&',
-};
