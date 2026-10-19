@@ -3,6 +3,7 @@ import 'package:tucao/models/form_response.dart';
 import 'package:tucao/models/user.dart';
 import 'package:tucao/http/init.dart';
 import 'package:tucao/http/user_http.dart';
+import 'package:tucao/services/site_favorite_service.dart';
 import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/storage.dart';
 
@@ -176,5 +177,7 @@ class AccountService extends GetxController {
   Future<void> _clear() async {
     user.value = null;
     await GStorage.account.delete(_kUser);
+    // 追番跟着账号走, 退出或换号后旧列表不能再当成本次账号的状态.
+    SiteFavoriteService.instance.clear();
   }
 }

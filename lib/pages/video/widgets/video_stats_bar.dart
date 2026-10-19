@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:tucao/common/widgets/stats_bar.dart';
 import 'package:tucao/http/reply_http.dart';
 import 'package:tucao/http/video_stats_http.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/models/video_stats.dart';
+import 'package:tucao/services/site_favorite_service.dart';
 import 'package:tucao/utils/logger.dart';
 
 /// 播放页的统计条.
@@ -13,6 +15,8 @@ import 'package:tucao/utils/logger.dart';
 /// 与站点播放页顶部的图标一致: 播放 / 在线 / 评论 / 弹幕 / 追番.
 /// 播放量, 评论数与追番数进入时各取一次, 在线人数每 30 秒刷新一次;
 /// 应用退到后台时暂停刷新, 回到前台立即补一次.
+/// 追番那一项可以点击: 站点把追番放在这个位置, 客户端跟着做,
+/// 是否已经追番由站点账号的追番夹决定, 见 [SiteFavoriteService].
 class VideoStatsBar extends StatefulWidget {
   const VideoStatsBar({super.key, required this.video});
 
@@ -32,6 +36,10 @@ class _VideoStatsBarState extends State<VideoStatsBar>
   String _hid = '';
   int _typeId = 0;
   bool _countsRequested = false;
+  bool _favoriteBusy = false;
+
+  /// 站点追番与我的收藏页共用同一份缓存.
+  late final SiteFavoriteService _favorites = SiteFavoriteService.instance;
 
   @override
   void initState() {
@@ -83,6 +91,77 @@ class _VideoStatsBarState extends State<VideoStatsBar>
     }
     unawaited(_refreshOnline());
     _startTimer();
+    unawaited(_loadFavoriteState());
+  }
+
+  /// 追番状态整份缓存在 [SiteFavoriteService] 里, 拉到过就不再请求.
+  ///
+  /// 拉到之后由统计条外面的 Obx 跟着列表重建, 这里不额外触发.
+  Future<void> _loadFavoriteState() async {
+    if (_hid.isEmpty) {
+      return;
+    }
+    await _favorites.ensureLoaded();
+  }
+
+  /// 点击追番: 没追番过就追番, 追过就取消.
+  ///
+  /// 站点数字不会立刻跟着变, 与官网一样先按本地结果加减一次.
+  Future<void> _toggleFavorite() async {
+    final video = widget.video;
+    if (_favoriteBusy || video.hid.isEmpty) {
+      return;
+    }
+    final service = _favorites;
+    setState(() => _favoriteBusy = true);
+    var action = '追番';
+    try {
+      // 还没拿到过列表时现拉一次: 失败后的冷却只该挡住后台轮询,
+      // 不该把用户刚登录后的第一次点击也挡回去.
+      if (!service.loaded) {
+        await service.refresh(force: true);
+      }
+      if (!mounted) {
+        return;
+      }
+      if (!service.loaded) {
+        _showFavoriteTip(service.error.value ?? '登录后才能追番');
+        return;
+      }
+      final existing = service.find(video.hid);
+      if (existing == null) {
+        await service.add(video);
+      } else {
+        action = '取消追番';
+        await service.remove(existing);
+      }
+      if (!mounted) {
+        return;
+      }
+      final count = _stats.favoriteCount;
+      if (count == null) {
+        unawaited(_loadCounts());
+      } else {
+        final next = count + (existing == null ? 1 : -1);
+        _update(_stats.copyWith(favoriteCount: next < 0 ? 0 : next));
+      }
+      _showFavoriteTip(existing == null ? '已加入追番' : '已取消追番');
+    } catch (e) {
+      if (mounted) {
+        _showFavoriteTip('$action失败: $e');
+      }
+      Log.d('$action失败: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _favoriteBusy = false);
+      }
+    }
+  }
+
+  void _showFavoriteTip(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+    );
   }
 
   void _startTimer() {
@@ -157,35 +236,40 @@ class _VideoStatsBarState extends State<VideoStatsBar>
   Widget build(BuildContext context) {
     final video = widget.video;
     final stats = _stats;
-    return StatsBar(
-      items: [
-        StatsBarItem(
-          icon: Icons.play_circle_outline,
-          label: '播放',
-          // 详情接口的数字先显示, 统计接口拿到新值后覆盖.
-          value: stats.playCount ?? video.playCount,
-        ),
-        StatsBarItem(
-          icon: Icons.bar_chart,
-          label: '在线',
-          value: stats.onlineCount,
-        ),
-        StatsBarItem(
-          icon: Icons.chat_bubble_outline,
-          label: '评论',
-          value: stats.commentCount,
-        ),
-        StatsBarItem(
-          icon: Icons.subtitles_outlined,
-          label: '弹幕',
-          value: video.danmakuCount,
-        ),
-        StatsBarItem(
-          icon: Icons.favorite_border,
-          label: '追番',
-          value: stats.favoriteCount,
-        ),
-      ],
-    );
+    // 追番状态来自站点服务, 用 Obx 跟着它刷新.
+    return Obx(() {
+      final favorited = _favorites.contains(video.hid);
+      return StatsBar(
+        items: [
+          StatsBarItem(
+            icon: Icons.play_circle_outline,
+            label: '播放',
+            // 详情接口的数字先显示, 统计接口拿到新值后覆盖.
+            value: stats.playCount ?? video.playCount,
+          ),
+          StatsBarItem(
+            icon: Icons.bar_chart,
+            label: '在线',
+            value: stats.onlineCount,
+          ),
+          StatsBarItem(
+            icon: Icons.chat_bubble_outline,
+            label: '评论',
+            value: stats.commentCount,
+          ),
+          StatsBarItem(
+            icon: Icons.subtitles_outlined,
+            label: '弹幕',
+            value: video.danmakuCount,
+          ),
+          StatsBarItem(
+            icon: favorited ? Icons.favorite : Icons.favorite_border,
+            label: favorited ? '已追番, 点击取消' : '追番',
+            value: stats.favoriteCount,
+            onTap: _favoriteBusy ? null : _toggleFavorite,
+          ),
+        ],
+      );
+    });
   }
 }

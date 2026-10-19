@@ -3,7 +3,12 @@ import 'package:tucao/utils/utils.dart';
 
 /// 统计条里的一项.
 class StatsBarItem {
-  const StatsBarItem({required this.icon, required this.label, this.value});
+  const StatsBarItem({
+    required this.icon,
+    required this.label,
+    this.value,
+    this.onTap,
+  });
 
   final IconData icon;
 
@@ -12,6 +17,9 @@ class StatsBarItem {
 
   /// 为空表示还在加载.
   final int? value;
+
+  /// 不为空时该项可以点击, 目前只有播放页的追番.
+  final VoidCallback? onTap;
 }
 
 /// 播放页与档案页共用的统计条.
@@ -50,23 +58,39 @@ class _StatsCell extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final value = item.value;
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(item.icon, size: 18, color: scheme.onSurfaceVariant),
+        const SizedBox(height: 2),
+        Text(
+          value == null ? '…' : Utils.formatCount(value),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: scheme.onSurface,
+          ),
+        ),
+      ],
+    );
+    final onTap = item.onTap;
+    if (onTap == null) {
+      return Tooltip(message: item.label, child: content);
+    }
+    // 可点击的项留出一点上下留白, 手指好按, 不影响只读的统计条.
     return Tooltip(
       message: item.label,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(item.icon, size: 18, color: scheme.onSurfaceVariant),
-          const SizedBox(height: 2),
-          Text(
-            value == null ? '…' : Utils.formatCount(value),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.labelMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: scheme.onSurface,
-            ),
+      child: Semantics(
+        button: true,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: content,
           ),
-        ],
+        ),
       ),
     );
   }

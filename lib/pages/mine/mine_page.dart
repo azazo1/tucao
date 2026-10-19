@@ -186,7 +186,8 @@ class _MinePageState extends State<MinePage> {
             ),
             ListTile(
               leading: const Icon(Icons.star_outline),
-              title: const Text('本地收藏'),
+              title: const Text('我的收藏'),
+              subtitle: const Text('本地收藏与站点追番'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Get.toNamed(Routes.favorites),
             ),
