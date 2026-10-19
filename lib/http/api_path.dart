@@ -57,6 +57,14 @@ abstract final class ApiPath {
   static const userInfo = 'api.php?op=user';
   static const userSpace = 'index.php?m=member&c=space';
 
+  /// 站点追番.
+  ///
+  /// 新增走 `api.php?op=add_favorite`; 查询与取消站点都没有 json 接口
+  /// (`api.php?op=favorite` 登录后恒返回 `{"status":0}`), 个人追番列表与取消
+  /// 都挂在会员中心的追番夹页面上, 取消时在页面地址后面带记录号 `id`.
+  static const favoriteFolder = 'index.php?m=member&c=index&a=favorite';
+  static String favoriteRemove(int recordId) => '$favoriteFolder&id=$recordId';
+
   /// 会员中心与贡献榜.
   ///
   /// 站点没有对应的 json 接口, 都只能抓页面, 且需要登录态.
