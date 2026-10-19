@@ -16,6 +16,8 @@ import 'package:tucao/utils/logger.dart';
 ///
 /// 取数失败保留上一次的数字, 网络抖一下不至于让角标忽明忽暗.
 class MessageCountService extends GetxController {
+  static MessageCountService get instance => Get.find<MessageCountService>();
+
   /// 收件箱未读数.
   final inbox = 0.obs;
 
@@ -50,6 +52,7 @@ class MessageCountService extends GetxController {
   }
 
   /// 重新取一次未读数.
+  @override
   Future<void> refresh() async {
     if (_loading) {
       return;

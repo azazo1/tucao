@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/pages/home/home_page.dart';
 import 'package:tucao/pages/mine/mine_page.dart';
