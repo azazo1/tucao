@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:tucao/build_config.dart';
@@ -5,6 +7,10 @@ import 'package:tucao/common/constants.dart';
 import 'package:tucao/http/update_http.dart';
 import 'package:tucao/models/app_release.dart';
 import 'package:tucao/models/dev_build.dart';
+import 'package:tucao/models/release_asset.dart';
+import 'package:tucao/models/update_download.dart';
+import 'package:tucao/services/update/update_download_service.dart';
+import 'package:tucao/services/update/update_installer.dart';
 import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/storage_pref.dart';
 import 'package:tucao/utils/version.dart';
@@ -18,14 +24,19 @@ enum _UpdateChoice {
   /// 记住该版本, 自动检查不再提示.
   ignore,
 
-  /// 打开浏览器进入下载页.
+  /// 在应用内下载安装包.
   download,
+
+  /// 打开浏览器进入发布页, 由用户自己挑产物.
+  page,
 }
 
 /// 版本更新提示.
 ///
-/// 只做提示与跳转: 查到 GitHub Release 上的新版本后给出发布页链接,
-/// 下载与安装交给系统浏览器和安装器, 应用本身不申请安装权限.
+/// 查到 GitHub Release 上的新版本后, 在对话框里展示发布说明并按设备 ABI
+/// 挑出对应的安装包. 下载在应用内进行, 完成后交给系统安装器;
+/// 没有匹配的产物, 或者用户更想自己下载时, 仍然可以跳到发布页.
+
 abstract final class UpdateService {
   /// 本次启动是否已经自动检查过, 避免每次回到首页都发请求.
   static bool _startupChecked = false;
@@ -140,17 +151,28 @@ abstract final class UpdateService {
     }
   }
 
-  /// 更新提示对话框, 按用户选择决定是否记住该版本或打开浏览器.
+  /// 更新提示对话框, 按用户选择决定是否记住该版本或开始应用内下载.
   ///
   /// 手动检查同样走这里, 因此忽略过的版本在手动检查时还会出现.
   static Future<void> _showDialog(
     BuildContext context,
     AppRelease release,
   ) async {
+    // 设备 ABI 决定取哪个安装包, 本机没有对应产物时只留发布页入口.
+    final abis = await UpdateInstaller.supportedAbis();
+    if (!context.mounted) {
+      return;
+    }
+    final asset = release.apkFor(abis);
     final choice = await showDialog<_UpdateChoice>(
       context: context,
       builder: (dialogContext) {
         final scheme = Theme.of(dialogContext).colorScheme;
+        final noteStyle = TextStyle(
+          fontSize: 12,
+          height: 1.5,
+          color: scheme.onSurfaceVariant,
+        );
         return AlertDialog(
           title: Text('发现新版本 ${release.tagName}'),
           content: SizedBox(
@@ -167,41 +189,26 @@ abstract final class UpdateService {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    '下载后在系统里覆盖安装即可, 不要先卸载, 卸载会清除本地数据.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      height: 1.5,
-                      color: scheme.onSurfaceVariant,
-                    ),
+                    asset == null
+                        ? '没有找到适配本机的安装包, 请到发布页里选择.'
+                        : '应用内下载 ${asset.name} (${asset.sizeText}), '
+                              '下载完成后在"关于"里点安装.',
+                    style: noteStyle,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '安装时系统会要求允许本应用安装未知应用; 覆盖安装即可, '
+                    '不要先卸载, 卸载会清除本地数据.',
+                    style: noteStyle,
                   ),
                   const SizedBox(height: 12),
+                  Text('备用下载地址:', style: noteStyle),
+                  _linkRow(dialogContext, release.pageUrl, noteStyle),
+                  const SizedBox(height: 4),
+                  _linkRow(dialogContext, Constants.officialSiteUrl, noteStyle),
                   Text(
-                    '官网下载页:',
-                    style: TextStyle(
-                      fontSize: 12,
-                      height: 1.5,
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-                  InkWell(
-                    onTap: () =>
-                        _openUrl(dialogContext, Constants.officialSiteUrl),
-                    child: Text(
-                      Constants.officialSiteUrl,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: scheme.primary,
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
-                  ),
-                  Text(
-                    '该页面并非本人管理, 链接可能随时撤去, 也可能更新延迟.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      height: 1.5,
-                      color: scheme.onSurfaceVariant,
-                    ),
+                    '官网下载页并非本人管理, 链接可能随时撤去, 也可能更新延迟.',
+                    style: noteStyle,
                   ),
                 ],
               ),
@@ -219,14 +226,19 @@ abstract final class UpdateService {
               child: const Text('忽略此版本'),
             ),
             FilledButton(
-              onPressed: () =>
-                  Navigator.pop(dialogContext, _UpdateChoice.download),
-              child: const Text('前往下载'),
+              onPressed: () => Navigator.pop(
+                dialogContext,
+                asset == null ? _UpdateChoice.page : _UpdateChoice.download,
+              ),
+              child: Text(asset == null ? '前往发布页' : '下载安装包'),
             ),
           ],
         );
       },
     );
+    if (!context.mounted) {
+      return;
+    }
     if (choice == _UpdateChoice.ignore) {
       Pref.skippedUpdateVersion = release.tagName;
       if (context.mounted) {
@@ -236,10 +248,82 @@ abstract final class UpdateService {
       }
       return;
     }
-    if (choice == _UpdateChoice.download) {
+    if (choice == _UpdateChoice.page) {
       await _openUrl(context, release.pageUrl);
+      return;
+    }
+    if (choice == _UpdateChoice.download) {
+      _startDownload(
+        context,
+        version: release.tagName,
+        assets: release.assets,
+        pageUrl: release.pageUrl,
+        abis: abis,
+      );
     }
     // 选稍后或直接关闭时不做记录, 下次启动的自动检查会重新提示.
+  }
+
+  /// 开始应用内下载.
+  ///
+  /// 对话框此时已经关掉, 下载在服务里继续, 进度与安装入口都在关于对话框里,
+  /// 因此这里只提示用户去哪里接着看, 并顺手给一个即时的取消入口.
+  static void _startDownload(
+    BuildContext context, {
+    required String version,
+    required List<ReleaseAsset> assets,
+    required String pageUrl,
+    required List<String> abis,
+  }) {
+    final download = UpdateDownloadService.maybeInstance;
+    if (download == null) {
+      // 下载服务没有就绪时退回发布页, 不让更新入口失效.
+      unawaited(_openUrl(context, pageUrl));
+      return;
+    }
+    final current = download.state.value;
+    if (current.version == version) {
+      if (current.status == UpdateDownloadStatus.ready) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('安装包已经下好, 在"关于"里点安装')),
+        );
+        return;
+      }
+      if (current.isDownloading) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('安装包正在下载, 进度在"关于"里查看')),
+        );
+        return;
+      }
+    }
+    unawaited(download.start(version: version, assets: assets, abis: abis));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('已开始下载安装包, 进度在"关于"里查看'),
+        action: SnackBarAction(
+          label: '取消',
+          onPressed: () => unawaited(download.pause()),
+        ),
+      ),
+    );
+  }
+
+  /// 对话框里的下载地址链接.
+  static Widget _linkRow(
+    BuildContext context,
+    String url,
+    TextStyle style,
+  ) {
+    return InkWell(
+      onTap: () => _openUrl(context, url),
+      child: Text(
+        url,
+        style: style.copyWith(
+          color: Theme.of(context).colorScheme.primary,
+          decoration: TextDecoration.underline,
+        ),
+      ),
+    );
   }
 
   /// 开发版检查结果对话框.
@@ -250,6 +334,12 @@ abstract final class UpdateService {
     BuildContext context,
     DevBuild build,
   ) async {
+    // 与正式版同一套挑选逻辑, 产物同样按架构分开.
+    final abis = await UpdateInstaller.supportedAbis();
+    if (!context.mounted) {
+      return;
+    }
+    final asset = build.apkFor(abis);
     final current = BuildConfig.buildVersion;
     final status = build.statusFor(current);
     final canDownload =
@@ -307,23 +397,21 @@ abstract final class UpdateService {
                   ],
                   const SizedBox(height: 12),
                   Text(
-                    '开发版由 CI 从分支构建, 每条说明与产物都会被后续推送覆盖,'
-                    '下载后在系统里覆盖安装即可.',
+                    asset == null
+                        ? '没有找到适配本机的安装包, 请到发布页里选择.'
+                        : '应用内下载 ${asset.name} (${asset.sizeText}), '
+                              '下载完成后在"关于"里点安装.',
+                    style: noteStyle,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '开发版由 CI 从分支构建, 每条说明与产物都会被后续推送覆盖; '
+                    '安装时系统会要求允许本应用安装未知应用, 覆盖安装即可.',
                     style: noteStyle,
                   ),
                   const SizedBox(height: 12),
                   Text('发布页:', style: noteStyle),
-                  InkWell(
-                    onTap: () => _openUrl(dialogContext, build.pageUrl),
-                    child: Text(
-                      build.pageUrl,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: scheme.primary,
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
-                  ),
+                  _linkRow(dialogContext, build.pageUrl, noteStyle),
                 ],
               ),
             ),
@@ -336,15 +424,26 @@ abstract final class UpdateService {
             if (canDownload)
               FilledButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text('前往下载'),
+                child: Text(asset == null ? '前往发布页' : '下载安装包'),
               ),
           ],
         );
       },
     );
-    if (download == true) {
-      await _openUrl(context, build.pageUrl);
+    if (download != true) {
+      return;
     }
+    if (asset == null) {
+      await _openUrl(context, build.pageUrl);
+      return;
+    }
+    _startDownload(
+      context,
+      version: 'dev-latest',
+      assets: build.assets,
+      pageUrl: build.pageUrl,
+      abis: abis,
+    );
   }
 
   /// 对话框里的当前构建说明, 本地开发构建没有注入版本号.

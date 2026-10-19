@@ -16,12 +16,16 @@ class MainActivity : FlutterActivity() {
     /** 图评选图的平台通道. */
     private val imagePicker by lazy { ImagePickerController(this) }
 
+    /** 更新包安装的平台通道. */
+    private val apkInstaller by lazy { ApkInstallerController(this) }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         val messenger = flutterEngine.dartExecutor.binaryMessenger
         pip.attach(messenger)
         imageSaver.attach(messenger)
         imagePicker.attach(messenger)
+        apkInstaller.attach(messenger)
     }
 
     override fun onActivityResult(

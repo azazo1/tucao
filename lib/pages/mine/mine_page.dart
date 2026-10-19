@@ -13,8 +13,10 @@ import 'package:tucao/common/widgets/vip_gold.dart';
 import 'package:tucao/http/space_http.dart';
 import 'package:tucao/models/user.dart';
 import 'package:tucao/pages/life/widgets/life_card.dart';
+import 'package:tucao/pages/mine/widgets/update_download_panel.dart';
 import 'package:tucao/router/routes.dart';
 import 'package:tucao/services/account_service.dart';
+import 'package:tucao/services/update/update_download_service.dart';
 import 'package:tucao/services/update_service.dart';
 import 'package:tucao/utils/logger.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -548,6 +550,7 @@ class _AboutDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final download = UpdateDownloadService.maybeInstance;
     return AlertDialog(
       // 关闭改到右上角, 底部只留两个检查入口, 360dp 下也能排成一行.
       title: Row(
@@ -561,30 +564,35 @@ class _AboutDialog extends StatelessWidget {
           ),
         ],
       ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            version.isEmpty ? '版本读取中' : '版本 $version',
-            style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
-          ),
-          const SizedBox(height: 12),
-          _LinkRow(label: '项目地址', url: Constants.sourceCodeUrl),
-          const SizedBox(height: 8),
-          const Text('参考项目', style: TextStyle(fontSize: 13)),
-          const SizedBox(height: 4),
-          _LinkRow(label: 'Tucao', url: Constants.refererSourceCodeUrl),
-          const SizedBox(height: 8),
-          _LinkRow(label: 'PiliPlus', url: Constants.piliPlusUrl),
-          const SizedBox(height: 8),
-          _LinkRow(label: '吐槽官网', url: Constants.officialSiteUrl),
-          const SizedBox(height: 12),
-          Text(
-            '本项目是第三方客户端, 与站点官方无关.',
-            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-          ),
-        ],
+      // 下载状态会临时撑高这一列, 小屏上让它自己滚.
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              version.isEmpty ? '版本读取中' : '版本 $version',
+              style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
+            ),
+            // 更新包的下载在对话框之外继续, 这里接着显示进度与安装入口.
+            if (download != null) UpdateDownloadPanel(service: download),
+            const SizedBox(height: 12),
+            _LinkRow(label: '项目地址', url: Constants.sourceCodeUrl),
+            const SizedBox(height: 8),
+            const Text('参考项目', style: TextStyle(fontSize: 13)),
+            const SizedBox(height: 4),
+            _LinkRow(label: 'Tucao', url: Constants.refererSourceCodeUrl),
+            const SizedBox(height: 8),
+            _LinkRow(label: 'PiliPlus', url: Constants.piliPlusUrl),
+            const SizedBox(height: 8),
+            _LinkRow(label: '吐槽官网', url: Constants.officialSiteUrl),
+            const SizedBox(height: 12),
+            Text(
+              '本项目是第三方客户端, 与站点官方无关.',
+              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            ),
+          ],
+        ),
       ),
       actions: [
         TextButton(onPressed: onCheckDevUpdate, child: const Text('检查开发版更新')),

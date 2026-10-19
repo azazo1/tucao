@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 下载好的更新包放在外部应用专属目录的 updates 下, 安装时经 FileProvider 读出. -->
+<paths>
+    <external-files-path name="updates" path="updates/" />
+</paths>

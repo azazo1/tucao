@@ -88,3 +88,9 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // 更新包经 FileProvider 换成 content uri 交给系统安装器, 这里显式声明,
+    // 免得依赖某个插件把 androidx.core 传递进来.
+    implementation("androidx.core:core:1.13.1")
+}
