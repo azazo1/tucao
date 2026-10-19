@@ -20,6 +20,22 @@ void main() {
     expect(find.byTooltip('图片'), findsNothing);
   });
 
+  testWidgets('输入条不留计数行, 发送按钮与图标同高', (tester) async {
+    await tester.pumpWidget(
+      wrap(
+        ReplyInputSheet(onUploadImage: (bytes, name) async => '[img]x[/img]'),
+      ),
+    );
+
+    // 计数行会把输入框撑高, 让右侧按钮落到计数那一行上, 这里不再显示.
+    expect(find.textContaining('/500'), findsNothing);
+    // 发送按钮与图标按钮的布局高度要一致, 否则底边对齐后仍会差几像素.
+    expect(
+      tester.getSize(find.widgetWithText(FilledButton, '发送')).height,
+      tester.getSize(find.byTooltip('表情')).height,
+    );
+  });
+
   testWidgets('非破会员点图片只给提示, 不打开选择器', (tester) async {
     var picked = false;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger

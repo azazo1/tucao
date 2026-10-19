@@ -174,12 +174,12 @@ class _ReplyInputSheetState extends State<ReplyInputSheet> {
                       maxLines: 4,
                       maxLength: 500,
                       textInputAction: TextInputAction.newline,
-                      decoration: InputDecoration(
+                      decoration: const InputDecoration(
                         hintText: '说点什么',
-                        counterStyle: TextStyle(
-                          fontSize: 11,
-                          color: scheme.onSurfaceVariant,
-                        ),
+                        // 自带的计数会多占一行, 右侧图标与发送按钮按底边对齐时
+                        // 会落到计数那一行上, 与输入框对不齐. 字数上限仍由
+                        // maxLength 拦下, 弹幕栏同样不显示计数.
+                        counterText: '',
                       ),
                       style: const TextStyle(fontSize: 14),
                     ),
@@ -214,6 +214,11 @@ class _ReplyInputSheetState extends State<ReplyInputSheet> {
                     builder: (context, value, child) {
                       final canSend = value.text.trim().isNotEmpty;
                       return FilledButton(
+                        // 默认的点击热区会把按钮撑到 48 高, 与 40 高的
+                        // 输入框和图标按钮对不齐, 这里只保留可见高度.
+                        style: FilledButton.styleFrom(
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
                         onPressed: canSend ? _submit : null,
                         child: const Text('发送'),
                       );
