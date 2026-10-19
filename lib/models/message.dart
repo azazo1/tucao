@@ -48,3 +48,79 @@ class MessageDetail {
   /// 发送者的 uid, 回复时需要用对方的 uid 作为收件人.
   final String userId;
 }
+
+/// 系统公告列表里的一条.
+///
+/// 站点把公告放到消息模块的 group 动作下, 编号是 group_id, 发送者固定是
+/// SYSTEM. 列表里没有单独的标题节点, 站点把标题写在摘要的第一行, 这里拆成
+/// [title] 与 [summary].
+class SystemMessage {
+  const SystemMessage({
+    required this.id,
+    this.title = '',
+    this.summary = '',
+    this.time = '',
+    this.avatar = '',
+    this.unread = false,
+  });
+
+  /// 公告编号, 用于拉取详情.
+  final String id;
+
+  /// 标题, 取摘要的第一行.
+  final String title;
+
+  /// 标题之外的摘要文字, 已经折成一行.
+  final String summary;
+
+  final String time;
+
+  final String avatar;
+
+  /// 站点条目里是否带未读标记, 打开详情后站点自己会清掉.
+  final bool unread;
+}
+
+/// 系统公告详情.
+class SystemMessageDetail {
+  const SystemMessageDetail({
+    this.title = '',
+    this.time = '',
+    this.blocks = const [],
+  });
+
+  final String title;
+
+  final String time;
+
+  /// 正文分块, 按页面顺序排列, 交给界面用原生组件渲染.
+  final List<SystemContentBlock> blocks;
+}
+
+/// 公告正文里的一块内容.
+sealed class SystemContentBlock {
+  const SystemContentBlock();
+}
+
+/// 一个段落, 段落内的文字与链接按顺序排列.
+class SystemParagraph extends SystemContentBlock {
+  const SystemParagraph(this.parts);
+
+  final List<SystemTextPart> parts;
+}
+
+/// 段落里的一段文字, [url] 非空时是链接.
+class SystemTextPart {
+  const SystemTextPart(this.text, {this.url});
+
+  final String text;
+
+  final String? url;
+}
+
+/// 独立成块的图片, [url] 已经补成绝对地址.
+class SystemImage extends SystemContentBlock {
+  const SystemImage(this.url);
+
+  final String url;
+}

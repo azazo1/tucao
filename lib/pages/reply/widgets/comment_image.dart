@@ -4,7 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/pages/mine/image_viewer_page.dart';
-import 'package:tucao/pages/reply/reply_content.dart';
+import 'package:tucao/utils/site_url.dart';
 
 /// 评论里贴的图片.
 ///

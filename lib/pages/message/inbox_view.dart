@@ -46,15 +46,15 @@ class InboxController extends GetxController {
   Future<void> refresh() => load();
 }
 
-/// 收件箱页面.
-class InboxPage extends StatefulWidget {
-  const InboxPage({super.key});
+/// 收件箱列表, 作为私信页里的第一个标签.
+class InboxView extends StatefulWidget {
+  const InboxView({super.key});
 
   @override
-  State<InboxPage> createState() => _InboxPageState();
+  State<InboxView> createState() => _InboxViewState();
 }
 
-class _InboxPageState extends State<InboxPage> {
+class _InboxViewState extends State<InboxView> {
   late final String _tag = 'inbox_${identityHashCode(this)}';
 
   late final InboxController _controller = Get.put(
@@ -72,31 +72,28 @@ class _InboxPageState extends State<InboxPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('私信')),
-      body: Obx(() {
-        if (_controller.firstLoading.value) {
-          return const LoadingWidget();
-        }
-        final error = _controller.error.value;
-        if (error != null && _controller.list.isEmpty) {
-          return ErrorWidgetView(message: error, onRetry: _controller.load);
-        }
-        if (_controller.list.isEmpty) {
-          return const EmptyWidget(message: '还没有收到私信');
-        }
-        return RefreshIndicator(
-          onRefresh: _controller.refresh,
-          child: ListView.separated(
-            physics: const AlwaysScrollableScrollPhysics(),
-            itemCount: _controller.list.length,
-            separatorBuilder: (context, index) => const Divider(height: 1),
-            itemBuilder: (context, index) =>
-                _InboxTile(item: _controller.list[index]),
-          ),
-        );
-      }),
-    );
+    return Obx(() {
+      if (_controller.firstLoading.value) {
+        return const LoadingWidget();
+      }
+      final error = _controller.error.value;
+      if (error != null && _controller.list.isEmpty) {
+        return ErrorWidgetView(message: error, onRetry: _controller.load);
+      }
+      if (_controller.list.isEmpty) {
+        return const EmptyWidget(message: '还没有收到私信');
+      }
+      return RefreshIndicator(
+        onRefresh: _controller.refresh,
+        child: ListView.separated(
+          physics: const AlwaysScrollableScrollPhysics(),
+          itemCount: _controller.list.length,
+          separatorBuilder: (context, index) => const Divider(height: 1),
+          itemBuilder: (context, index) =>
+              _InboxTile(item: _controller.list[index]),
+        ),
+      );
+    });
   }
 }
 

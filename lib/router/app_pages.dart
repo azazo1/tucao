@@ -13,8 +13,9 @@ import 'package:tucao/pages/login/forgot_password_page.dart';
 import 'package:tucao/pages/login/login_page.dart';
 import 'package:tucao/pages/login/register_page.dart';
 import 'package:tucao/pages/main/main_page.dart';
-import 'package:tucao/pages/message/inbox_page.dart';
+import 'package:tucao/pages/message/message_center_page.dart';
 import 'package:tucao/pages/message/message_page.dart';
+import 'package:tucao/pages/message/system_detail_page.dart';
 import 'package:tucao/pages/rank/hot_search_page.dart';
 import 'package:tucao/pages/rank/rank_page.dart';
 import 'package:tucao/pages/rank/user_rank_page.dart';
@@ -51,7 +52,7 @@ abstract final class AppPages {
     GetPage(name: Routes.hotSearch, page: () => const HotSearchPage()),
     GetPage(name: Routes.userRank, page: () => const UserRankPage()),
     GetPage(name: Routes.lifeRank, page: () => const LifeRankPage()),
-    GetPage(name: Routes.inbox, page: () => const InboxPage()),
+    GetPage(name: Routes.inbox, page: () => const MessageCenterPage()),
     GetPage(
       name: Routes.message,
       page: () => MessagePage(
@@ -59,6 +60,10 @@ abstract final class AppPages {
         // 昵称由 arguments 传入, 避免中文进 url.
         userName: Get.arguments is String ? Get.arguments as String : '',
       ),
+    ),
+    GetPage(
+      name: Routes.systemMessage,
+      page: () => SystemDetailPage(groupId: Get.parameters['id'] ?? ''),
     ),
     GetPage(name: Routes.data, page: () => const ArticlePage()),
     GetPage(

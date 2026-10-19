@@ -74,6 +74,13 @@ abstract final class ApiPath {
   static const messageSend = 'index.php?m=message&c=index&a=send';
   static const messageReply = 'index.php?m=message&c=index&a=reply';
 
+  /// 系统公告, 与私信同属消息模块, 但是单向公告.
+  ///
+  /// 站点把公告挂在 group 系列动作下, 条目编号是 group_id,
+  /// 只有列表与详情, 没有回复接口; 详情页需要 group_id 参数.
+  static const messageGroupList = 'index.php?m=message&c=index&a=group';
+  static const messageGroupDetail = 'index.php?m=message&c=index&a=read_group';
+
   /// 广告点击上报, 站点页面里的 adClick 打的是同一个地址.
   ///
   /// 站点只给登录访客的广告位挂上报脚本, 应用解析到登录标记后才调用这里.
