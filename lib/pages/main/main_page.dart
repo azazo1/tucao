@@ -46,7 +46,7 @@ class _MainPageState extends State<MainPage> {
   void initState() {
     super.initState();
     // 未读数不必等用户点开「我的」, 入口上的角标一开始就要显示.
-    unawaited(MessageCountService.instance.refresh());
+    unawaited(MessageCountService.instance.reload(auto: true));
   }
 
   /// 入口图标, 「我的」上面叠一个未读数字.

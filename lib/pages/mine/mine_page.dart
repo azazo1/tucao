@@ -88,7 +88,7 @@ class _MinePageState extends State<MinePage> {
     try {
       await Future.wait([
         AccountService.instance.refresh(),
-        MessageCountService.instance.refresh(),
+        MessageCountService.instance.reload(),
       ]);
       if (!mounted) {
         return;
@@ -105,7 +105,7 @@ class _MinePageState extends State<MinePage> {
   /// 否则刚看完的私信还挂在入口上.
   Future<void> _openMessage(String route) async {
     await Get.toNamed(route);
-    await MessageCountService.instance.refresh();
+    await MessageCountService.instance.reload();
   }
 
   /// 续命卡片.
