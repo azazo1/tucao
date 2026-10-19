@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/models/update_download.dart';
@@ -88,7 +90,7 @@ class _UpdateDownloadPanelState extends State<UpdateDownloadPanel> {
           ),
           const SizedBox(width: 8),
           FilledButton(
-            onPressed: _busy ? null : () => _perform(widget.service.retry),
+            onPressed: _busy ? null : _restart,
             child: const Text('重新下载'),
           ),
         ];
@@ -160,6 +162,20 @@ class _UpdateDownloadPanelState extends State<UpdateDownloadPanel> {
     if (!await UpdateInstaller.openInstallSettings()) {
       _notify('没能打开设置页, 请在系统设置里允许本应用安装未知应用');
     }
+  }
+
+  /// 重新开始下载.
+  ///
+  /// 不放进 [_perform]: 服务的 retry 要陪跑整个下载, 等它的话 _busy 会一直
+  /// 是真, 刚点出来的"取消下载"跟着被禁用, 用户就中断不了这一次下载了.
+  /// 意外抛出的异常在这里兜住, 服务内部的失败已经写进状态.
+  void _restart() {
+    unawaited(
+      widget.service.retry().catchError((Object error, StackTrace stackTrace) {
+        Log.e('重新下载更新包失败', error: error, stackTrace: stackTrace);
+        _notify('操作失败, 请稍后重试');
+      }),
+    );
   }
 
   Future<void> _perform(Future<void> Function() action) async {
