@@ -16,6 +16,7 @@ build/
 .tmp/
 secrets/
 dist/
+/promo/
 
 # Go CLI 的构建产物
 cli/bin/
