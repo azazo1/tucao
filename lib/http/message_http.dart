@@ -82,7 +82,7 @@ abstract final class MessageHttp {
   }) async {
     final raw = await _fetchPage(
       ApiPath.messageCommentList,
-      query: {'page': page},
+      query: {'page': page.toString()},
       container: 'div.mcomment',
       cancelToken: cancelToken,
     );
