@@ -14,6 +14,7 @@ import 'package:tucao/http/space_http.dart';
 import 'package:tucao/models/user.dart';
 import 'package:tucao/pages/life/widgets/life_card.dart';
 import 'package:tucao/common/widgets/user_banner.dart';
+import 'package:tucao/pages/feedback/feedback_page.dart';
 import 'package:tucao/pages/mine/widgets/update_download_panel.dart';
 import 'package:tucao/router/routes.dart';
 import 'package:tucao/services/account_service.dart';
@@ -101,10 +102,10 @@ class _MinePageState extends State<MinePage> {
 
   /// 打开反馈页.
   ///
-  /// 反馈以站点私信发给开发者, 成功后回到本页再提示一次, 避免提示条
-  /// 跟着被关掉的页面一起消失.
+  /// 直接打开页面而不走命名路由: GetX 只在应用启动时注册 getPages,
+  /// 热重载后新加的路由查不到, 点按会没有反应.
   Future<void> _openFeedback() async {
-    final sent = await Get.toNamed<bool>(Routes.feedback);
+    final sent = await Get.to<bool>(() => const FeedbackPage());
     if (sent == true && mounted) {
       Get.snackbar('反馈已发送', '已通过私信发给开发者, 可在「我的 - 私信」里查看');
     }
@@ -195,7 +196,6 @@ class _MinePageState extends State<MinePage> {
             ListTile(
               leading: const Icon(Icons.feedback_outlined),
               title: const Text('向开发者反馈'),
-              subtitle: const Text('以站点私信发给开发者, 需要登录'),
               trailing: const Icon(Icons.chevron_right),
               onTap: _openFeedback,
             ),
