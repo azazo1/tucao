@@ -19,6 +19,48 @@ String absoluteSiteUrl(String raw) {
   return '${Constants.baseUrl}${url.replaceFirst(RegExp(r'^/'), '')}';
 }
 
+/// 头像地址上的版本参数名.
+///
+/// 站点换头像后路径不变, CDN 仍把旧内容缓存 30 天, 缓存键包含查询串, 因此
+/// 网页端每次访问都带一个新的时间戳来绕开它, 见 [avatarUrl].
+const avatarRevisionParam = '_avatar_v';
+
+/// 给站点头像地址补上绕开缓存的版本参数.
+///
+/// 站点给头像设了 30 天缓存, 换过头像的账号在旧缓存过期之前, 用页面上给出
+/// 的原地址只会拿到失效的内容 (实测是 8 字节的文件头), 换版本参数才会回源.
+///
+/// [revision] 为空时按天生成, 当天内地址稳定, 图片与本地缓存还能复用, 每天
+/// 第一次显示才重新取图. 空地址与站外地址原样返回, 不给别人的图片乱加参数.
+/// 原有的查询参数全部保留, 旧的版本参数被替换.
+String avatarUrl(String raw, {String? revision, DateTime? now}) {
+  // 协议相对的地址在 HTML 里也常见, 补全时按站点自己的协议处理.
+  final text = raw.trim();
+  final url = text.startsWith('//') ? 'https:$text' : absoluteSiteUrl(text);
+  if (url.isEmpty) {
+    return '';
+  }
+  final uri = Uri.tryParse(url);
+  if (uri == null || !isSiteImage(url)) {
+    return url;
+  }
+  return uri
+      .replace(
+        queryParameters: {
+          ...uri.queryParametersAll,
+          avatarRevisionParam: revision ?? dayStamp(now ?? DateTime.now()),
+        },
+      )
+      .toString();
+}
+
+/// 按天生成的版本号, 形如 `20261021`.
+String dayStamp(DateTime time) {
+  final month = time.month.toString().padLeft(2, '0');
+  final day = time.day.toString().padLeft(2, '0');
+  return '${time.year}$month$day';
+}
+
 /// 图片地址是否属于站点自己, 子域名与去掉 www 的主域名都算.
 ///
 /// 富文本里的图片地址由别人提交, 站外的地址不该在列表滚动时自动联网,

@@ -6,6 +6,7 @@ import 'package:tucao/http/api_path.dart';
 import 'package:tucao/models/life.dart';
 import 'package:tucao/utils/http_util.dart';
 import 'package:tucao/utils/logger.dart';
+import 'package:tucao/utils/site_url.dart';
 
 /// 续命数据源.
 ///
@@ -155,7 +156,9 @@ abstract final class LifeHttp {
           rank: rank > 0 ? rank : order,
           userName: userName,
           days: _parseDays(label),
-          avatar: _absolute(item.querySelector('img')?.attributes['src'] ?? ''),
+          avatar: avatarUrl(
+            item.querySelector('img')?.attributes['src'] ?? '',
+          ),
           ratio: _parseRatio(item.querySelector('.i .l')),
         ),
       );

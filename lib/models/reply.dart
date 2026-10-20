@@ -1,4 +1,5 @@
 import 'package:tucao/common/vip.dart';
+import 'package:tucao/utils/site_url.dart';
 
 /// 评论条目.
 class ReplyModel {
@@ -74,7 +75,7 @@ class ReplyModel {
           ? nickname
           : json['username']?.toString() ?? '',
       content: json['content']?.toString() ?? '',
-      avatar: json['avatar']?.toString() ?? '',
+      avatar: avatarUrl(json['avatar']?.toString() ?? ''),
       createAt: json['creat_at']?.toString() ?? '',
       support: int.tryParse(json['support']?.toString() ?? '') ?? 0,
       replyCount: int.tryParse(json['replys']?.toString() ?? '') ?? 0,

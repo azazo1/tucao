@@ -1,4 +1,5 @@
 import 'package:tucao/common/vip.dart';
+import 'package:tucao/utils/site_url.dart';
 
 /// 登录用户信息.
 class UserModel {
@@ -35,7 +36,7 @@ class UserModel {
     userName:
         (json['username'] ?? json['name'] ?? json['user_name'])?.toString() ??
         '',
-    avatar: (json['avatar'] ?? json['face'])?.toString() ?? '',
+    avatar: avatarUrl((json['avatar'] ?? json['face'])?.toString() ?? ''),
     nickname: (json['nickname'] ?? json['nick_name'])?.toString() ?? '',
     groupName: json['groupname']?.toString() ?? '',
     credit: int.tryParse(json['credit']?.toString() ?? '') ?? 0,

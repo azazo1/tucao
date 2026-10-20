@@ -258,7 +258,9 @@ abstract final class MessageHttp {
           username: link?.querySelector('div.u')?.text.trim() ??
               item.querySelector('div.u')?.text.trim() ??
               '',
-          avatar: item.querySelector('div.l img')?.attributes['src'] ?? '',
+          avatar: avatarUrl(
+            item.querySelector('div.l img')?.attributes['src'] ?? '',
+          ),
           time: link?.querySelector('div.t')?.text.trim() ??
               item.querySelector('div.t')?.text.trim() ??
               '',
@@ -287,7 +289,9 @@ abstract final class MessageHttp {
           content: item.querySelector('div.r div.c')?.text.trim() ?? '',
           time: item.querySelector('div.r div.t')?.text.trim() ?? '',
           isMine: isMine,
-          avatar: item.querySelector('div.l img')?.attributes['src'] ?? '',
+          avatar: avatarUrl(
+            item.querySelector('div.l img')?.attributes['src'] ?? '',
+          ),
           userId: uid ?? '',
         ),
       );
