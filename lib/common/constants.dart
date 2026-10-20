@@ -12,6 +12,9 @@ abstract final class Constants {
   /// 官网的下载页, 非本项目维护, 只作为额外渠道提示.
   static const officialSiteUrl = 'https://www.tucao.app/';
 
+  /// 开发者在本站的 uid, 反馈功能把私信发到这里.
+  static const developerUid = '453817';
+
   /// 官方安卓端使用的接口密钥, 全站公开.
   static const apiKey = '25tids8f1ew1821ed';
 

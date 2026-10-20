@@ -99,6 +99,17 @@ class _MinePageState extends State<MinePage> {
     }
   }
 
+  /// 打开反馈页.
+  ///
+  /// 反馈以站点私信发给开发者, 成功后回到本页再提示一次, 避免提示条
+  /// 跟着被关掉的页面一起消失.
+  Future<void> _openFeedback() async {
+    final sent = await Get.toNamed<bool>(Routes.feedback);
+    if (sent == true && mounted) {
+      Get.snackbar('反馈已发送', '已通过私信发给开发者, 可在「我的 - 私信」里查看');
+    }
+  }
+
   /// 打开消息类入口.
   ///
   /// 站点的已读状态在打开会话时才清掉, 回到本页要重新取一次未读数,
@@ -180,6 +191,13 @@ class _MinePageState extends State<MinePage> {
               title: const Text('我的设置'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Get.toNamed(Routes.setting),
+            ),
+            ListTile(
+              leading: const Icon(Icons.feedback_outlined),
+              title: const Text('向开发者反馈'),
+              subtitle: const Text('以站点私信发给开发者, 需要登录'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _openFeedback,
             ),
             ListTile(
               leading: const Icon(Icons.info_outline),

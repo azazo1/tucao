@@ -29,6 +29,7 @@ abstract final class Routes {
   static const comment = '/comment';
   static const message = '/message';
   static const systemMessage = '/system-message';
+  static const feedback = '/feedback';
 }
 
 /// 路由过渡动画, 与站点轻量的观感一致.
