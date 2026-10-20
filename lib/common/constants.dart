@@ -12,8 +12,11 @@ abstract final class Constants {
   /// 官网的下载页, 非本项目维护, 只作为额外渠道提示.
   static const officialSiteUrl = 'https://www.tucao.app/';
 
-  /// 开发者在本站的 uid, 反馈功能把私信发到这里.
-  static const developerUid = '453817';
+  /// 开发者在本站的用户名, 反馈功能把私信发到这里.
+  ///
+  /// 站点私信接口的 info[send_to_id] 虽然叫 id, 实际按 member.username
+  /// 查收件人, 传 uid 会提示用户不存在.
+  static const developerUserName = 'azo1';
 
   /// 官方安卓端使用的接口密钥, 全站公开.
   static const apiKey = '25tids8f1ew1821ed';

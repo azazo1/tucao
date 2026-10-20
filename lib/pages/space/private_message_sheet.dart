@@ -10,15 +10,17 @@ import 'package:tucao/utils/logger.dart';
 class PrivateMessageSheet extends StatefulWidget {
   const PrivateMessageSheet({
     super.key,
-    required this.toUserId,
-    this.toUserName = '',
+    required this.toUserName,
+    this.displayName = '',
   });
 
-  /// 收件人的站点 uid, 即空间地址 `/play/u{uid}/` 里的数字.
-  final String toUserId;
+  /// 收件人的站点用户名, 不是 uid.
+  ///
+  /// 站点私信接口的 info[send_to_id] 实际按 member.username 查收件人.
+  final String toUserName;
 
   /// 收件人昵称, 只用于标题展示, 可以为空.
-  final String toUserName;
+  final String displayName;
 
   /// 第一封私信的标题.
   static const defaultSubject = '你好';
@@ -54,7 +56,7 @@ class _PrivateMessageSheetState extends State<PrivateMessageSheet> {
     var sent = false;
     try {
       final result = await MessageHttp.send(
-        toUser: widget.toUserId,
+        toUserName: widget.toUserName,
         subject: PrivateMessageSheet.defaultSubject,
         content: text,
       );
@@ -84,7 +86,7 @@ class _PrivateMessageSheetState extends State<PrivateMessageSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final name = widget.toUserName.trim();
+    final name = widget.displayName.trim();
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: SafeArea(

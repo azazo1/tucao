@@ -13,7 +13,7 @@ import 'package:tucao/utils/logger.dart';
 
 /// 反馈页.
 ///
-/// 反馈通过站点私信发给开发者 [Constants.developerUid], 不经过第三方服务.
+/// 反馈通过站点私信发给开发者 [Constants.developerUserName], 不经过第三方服务.
 /// 发送需要登录态; 正文之外只附上应用版本与系统版本, 方便对照问题.
 class FeedbackPage extends StatefulWidget {
   const FeedbackPage({super.key});
@@ -108,7 +108,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
     var sent = false;
     try {
       final result = await MessageHttp.send(
-        toUser: Constants.developerUid,
+        toUserName: Constants.developerUserName,
         subject: FeedbackPage.subject,
         content: composeContent(text: text, version: _version),
       );
@@ -148,8 +148,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
           padding: EdgeInsets.fromLTRB(side + 20, 12, side + 20, 24),
           children: [
             Text(
-              '反馈会以站点私信发给开发者 (u${Constants.developerUid}), '
-              '不会公开显示.',
+              '反馈会以站点私信发给开发者, 不会公开显示.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: scheme.onSurfaceVariant,
               ),
@@ -176,7 +175,6 @@ class _FeedbackPageState extends State<FeedbackPage> {
               textInputAction: TextInputAction.newline,
               decoration: const InputDecoration(
                 hintText: '遇到的问题, 想要的功能, 或者对界面的建议',
-                border: OutlineInputBorder(),
               ),
             ),
             if (_error != null)

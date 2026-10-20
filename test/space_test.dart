@@ -15,6 +15,8 @@ void main() {
     test('解析出用户信息', () {
       expect(page.info.userId, 9599);
       expect(page.info.userName, isNotEmpty);
+      // 私信接口要用户名, 空间页的私信链接里带着它.
+      expect(page.info.loginName, '腐腐');
       expect(page.info.avatar, startsWith('http'));
       expect(page.info.banner, startsWith('http'));
       expect(page.info.total, greaterThan(0));

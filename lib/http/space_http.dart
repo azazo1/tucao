@@ -13,6 +13,7 @@ class SpaceInfo {
   const SpaceInfo({
     required this.userId,
     required this.userName,
+    this.loginName = '',
     this.avatar = '',
     this.banner = '',
     this.sign = '',
@@ -23,6 +24,11 @@ class SpaceInfo {
 
   final int userId;
   final String userName;
+
+  /// 空间主人在站点的登录用户名, 私信接口按它查收件人.
+  ///
+  /// 昵称 [userName] 与用户名不一定相同, 站点的私信链接里带的是后者.
+  final String loginName;
 
   /// 头像地址.
   final String avatar;
@@ -102,6 +108,14 @@ abstract final class SpaceHttp {
     final document = html_parser.parse(raw);
     final header = document.querySelector('.sheader');
     final nameNode = header?.querySelector('h1');
+    // 私信链接形如 index.php?m=message&c=index&a=send&username=azo1,
+    // 站点私信接口要的是这里的用户名, 不是 uid.
+    final loginName = _parseLoginName(
+      document
+              .querySelector('a[href*="a=send"][href*="username="]')
+              ?.attributes['href'] ??
+          '',
+    );
 
     final avatar = header?.querySelector('img.avatar')?.attributes['src'] ?? '';
     final bannerNode = header?.querySelector('img.banner');
@@ -158,6 +172,7 @@ abstract final class SpaceHttp {
       info: SpaceInfo(
         userId: userId,
         userName: nameNode?.text.trim() ?? '',
+        loginName: loginName,
         avatar: avatarUrl(avatar, revision: avatarRevision?.toString()),
         banner: _absolute(banner),
         sign: sign,
@@ -173,6 +188,11 @@ abstract final class SpaceHttp {
   static String? _parseHid(String href) {
     final match = RegExp(r'/play/h?(\d+)/').firstMatch(href);
     return match?.group(1);
+  }
+
+  /// 从空间页的私信链接里取登录用户名.
+  static String _parseLoginName(String href) {
+    return Uri.tryParse(href)?.queryParameters['username']?.trim() ?? '';
   }
 
   /// 封面地址.

@@ -171,14 +171,18 @@ abstract final class MessageHttp {
   }
 
   /// 发送私信, 成功返回空, 失败返回提示文本.
+  ///
+  /// [toUserName] 是收件人的站点用户名, 不是 uid. 站点的 info[send_to_id]
+  /// 字段名虽然叫 id, 服务端实际按 member.username 查收件人, 传 uid 会提示
+  /// 用户不存在.
   static Future<String?> send({
-    required String toUser,
+    required String toUserName,
     required String subject,
     required String content,
     CancelToken? cancelToken,
   }) async {
     final raw = await _post(ApiPath.messageSend, {
-      'info[send_to_id]': toUser,
+      'info[send_to_id]': toUserName,
       'info[subject]': subject,
       'info[content]': content,
       'dosubmit': '1',
@@ -186,7 +190,7 @@ abstract final class MessageHttp {
     final result = _parseResult(raw);
     if (result == null) {
       // 正文属于用户内容, 不写进日志.
-      Log.i('私信已发送, 收件人 uid=$toUser');
+      Log.i('私信已发送, 收件人=$toUserName');
     }
     return result;
   }

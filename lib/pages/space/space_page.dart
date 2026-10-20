@@ -229,6 +229,7 @@ class _SpacePageState extends State<SpacePage> {
   /// 给空间主人发私信.
   ///
   /// 站点发送私信需要登录态, 未登录时先提示, 不去请求一个必然失败的接口.
+  /// 收件人要传空间页私信链接里的用户名, 不是 uid.
   /// 发送成功后只能提示去私信页查看: 站点只回一个成功标记, 拿不到新会话的
   /// messageid, 无法直接跳进会话页.
   Future<void> _openPrivateMessage(BuildContext context) async {
@@ -236,14 +237,19 @@ class _SpacePageState extends State<SpacePage> {
       Get.snackbar('请先登录', '登录后才能给其他用户发私信');
       return;
     }
-    final name = _controller.info.value?.userName ?? '';
+    final info = _controller.info.value;
+    final loginName = info?.loginName.trim() ?? '';
+    if (loginName.isEmpty) {
+      Get.snackbar('找不到对方账号', '空间页里没有私信入口');
+      return;
+    }
     final sent = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => PrivateMessageSheet(
-        toUserId: widget.userId.toString(),
-        toUserName: name,
+        toUserName: loginName,
+        displayName: info?.userName ?? '',
       ),
     );
     if (sent == true && mounted) {
