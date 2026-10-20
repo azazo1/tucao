@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tucao/common/constants.dart';
 import 'package:tucao/http/message_http.dart';
 import 'package:tucao/models/message.dart';
+import 'package:tucao/utils/site_url.dart';
 
 void main() {
   group('私信收件箱解析', () {
@@ -20,7 +21,12 @@ void main() {
       expect(list[0].username, '张三');
       expect(list[0].message, '你好, 这是第一条私信');
       expect(list[0].time, '2026-10-01 10:00');
-      expect(list[0].avatar, '/avatar/1.jpg');
+      final avatar = Uri.parse(list[0].avatar);
+      expect(avatar.path, '/avatar/1.jpg');
+      expect(
+        avatar.queryParameters[avatarRevisionParam],
+        dayStamp(DateTime.now()),
+      );
     });
 
     test('按 messageid 去重', () {

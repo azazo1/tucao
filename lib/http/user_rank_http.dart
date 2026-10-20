@@ -3,6 +3,7 @@ import 'package:html/parser.dart' as html_parser;
 import 'package:tucao/common/constants.dart';
 import 'package:tucao/utils/http_util.dart';
 import 'package:tucao/utils/logger.dart';
+import 'package:tucao/utils/site_url.dart';
 
 /// u榜里的一个用户条目.
 class UserRankItem {
@@ -77,7 +78,7 @@ abstract final class UserRankHttp {
             userId: userId,
             userName: item.querySelector('.u')?.text.trim() ?? link.text.trim(),
             rank: _rankOf(item, list.length + 1),
-            avatar: _avatar(image),
+            avatar: avatarUrl(image?.attributes['src'] ?? ''),
             badge: item.querySelector('.c')?.text.trim() ?? '',
           ),
         );
@@ -105,14 +106,5 @@ abstract final class UserRankHttp {
     final node = item.querySelector('p');
     final parsed = int.tryParse(node?.text.trim() ?? '');
     return parsed ?? fallback;
-  }
-
-  /// 头像地址, 站点用的是相对路径, 这里补成绝对地址.
-  static String _avatar(dynamic image) {
-    final src = image?.attributes['src'] as String? ?? '';
-    if (src.isEmpty || src.startsWith('http')) {
-      return src;
-    }
-    return '${Constants.baseUrl}${src.replaceFirst(RegExp(r'^/'), '')}';
   }
 }

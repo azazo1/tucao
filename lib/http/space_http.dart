@@ -6,6 +6,7 @@ import 'package:tucao/http/api_path.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/utils/http_util.dart';
 import 'package:tucao/utils/logger.dart';
+import 'package:tucao/utils/site_url.dart';
 
 /// 用户空间信息.
 class SpaceInfo {
@@ -157,7 +158,7 @@ abstract final class SpaceHttp {
       info: SpaceInfo(
         userId: userId,
         userName: nameNode?.text.trim() ?? '',
-        avatar: _avatarUrl(avatar, avatarRevision),
+        avatar: avatarUrl(avatar, revision: avatarRevision?.toString()),
         banner: _absolute(banner),
         sign: sign,
         meta: meta,
@@ -167,24 +168,6 @@ abstract final class SpaceHttp {
       list: list,
       hasMore: hasMore,
     );
-  }
-
-  /// 官网换头像后路径不变, CDN 仍可能把旧的无效图片缓存 30 天.
-  /// 与官网修改头像页一样附加版本参数, 同时更新本地图片缓存的键.
-  static String _avatarUrl(String raw, int? revision) {
-    final url = _absolute(raw.trim());
-    if (url.isEmpty || revision == null) {
-      return url;
-    }
-    final uri = Uri.parse(url);
-    return uri
-        .replace(
-          queryParameters: {
-            ...uri.queryParametersAll,
-            '_avatar_v': revision.toString(),
-          },
-        )
-        .toString();
   }
 
   static String? _parseHid(String href) {
