@@ -2,7 +2,7 @@ name: tucao
 description: 吐槽弹幕网第三方客户端
 publish_to: "none"
 
-version: 1.4.0+5
+version: 1.4.1+6
 
 environment:
   sdk: ">=3.9.0"
