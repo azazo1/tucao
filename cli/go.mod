@@ -1,6 +1,6 @@
 module github.com/azazo1/tucao/cli
 
-go 1.26.0
+go 1.27.3
 
 require (
 	github.com/PuerkitoBio/goquery v1.13.0
