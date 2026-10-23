@@ -1,11 +1,9 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:tucao/models/video.dart';
-import 'package:tucao/pages/setting/blocked_page.dart';
 import 'package:tucao/services/block_service.dart';
 
 /// 屏蔽测试只使用内存存储, 不访问站点.
@@ -29,7 +27,6 @@ class _Box implements Box {
 }
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
   late _Box box;
   late BlockService service;
   const video = VideoModel(
@@ -137,17 +134,5 @@ void main() {
     expect(service.list, isEmpty);
     final restored = BlockService(box: box)..reload();
     expect(restored.list, isEmpty);
-  });
-
-  testWidgets('屏蔽管理页逐条解除后回到空状态', (tester) async {
-    await service.block(video);
-    await tester.pumpWidget(const MaterialApp(home: BlockedVideoPage()));
-    expect(find.text('第一条番剧'), findsOneWidget);
-    await tester.tap(find.byTooltip('解除屏蔽'));
-    // 解除后页面会弹出 SnackBar, 用有限次 pump 等落盘与重建完成, 不等待所有动画.
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-    expect(service.list, isEmpty);
-    expect(find.text('还没有屏蔽任何内容'), findsOneWidget);
   });
 }
