@@ -130,7 +130,8 @@ void main() {
     final first = service.unblock('123');
     final second = service.clear();
     await Future<void>.delayed(Duration.zero);
-    expect(service.list.map((item) => item.hid), ['123', '456']);
+    // 屏蔽记录按时间倒序, 后屏蔽的 456 排在 123 前面.
+    expect(service.list.map((item) => item.hid), ['456', '123']);
     pending.complete();
     await Future.wait([first, second]);
     expect(service.list, isEmpty);
@@ -143,7 +144,9 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: BlockedVideoPage()));
     expect(find.text('第一条番剧'), findsOneWidget);
     await tester.tap(find.byTooltip('解除屏蔽'));
-    await tester.pumpAndSettle();
+    // 解除后页面会弹出 SnackBar, 用有限次 pump 等落盘与重建完成, 不等待所有动画.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
     expect(service.list, isEmpty);
     expect(find.text('还没有屏蔽任何内容'), findsOneWidget);
   });
