@@ -102,6 +102,9 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
 
   DanmakuTrendService? _trendService;
 
+  /// 监听高能条开关的 worker, 控制器关闭时释放.
+  Worker? _trendWorker;
+
   final sending = false.obs;
 
   /// 记录进度的间隔.
@@ -178,7 +181,8 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     _danmakuPreferenceChanges = null;
     WidgetsBinding.instance.removeObserver(this);
     _requests.close();
-    _trendService?.enabled.removeListener(_onTrendSettingChanged);
+    _trendWorker?.dispose();
+    _trendWorker = null;
     _trendService = null;
     _historyTimer?.cancel();
     _historyTimer = null;
@@ -682,8 +686,14 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
   ///
   /// 开关关闭时不保留计算结果, 重新打开会按当前弹幕与时长再算一次.
   void _bindTrendSetting() {
-    _trendService = DanmakuTrendService.maybe;
-    _trendService?.enabled.addListener(_onTrendSettingChanged);
+    final service = DanmakuTrendService.maybe;
+    _trendService = service;
+    if (service != null) {
+      _trendWorker = ever<bool>(
+        service.enabled,
+        (_) => _onTrendSettingChanged(),
+      );
+    }
     _refreshDanmakuTrend();
   }
 
