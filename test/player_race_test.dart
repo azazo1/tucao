@@ -51,6 +51,7 @@ class _Player extends ChangeNotifier implements TucaoPlayer {
   bool closed = false;
   String? playbackError;
   Duration currentDuration = Duration.zero;
+  bool isBuffering = false;
 
   @override
   VoidCallback? onCompleted;
@@ -62,7 +63,7 @@ class _Player extends ChangeNotifier implements TucaoPlayer {
   bool get completed => false;
 
   @override
-  bool get buffering => false;
+  bool get buffering => isBuffering;
 
   @override
   Duration get buffered => Duration.zero;
@@ -258,6 +259,38 @@ void main() {
     controller.onClose();
     controller.applyDanmakuPreferences(DanmakuPreferences.defaults);
     expect(renderer.appliedOption, same(lastOption));
+  });
+
+  test('缓冲时弹幕停住, 缓冲结束再跟着滚动', () async {
+    final player = _Player();
+    final controller = PlayerPageController(
+      hid: '123',
+      player: player,
+      loadVideo: (_) async => _response(_video),
+      loadDanmaku: (_, _, _) async => [_comment('a')],
+    );
+    addTearDown(controller.onClose);
+    final renderer = _Danmaku();
+    controller.attachDanmaku(renderer);
+    await controller.load();
+    player.isPlaying = true;
+    player.notifyListeners();
+    await _flush();
+    expect(renderer.resumed, greaterThan(0));
+
+    // 画面转圈时位置不动, 弹幕不能继续漂.
+    final pausedBefore = renderer.paused;
+    player.isBuffering = true;
+    player.notifyListeners();
+    expect(renderer.paused, pausedBefore + 1);
+
+    // 缓冲期间重复上报状态不会反复暂停.
+    player.notifyListeners();
+    expect(renderer.paused, pausedBefore + 1);
+
+    player.isBuffering = false;
+    player.notifyListeners();
+    expect(renderer.resumed, greaterThan(1));
   });
 
   test('串行守卫跳过旧排队请求, 单个错误不阻塞新请求', () async {

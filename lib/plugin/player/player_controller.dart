@@ -127,10 +127,18 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
   /// 上一次的播放位置, 秒.
   double _lastPosition = -1;
 
-  bool _lastPlaying = false;
+  /// 上一次的弹幕运行状态, 用于识别该暂停还是继续滚动.
+  bool _danmakuRunning = false;
 
   /// 上一次的播放状态, 用于识别暂停动作.
   bool _wasPlaying = false;
+
+  /// 弹幕是否应该跟着画面滚动.
+  ///
+  /// 缓冲时播放器仍报 playing, 但画面是静止的. 弹幕渲染器有自己的时钟,
+  /// 不一起停掉的话, 视频还在转圈弹幕就先漂起来了.
+  bool get _shouldRunDanmaku =>
+      danmakuEnabled.value && player.playing && !player.buffering;
 
   DanmakuController<DanmakuModel>? _danmakuController;
   DanmakuPreferences? _danmakuPreferences;
@@ -387,7 +395,7 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     }
     await danmakuFuture;
     if (_requests.isCurrent(request)) {
-      _syncDanmaku(player.playing);
+      _syncDanmaku();
     }
   }
 
@@ -444,8 +452,8 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     _danmakuController = controller;
     _lastPosition = -1;
     _nextDanmaku = 0;
-    _lastPlaying = player.playing;
-    if (!danmakuEnabled.value || !player.playing) {
+    _danmakuRunning = false;
+    if (!_shouldRunDanmaku) {
       controller.pause();
     }
   }
@@ -469,8 +477,10 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     controller.updateOption(danmakuOption);
     if (!danmakuEnabled.value) {
       controller.clear();
-      controller.pause();
-    } else if (player.playing) {
+    }
+    final running = _shouldRunDanmaku;
+    _danmakuRunning = running;
+    if (running) {
       controller.resume();
     } else {
       controller.pause();
@@ -633,11 +643,11 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     if (player.duration.inMilliseconds != _trendDurationMs) {
       _refreshDanmakuTrend();
     }
-    _syncDanmaku(playing);
+    _syncDanmaku();
   }
 
   /// 按播放位置投递弹幕, 而不是一次性全部交给渲染器.
-  void _syncDanmaku(bool playing) {
+  void _syncDanmaku() {
     if (_closed || !playerReady.value) {
       return;
     }
@@ -645,12 +655,12 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     if (controller == null) {
       return;
     }
-    if (playing != _lastPlaying) {
-      _lastPlaying = playing;
-      if (playing) {
-        if (danmakuEnabled.value) {
-          controller.resume();
-        }
+    // 缓冲或暂停时渲染器一起停, 恢复后从原处继续.
+    final running = _shouldRunDanmaku;
+    if (running != _danmakuRunning) {
+      _danmakuRunning = running;
+      if (running) {
+        controller.resume();
       } else {
         controller.pause();
       }
