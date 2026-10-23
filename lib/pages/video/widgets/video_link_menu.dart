@@ -75,53 +75,58 @@ class VideoLinkMenu extends StatelessWidget {
             onDownload?.call();
         }
       },
-      itemBuilder: (context) => [
-        if (onBlock != null)
+      itemBuilder: (context) {
+        final scheme = Theme.of(context).colorScheme;
+        return [
           PopupMenuItem(
-            value: _LinkAction.block,
-            child: ListTile(
+            value: _LinkAction.restart,
+            enabled: onRestart != null,
+            child: const ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: Icon(
-                blocked ? Icons.visibility_outlined : Icons.block,
-              ),
-              title: Text(blocked ? '取消屏蔽' : '屏蔽此内容'),
+              leading: Icon(Icons.restart_alt),
+              title: Text('重启播放器'),
             ),
           ),
-        PopupMenuItem(
-          value: _LinkAction.restart,
-          enabled: onRestart != null,
-          child: const ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.restart_alt),
-            title: Text('重启播放器'),
+          PopupMenuItem(
+            value: _LinkAction.download,
+            enabled: onDownload != null,
+            child: const ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.download_outlined),
+              title: Text('下载缓存'),
+            ),
           ),
-        ),
-        PopupMenuItem(
-          value: _LinkAction.download,
-          enabled: onDownload != null,
-          child: const ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.download_outlined),
-            title: Text('下载缓存'),
+          const PopupMenuItem(
+            value: _LinkAction.copy,
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.link),
+              title: Text('复制链接'),
+            ),
           ),
-        ),
-        const PopupMenuItem(
-          value: _LinkAction.copy,
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.link),
-            title: Text('复制链接'),
+          const PopupMenuItem(
+            value: _LinkAction.browser,
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.open_in_browser),
+              title: Text('浏览器打开'),
+            ),
           ),
-        ),
-        const PopupMenuItem(
-          value: _LinkAction.browser,
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.open_in_browser),
-            title: Text('浏览器打开'),
-          ),
-        ),
-      ],
+          if (onBlock != null)
+            PopupMenuItem(
+              value: _LinkAction.block,
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                iconColor: blocked ? null : scheme.error,
+                textColor: blocked ? null : scheme.error,
+                leading: Icon(
+                  blocked ? Icons.visibility_outlined : Icons.block,
+                ),
+                title: Text(blocked ? '取消屏蔽' : '屏蔽此内容'),
+              ),
+            ),
+        ];
+      },
     );
   }
 }
