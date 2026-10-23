@@ -73,6 +73,8 @@ class _Controller implements PlayerPageController {
   @override
   final danmakuEnabled = true.obs;
   @override
+  final danmakuTrend = Rxn<List<double>>();
+  @override
   final sourceError = RxnString();
   @override
   final part = 0.obs;

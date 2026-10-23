@@ -10,8 +10,10 @@ import 'package:tucao/models/danmaku.dart';
 import 'package:tucao/models/danmaku_preferences.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/models/video_subject.dart';
+import 'package:tucao/plugin/player/danmaku_trend.dart';
 import 'package:tucao/plugin/player/tucao_player.dart';
 import 'package:tucao/services/account_service.dart';
+import 'package:tucao/services/danmaku_trend_service.dart';
 import 'package:tucao/services/history_service.dart';
 import 'package:tucao/utils/date_utils.dart';
 import 'package:tucao/utils/danmaku_preferences_store.dart';
@@ -90,6 +92,16 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
 
   final danmakuEnabled = Pref.danmakuEnable.obs;
 
+  /// 弹幕密度分布, 供进度条上的高能条绘制.
+  ///
+  /// 空表示没有可用数据: 开关关闭, 时长未知, 或者这条分P还没有弹幕.
+  final danmakuTrend = Rxn<List<double>>();
+
+  /// 上次算高能条时的视频时长, 只有时长变化才重算.
+  int _trendDurationMs = -1;
+
+  DanmakuTrendService? _trendService;
+
   final sending = false.obs;
 
   /// 记录进度的间隔.
@@ -149,6 +161,7 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     part.value = _initialPart;
     player.addListener(_onPlayerChanged);
     applyDanmakuPreferences(DanmakuPreferencesStore.read());
+    _bindTrendSetting();
     _danmakuPreferenceChanges = DanmakuPreferencesStore.watch().listen(
       applyDanmakuPreferences,
     );
@@ -165,6 +178,8 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     _danmakuPreferenceChanges = null;
     WidgetsBinding.instance.removeObserver(this);
     _requests.close();
+    _trendService?.enabled.removeListener(_onTrendSettingChanged);
+    _trendService = null;
     _historyTimer?.cancel();
     _historyTimer = null;
     // 退出前再记一次, 不等待写入完成.
@@ -416,6 +431,8 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     _danmaku = list;
     // 弹幕到位后重新定位, 避免把已经播过的弹幕一次性丢进渲染器.
     _lastPosition = -1;
+    // 时长可能比弹幕先到, 弹幕一到就重算高能条.
+    _refreshDanmakuTrend();
   }
 
   /// 挂载弹幕渲染器, 页面创建 [DanmakuScreen] 后调用.
@@ -608,6 +625,10 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
       // 暂停时补记一次, 避免定时器还没走到就退出的情况.
       unawaited(recordHistory());
     }
+    // 时长通常在弹幕之后才解析出来, 变化时补算一次高能条.
+    if (player.duration.inMilliseconds != _trendDurationMs) {
+      _refreshDanmakuTrend();
+    }
     _syncDanmaku(playing);
   }
 
@@ -652,7 +673,46 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
 
   void _resetDanmaku() {
     _danmaku = const [];
+    danmakuTrend.value = null;
+    _trendDurationMs = -1;
     _rewindDanmaku();
+  }
+
+  /// 监听高能条开关, 切换后立刻生效.
+  ///
+  /// 开关关闭时不保留计算结果, 重新打开会按当前弹幕与时长再算一次.
+  void _bindTrendSetting() {
+    _trendService = DanmakuTrendService.maybe;
+    _trendService?.enabled.addListener(_onTrendSettingChanged);
+    _refreshDanmakuTrend();
+  }
+
+  void _onTrendSettingChanged() {
+    if (_closed) {
+      return;
+    }
+    _refreshDanmakuTrend();
+  }
+
+  /// 按当前弹幕与视频时长重算高能条, 数据不可用时置空.
+  void _refreshDanmakuTrend() {
+    if (_closed) {
+      return;
+    }
+    final enabled = _trendService?.enabled.value ?? Pref.danmakuTrend;
+    if (!enabled) {
+      // 记下当前时长, 免得每个进度回调都重新判断一次.
+      _trendDurationMs = player.duration.inMilliseconds;
+      danmakuTrend.value = null;
+      return;
+    }
+    final durationMs = player.duration.inMilliseconds;
+    _trendDurationMs = durationMs;
+    final trend = buildDanmakuTrend(
+      times: _danmaku.map((item) => item.time),
+      durationSeconds: durationMs / 1000,
+    );
+    danmakuTrend.value = trend.isEmpty ? null : trend;
   }
 
   /// 弹幕游标归零, 保留已拉取的列表.

@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:tucao/models/danmaku.dart';
 import 'package:tucao/pages/video/widgets/danmaku_settings_sheet.dart';
+import 'package:tucao/pages/video/widgets/danmaku_trend_bar.dart';
 import 'package:tucao/pages/video/widgets/part_picker_sheet.dart';
 import 'package:tucao/pages/video/widgets/player_gesture.dart';
 import 'package:tucao/utils/danmaku_preferences_store.dart';
@@ -498,13 +499,12 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
     final player = _controller.player;
     return ListenableBuilder(
       listenable: player,
-      builder: (context, child) {
-        return Row(
+      builder: (context, child) => Obx(
+        () => Row(
+          // 高能条在轨道上方, 行高比轨道触摸区更大, 子项按行底对齐.
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(
-              Utils.formatDuration(player.position),
-              style: const TextStyle(color: Colors.white, fontSize: 12),
-            ),
+            _timeLabel(Utils.formatDuration(player.position)),
             const SizedBox(width: 8),
             Expanded(
               child: PlayerProgressBar(
@@ -513,17 +513,29 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
                 buffered: player.buffered,
                 preview: _seekPreview,
                 previewCommitted: _seekCommitted,
+                trend: _controller.danmakuTrend.value,
                 onSeek: _onSeek,
               ),
             ),
             const SizedBox(width: 8),
-            Text(
-              Utils.formatDuration(player.duration),
-              style: const TextStyle(color: Colors.white, fontSize: 12),
-            ),
+            _timeLabel(Utils.formatDuration(player.duration)),
           ],
-        );
-      },
+        ),
+      ),
+    );
+  }
+
+  /// 进度行两侧的时间.
+  ///
+  /// 进度条在 24 高的触摸区里垂直居中, 这里让文本底边离行底一段距离,
+  /// 有无高能条时都能大致对齐轨道中心, 文本变大时也不会被固定高度裁掉.
+  Widget _timeLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Text(
+        text,
+        style: const TextStyle(color: Colors.white, fontSize: 12),
+      ),
     );
   }
 
@@ -727,11 +739,15 @@ class PlayerProgressBar extends StatefulWidget {
     required this.onSeek,
     this.preview,
     this.previewCommitted = false,
+    this.trend,
   });
 
   final Duration position;
   final Duration duration;
   final Duration buffered;
+
+  /// 弹幕密度序列, 非空时在进度条上方画高能条.
+  final List<double>? trend;
 
   /// 手势层横向拖动的预览位置, 非空时游标跟随手指.
   final Duration? preview;
@@ -835,51 +851,67 @@ class _PlayerProgressBarState extends State<PlayerProgressBar> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTapDown: (details) {
-            _updateFromDx(details.localPosition.dx, width);
-            _commit();
-          },
-          onHorizontalDragStart: (details) =>
-              _updateFromDx(details.localPosition.dx, width),
-          onHorizontalDragUpdate: (details) =>
-              _updateFromDx(details.localPosition.dx, width),
-          onHorizontalDragEnd: (_) => _commit(),
-          onHorizontalDragCancel: _commit,
-          child: SizedBox(
-            height: _touchHeight,
-            child: Center(
-              child: Stack(
-                alignment: Alignment.centerLeft,
-                children: [
-                  _bar(Colors.white24, 1),
-                  _bar(
-                    Colors.white70,
-                    _ratio(widget.buffered.inMilliseconds / 1000),
-                  ),
-                  _bar(scheme.primary, _ratio(_positionSeconds)),
-                  Align(
-                    alignment: Alignment(_ratio(_positionSeconds) * 2 - 1, 0),
-                    child: Container(
-                      key: const ValueKey('player-progress-thumb'),
-                      width: _thumbSize,
-                      height: _thumbSize,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+    final trend = widget.trend;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      // 让轨道与高能条都按这一行的可用宽度铺满.
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (trend != null && trend.length > 1)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 2),
+            child: DanmakuTrendBar(values: trend, color: scheme.primary),
           ),
-        );
-      },
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapDown: (details) {
+                _updateFromDx(details.localPosition.dx, width);
+                _commit();
+              },
+              onHorizontalDragStart: (details) =>
+                  _updateFromDx(details.localPosition.dx, width),
+              onHorizontalDragUpdate: (details) =>
+                  _updateFromDx(details.localPosition.dx, width),
+              onHorizontalDragEnd: (_) => _commit(),
+              onHorizontalDragCancel: _commit,
+              child: SizedBox(
+                height: _touchHeight,
+                child: Center(
+                  child: Stack(
+                    alignment: Alignment.centerLeft,
+                    children: [
+                      _bar(Colors.white24, 1),
+                      _bar(
+                        Colors.white70,
+                        _ratio(widget.buffered.inMilliseconds / 1000),
+                      ),
+                      _bar(scheme.primary, _ratio(_positionSeconds)),
+                      Align(
+                        alignment: Alignment(
+                          _ratio(_positionSeconds) * 2 - 1,
+                          0,
+                        ),
+                        child: Container(
+                          key: const ValueKey('player-progress-thumb'),
+                          width: _thumbSize,
+                          height: _thumbSize,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 

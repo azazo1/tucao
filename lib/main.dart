@@ -7,6 +7,7 @@ import 'package:tucao/common/site_host.dart';
 import 'package:tucao/http/init.dart';
 import 'package:tucao/services/account_service.dart';
 import 'package:tucao/services/ad_service.dart';
+import 'package:tucao/services/danmaku_trend_service.dart';
 import 'package:tucao/services/download/download_service.dart';
 import 'package:tucao/services/download/download_transport.dart';
 import 'package:tucao/services/history_service.dart';
@@ -36,6 +37,8 @@ Future<void> main() async {
   Get.put(ThemeService());
   Get.put(AccountService());
   Get.put(AdService());
+  // 高能条开关在设置页和播放页共用, 播放页需要即时响应.
+  Get.put(DanmakuTrendService());
   Get.put(HistoryService());
   // 评论区的破会员标记, 只在内存里攒, 不做持久化.
   Get.put(VipService());

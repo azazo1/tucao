@@ -8,6 +8,7 @@ import 'package:tucao/pages/setting/widgets/site_host_tile.dart';
 import 'package:tucao/pages/video/widgets/danmaku_settings_sheet.dart';
 import 'package:tucao/services/account_service.dart';
 import 'package:tucao/services/ad_service.dart';
+import 'package:tucao/services/danmaku_trend_service.dart';
 import 'package:tucao/services/history_service.dart';
 import 'package:tucao/services/pip_service.dart';
 import 'package:tucao/services/theme_service.dart';
@@ -293,6 +294,15 @@ class _SettingPageState extends State<SettingPage> {
             subtitle: const Text('文字预览, 显示区域, 时长和字幕避让'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => showDanmakuSettingsSheet(context),
+          ),
+          Obx(
+            () => SwitchListTile(
+              title: const Text('弹幕高能条'),
+              subtitle: const Text('在进度条上方显示各时段的弹幕密度'),
+              value: DanmakuTrendService.instance.enabled.value,
+              onChanged: (value) =>
+                  DanmakuTrendService.instance.setEnabled(value),
+            ),
           ),
 
           const _SectionTitle('其他'),

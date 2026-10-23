@@ -19,6 +19,7 @@ abstract final class Pref {
   static const _kSearchHistoryLimit = 'search_history_limit';
   static const _kShowAdEntry = 'show_ad_entry';
   static const _kPlayerSeekStep = 'player_seek_step';
+  static const _kDanmakuTrend = 'danmaku_trend';
   static const _kSkippedUpdateVersion = 'skipped_update_version';
   static const _kSiteHost = 'site_host';
 
@@ -98,6 +99,14 @@ abstract final class Pref {
       DanmakuPreferencesStore.updateLegacy(
         (p) => p.copyWith(hideBottom: value),
       );
+
+  /// 是否在进度条上显示弹幕高能条, 默认开启.
+  ///
+  /// 只影响进度条上方的密度图, 与弹幕本身的显示开关无关.
+  static bool get danmakuTrend =>
+      GStorage.setting.get(_kDanmakuTrend, defaultValue: true) as bool;
+  static set danmakuTrend(bool value) =>
+      GStorage.setting.put(_kDanmakuTrend, value);
 
   /// 默认播放倍速.
   static double get playerSpeed =>
