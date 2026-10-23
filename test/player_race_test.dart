@@ -269,13 +269,14 @@ void main() {
       loadVideo: (_) async => _response(_video),
       loadDanmaku: (_, _, _) async => [_comment('a')],
     );
-    addTearDown(controller.onClose);
+    // 注册进 Get 才会执行 onInit, 这条用例要验证播放器状态回调的路径.
+    Get.put(controller);
     final renderer = _Danmaku();
     controller.attachDanmaku(renderer);
-    await controller.load();
-    player.isPlaying = true;
-    player.notifyListeners();
-    await _flush();
+    // 加载链路有多层 await, 等到弹幕真正开始滚动为止.
+    for (var i = 0; i < 10 && renderer.resumed == 0; i++) {
+      await _flush();
+    }
     expect(renderer.resumed, greaterThan(0));
 
     // 画面转圈时位置不动, 弹幕不能继续漂.
