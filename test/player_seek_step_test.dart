@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:tucao/models/danmaku.dart';
 import 'package:tucao/models/video.dart';
+import 'package:tucao/pages/video/widgets/danmaku_trend_bar.dart';
 import 'package:tucao/pages/video/widgets/player_gesture.dart';
 import 'package:tucao/pages/video/widgets/player_view.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
@@ -258,6 +259,24 @@ void main() {
       // 松手后重新开始计时隐藏.
       await tester.pump(const Duration(seconds: 5));
       expect(find.byType(PlayerProgressBar), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      controller.player.dispose();
+    });
+
+    testWidgets('高能条贴着进度条, 不浮在画面上方', (tester) async {
+      final controller = _Controller();
+      controller.danmakuTrend.value = List<double>.filled(60, 0.5);
+      await _mount(tester, controller);
+      await tester.pump();
+
+      final bar = tester.getRect(find.byType(DanmakuTrendBar));
+      final progress = tester.getRect(find.byType(PlayerProgressBar));
+      expect(bar.height, DanmakuTrendBar.height);
+      // 波形底边落在轨道中心, 与进度条连成一体.
+      expect(bar.bottom, closeTo(progress.center.dy, 0.5));
+      // 进度行高度不随高能条出现而变化.
+      expect(progress.height, 24);
 
       await tester.pumpWidget(const SizedBox.shrink());
       controller.player.dispose();
