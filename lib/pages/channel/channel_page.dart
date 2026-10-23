@@ -6,6 +6,7 @@ import 'package:tucao/common/widgets/paging_list.dart';
 import 'package:tucao/common/widgets/video_card.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/pages/channel/channel_controller.dart';
+import 'package:tucao/services/block_service.dart';
 
 /// 单个分区的完整列表页.
 ///
@@ -66,7 +67,7 @@ class _ChannelPageState extends State<ChannelPage> {
           Expanded(
             child: Obx(
               () => PagingList<VideoModel>(
-                list: _controller.list,
+                list: _controller.list.withoutBlocked(),
                 onRefresh: _controller.refresh,
                 onLoadMore: _controller.loadMore,
                 hasMore: _controller.hasMore,

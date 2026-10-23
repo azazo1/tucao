@@ -16,6 +16,7 @@ import 'package:tucao/pages/home/widgets/site_online_badge.dart';
 import 'package:tucao/pages/home/week_view.dart';
 import 'package:tucao/router/routes.dart';
 import 'package:tucao/services/ad_service.dart';
+import 'package:tucao/services/block_service.dart';
 import 'package:tucao/services/update_service.dart';
 
 /// 首页.
@@ -234,11 +235,13 @@ class _ChannelTabViewState extends State<_ChannelTabView>
   Widget _buildGrid() {
     return LayoutBuilder(
       builder: (context, constraints) => Obx(() {
+        final raw = _controller.list;
+        final items = raw.withoutBlocked();
         final error = _controller.error.value;
         if (_controller.firstLoading.value) {
           return const LoadingWidget();
         }
-        if (error != null && _controller.list.isEmpty) {
+        if (error != null && raw.isEmpty) {
           return ErrorWidgetView(
             message: error,
             onRetry: _controller.loadFirst,
@@ -259,7 +262,7 @@ class _ChannelTabViewState extends State<_ChannelTabView>
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
-                if (_controller.list.isEmpty)
+                if (items.isEmpty)
                   const SliverFillRemaining(
                     hasScrollBody: false,
                     child: EmptyWidget(message: '这个分区还没有视频'),
@@ -274,8 +277,8 @@ class _ChannelTabViewState extends State<_ChannelTabView>
                       ),
                       delegate: SliverChildBuilderDelegate(
                         (context, index) =>
-                            VideoCardVertical(video: _controller.list[index]),
-                        childCount: _controller.list.length,
+                            VideoCardVertical(video: items[index]),
+                        childCount: items.length,
                       ),
                     ),
                   ),

@@ -10,6 +10,7 @@ abstract final class Routes {
   static const rank = '/rank';
   static const channel = '/channel';
   static const setting = '/setting';
+  static const blocked = '/blocked';
   static const login = '/login';
   static const register = '/register';
   static const forgotPassword = '/forgot-password';

@@ -11,6 +11,7 @@ import 'package:tucao/pages/space/private_message_sheet.dart';
 import 'package:tucao/pages/space/space_controller.dart';
 import 'package:tucao/router/routes.dart';
 import 'package:tucao/services/account_service.dart';
+import 'package:tucao/services/block_service.dart';
 import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/utils.dart';
 
@@ -112,6 +113,8 @@ class _SpacePageState extends State<SpacePage> {
           );
         }
         final info = _controller.info.value;
+        final raw = _controller.list;
+        final items = raw.withoutBlocked();
         return RefreshIndicator(
           onRefresh: _controller.refresh,
           child: CustomScrollView(
@@ -126,19 +129,21 @@ class _SpacePageState extends State<SpacePage> {
               ),
               SliverToBoxAdapter(child: _buildStats(context, info)),
               SliverToBoxAdapter(child: _buildActions(context)),
-              if (_controller.list.isEmpty)
-                const SliverFillRemaining(
+              if (items.isEmpty)
+                SliverFillRemaining(
                   hasScrollBody: false,
-                  child: EmptyWidget(message: '这位 up 还没有投稿'),
+                  child: EmptyWidget(
+                    message: raw.isEmpty ? '这位 up 还没有投稿' : '投稿都已被屏蔽',
+                  ),
                 )
               else
                 SliverPadding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   sliver: SliverList.separated(
-                    itemCount: _controller.list.length,
+                    itemCount: items.length,
                     separatorBuilder: (context, index) => const Divider(),
                     itemBuilder: (context, index) => VideoCardHorizontal(
-                      video: _controller.list[index],
+                      video: items[index],
                       showDescription: false,
                     ),
                   ),

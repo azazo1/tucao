@@ -9,6 +9,7 @@ import 'package:tucao/models/video.dart';
 import 'package:tucao/pages/search/search_controller.dart';
 import 'package:tucao/pages/search/widgets/hot_search_section.dart';
 import 'package:tucao/router/routes.dart';
+import 'package:tucao/services/block_service.dart';
 
 /// 搜索页.
 ///
@@ -248,7 +249,7 @@ class _SearchPageState extends State<SearchPage> {
         ),
         Expanded(
           child: PagingList<VideoModel>(
-            list: _controller.list,
+            list: _controller.list.withoutBlocked(),
             hasMore: _controller.hasMore,
             loading: _controller.loading.value,
             firstLoading: _controller.firstLoading.value,

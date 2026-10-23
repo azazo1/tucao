@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/common/style.dart';
+import 'package:tucao/common/widgets/video_block_sheet.dart';
 import 'package:tucao/pages/video/video_page.dart';
 import 'package:tucao/utils/utils.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -109,11 +110,15 @@ class VideoCardVertical extends StatelessWidget {
     super.key,
     required this.video,
     this.onTap,
+    this.onLongPress,
     this.badge,
   });
 
   final VideoModel video;
   final VoidCallback? onTap;
+
+  /// 长按操作, 默认为屏蔽弹层.
+  final VoidCallback? onLongPress;
 
   /// 封面左上角的附加标签, 例如集数状态.
   final String? badge;
@@ -128,6 +133,7 @@ class VideoCardVertical extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap ?? () => VideoPage.open(video),
+        onLongPress: onLongPress ?? () => showVideoBlockSheet(context, video),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -228,11 +234,16 @@ class VideoCardHorizontal extends StatelessWidget {
     super.key,
     required this.video,
     this.onTap,
+    this.onLongPress,
     this.showDescription = false,
   });
 
   final VideoModel video;
   final VoidCallback? onTap;
+
+  /// 长按操作, 默认为屏蔽弹层.
+  final VoidCallback? onLongPress;
+
   final bool showDescription;
 
   @override
@@ -241,6 +252,7 @@ class VideoCardHorizontal extends StatelessWidget {
     final scheme = theme.colorScheme;
     return InkWell(
       onTap: onTap ?? () => VideoPage.open(video),
+      onLongPress: onLongPress ?? () => showVideoBlockSheet(context, video),
       borderRadius: BorderRadius.circular(Style.cardRadius),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 6),

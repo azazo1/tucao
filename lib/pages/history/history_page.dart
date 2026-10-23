@@ -4,8 +4,10 @@ import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/common/widgets/video_card.dart';
 import 'package:tucao/router/routes.dart';
+import 'package:tucao/services/block_service.dart';
 import 'package:tucao/services/history_service.dart';
 import 'package:tucao/utils/date_utils.dart';
+import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/utils.dart';
 
 /// 播放历史页.
@@ -36,6 +38,25 @@ class _HistoryPageState extends State<HistoryPage> {
     Get.snackbar('已删除', item.video.title, duration: const Duration(seconds: 2));
   }
 
+  Future<void> _block(HistoryItem item) async {
+    try {
+      await BlockService.instance.block(item.video);
+      if (!mounted) {
+        return;
+      }
+      Get.snackbar(
+        '已屏蔽',
+        item.video.title,
+        duration: const Duration(seconds: 2),
+      );
+    } catch (error, stackTrace) {
+      Log.e('屏蔽播放历史条目失败', error: error, stackTrace: stackTrace);
+      if (mounted) {
+        Get.snackbar('屏蔽失败', '$error');
+      }
+    }
+  }
+
   /// 长按弹出的操作菜单.
   Future<void> _showMenu(HistoryItem item) async {
     await showModalBottomSheet<void>(
@@ -50,6 +71,15 @@ class _HistoryPageState extends State<HistoryPage> {
               onTap: () {
                 Navigator.pop(sheetContext);
                 _open(item);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.block),
+              title: const Text('屏蔽此内容'),
+              subtitle: const Text('不再出现在本地列表里'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _block(item);
               },
             ),
             ListTile(
@@ -118,9 +148,20 @@ class _HistoryPageState extends State<HistoryPage> {
         ],
       ),
       body: Obx(() {
-        final list = _service.list;
-        if (list.isEmpty) {
+        final all = _service.list;
+        final list = all
+            .where(
+              (item) => !BlockService.instance.isBlocked(item.video.hid),
+            )
+            .toList();
+        if (all.isEmpty) {
           return const EmptyWidget(message: '还没有播放记录', icon: Icons.history);
+        }
+        if (list.isEmpty) {
+          return const EmptyWidget(
+            message: '播放记录都已被屏蔽',
+            icon: Icons.block,
+          );
         }
         return ListView.separated(
           padding: EdgeInsets.symmetric(

@@ -7,6 +7,7 @@ import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/common/widgets/video_card.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/pages/bgm/bgm_index_controller.dart';
+import 'package:tucao/services/block_service.dart';
 
 /// 番组索引页, 即站点的番组库.
 ///
@@ -192,12 +193,13 @@ class _BgmIndexPageState extends State<BgmIndexPage> {
 
   Widget _buildGrid(BuildContext context, double maxWidth) {
     return Obx(() {
-      final list = _controller.list;
+      final raw = _controller.list;
+      final list = raw.withoutBlocked();
       if (_controller.firstLoading.value) {
         return const LoadingWidget();
       }
       final error = _controller.error.value;
-      if (error != null && list.isEmpty) {
+      if (error != null && raw.isEmpty) {
         return ErrorWidgetView(message: error, onRetry: _controller.loadFirst);
       }
       return RefreshIndicator(

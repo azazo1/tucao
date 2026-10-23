@@ -7,6 +7,7 @@ abstract final class BoxName {
   static const history = 'history';
   static const searchHistory = 'search_history';
   static const cookie = 'cookie';
+  static const blocked = 'blocked';
 }
 
 /// 本地存储入口.
@@ -18,10 +19,14 @@ abstract final class GStorage {
 
   static const String _versionKey = 'storage_version';
 
+  /// 存储盒是否已经打开, 供按需创建的服务判断可用性.
+  static bool initialized = false;
+
   static late Box setting;
   static late Box account;
   static late Box history;
   static late Box searchHistory;
+  static late Box blocked;
 
   static Future<void> init() async {
     await Hive.initFlutter();
@@ -29,7 +34,9 @@ abstract final class GStorage {
     account = await Hive.openBox(BoxName.account);
     history = await Hive.openBox(BoxName.history);
     searchHistory = await Hive.openBox(BoxName.searchHistory);
+    blocked = await Hive.openBox(BoxName.blocked);
     await migration();
+    initialized = true;
   }
 
   /// 旧版本数据的迁移入口.

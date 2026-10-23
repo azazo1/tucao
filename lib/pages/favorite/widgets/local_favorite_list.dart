@@ -5,6 +5,7 @@ import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/common/widgets/video_card.dart';
 import 'package:tucao/models/favorite.dart';
 import 'package:tucao/pages/video/video_page.dart';
+import 'package:tucao/services/block_service.dart';
 import 'package:tucao/services/favorite_service.dart';
 
 /// 本地收藏列表.
@@ -85,18 +86,31 @@ class _LocalFavoriteListState extends State<LocalFavoriteList> {
                 onRetry: service.reload,
               );
             }
-            if (service.list.isEmpty) {
+            final all = service.list;
+            final items = all
+                .where(
+                  (item) =>
+                      !BlockService.instance.isBlocked(item.video.hid),
+                )
+                .toList();
+            if (all.isEmpty) {
               return const EmptyWidget(
                 message: '还没有本地收藏',
                 icon: Icons.favorite_border,
               );
             }
+            if (items.isEmpty) {
+              return const EmptyWidget(
+                message: '本地收藏都已被屏蔽',
+                icon: Icons.block,
+              );
+            }
             return ListView.separated(
               padding: EdgeInsets.symmetric(horizontal: side + 12),
-              itemCount: service.list.length,
+              itemCount: items.length,
               separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, index) {
-                final item = service.list[index];
+                final item = items[index];
                 final busy = _removing.contains(item.video.hid);
                 return Row(
                   key: ValueKey('favorite-${item.video.hid}'),

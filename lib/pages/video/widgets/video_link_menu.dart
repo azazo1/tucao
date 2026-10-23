@@ -3,9 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/site_links.dart';
 
-enum _LinkAction { restart, copy, browser, download }
+enum _LinkAction { block, restart, copy, browser, download }
 
-/// 视频链接操作, 不把播放直链或账号信息放入复制内容.
+/// 视频操作菜单, 复制内容里不放入播放直链或账号信息.
 class VideoLinkMenu extends StatelessWidget {
   const VideoLinkMenu({
     super.key,
@@ -14,6 +14,8 @@ class VideoLinkMenu extends StatelessWidget {
     required this.onOpenWebsite,
     this.onDownload,
     this.onRestart,
+    this.onBlock,
+    this.blocked = false,
   });
 
   final String hid;
@@ -23,6 +25,12 @@ class VideoLinkMenu extends StatelessWidget {
 
   /// 重载播放器与页面信息, 为空时不显示入口.
   final VoidCallback? onRestart;
+
+  /// 屏蔽或取消屏蔽当前内容, 为空时不显示入口.
+  final VoidCallback? onBlock;
+
+  /// 当前内容是否已经被屏蔽.
+  final bool blocked;
 
   Future<void> _copy(BuildContext context, Uri uri) async {
     try {
@@ -53,6 +61,8 @@ class VideoLinkMenu extends StatelessWidget {
       icon: const Icon(Icons.more_vert),
       onSelected: (action) {
         switch (action) {
+          case _LinkAction.block:
+            onBlock?.call();
           case _LinkAction.restart:
             onRestart?.call();
           case _LinkAction.copy:
@@ -66,6 +76,17 @@ class VideoLinkMenu extends StatelessWidget {
         }
       },
       itemBuilder: (context) => [
+        if (onBlock != null)
+          PopupMenuItem(
+            value: _LinkAction.block,
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(
+                blocked ? Icons.visibility_outlined : Icons.block,
+              ),
+              title: Text(blocked ? '取消屏蔽' : '屏蔽此内容'),
+            ),
+          ),
         PopupMenuItem(
           value: _LinkAction.restart,
           enabled: onRestart != null,

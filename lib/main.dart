@@ -7,6 +7,7 @@ import 'package:tucao/common/site_host.dart';
 import 'package:tucao/http/init.dart';
 import 'package:tucao/services/account_service.dart';
 import 'package:tucao/services/ad_service.dart';
+import 'package:tucao/services/block_service.dart';
 import 'package:tucao/services/danmaku_trend_service.dart';
 import 'package:tucao/services/download/download_service.dart';
 import 'package:tucao/services/download/download_transport.dart';
@@ -43,6 +44,8 @@ Future<void> main() async {
   // 评论区的破会员标记, 只在内存里攒, 不做持久化.
   Get.put(VipService());
   Get.put(FavoriteService(), permanent: true);
+  // 屏蔽记录只在本机, 启动时即读入, 各列表页在展示时过滤.
+  Get.put(BlockService(), permanent: true);
   // 站点追番在播放页与我的收藏页共用, 拉取时机由页面决定.
   Get.put(SiteFavoriteService(), permanent: true);
   // 未读私信与评论数挂在「我的」入口上, 需要登录态, 取数时机由主框架决定.

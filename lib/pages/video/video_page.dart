@@ -18,6 +18,7 @@ import 'package:tucao/router/routes.dart';
 import 'package:tucao/services/cast/proxy.dart';
 import 'package:tucao/services/cast/renderer.dart';
 import 'package:tucao/services/cast/session.dart';
+import 'package:tucao/services/block_service.dart';
 import 'package:tucao/services/pip_service.dart';
 import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/site_links.dart';
@@ -354,17 +355,21 @@ class _VideoPageState extends State<VideoPage>
             icon: const Icon(Icons.cast),
             onPressed: () => unawaited(_startCast()),
           ),
-        Obx(
-          () => VideoLinkMenu(
+        Obx(() {
+          final video = _controller.video.value;
+          return VideoLinkMenu(
             hid: _controller.hid,
             part: _controller.part.value,
             onOpenWebsite: _openWebsite,
-            onDownload: _controller.video.value == null
-                ? null
-                : _openDownloadSheet,
+            onDownload: video == null ? null : _openDownloadSheet,
             onRestart: () => unawaited(_restartPlayback()),
-          ),
-        ),
+            onBlock: video == null
+                ? null
+                : () => unawaited(_toggleBlock(video)),
+            blocked:
+                video != null && BlockService.instance.isBlocked(video.hid),
+          );
+        }),
       ],
       title: Obx(
         () => Text(
@@ -375,6 +380,29 @@ class _VideoPageState extends State<VideoPage>
         ),
       ),
     );
+  }
+
+  /// 屏蔽或恢复当前视频.
+  Future<void> _toggleBlock(VideoModel video) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final service = BlockService.instance;
+    final blocked = service.isBlocked(video.hid);
+    try {
+      if (blocked) {
+        await service.unblock(video.hid);
+        messenger?.showSnackBar(
+          SnackBar(content: Text('已取消屏蔽 ${video.title}')),
+        );
+      } else {
+        await service.block(video);
+        messenger?.showSnackBar(
+          SnackBar(content: Text('已屏蔽 ${video.title}')),
+        );
+      }
+    } catch (error, stackTrace) {
+      Log.e('更新本地屏蔽失败', error: error, stackTrace: stackTrace);
+      messenger?.showSnackBar(SnackBar(content: Text('屏蔽操作失败: $error')));
+    }
   }
 
   Widget _buildPlayerView() {

@@ -7,6 +7,7 @@ import 'package:tucao/common/widgets/video_card.dart';
 import 'package:tucao/http/week_http.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/pages/home/week_controller.dart';
+import 'package:tucao/services/block_service.dart';
 
 /// 新番时间表.
 ///
@@ -57,6 +58,7 @@ class _WeekViewState extends State<WeekView>
       }
       final index = _controller.index.value.clamp(0, groups.length - 1);
       final current = groups[index];
+      final items = current.list.withoutBlocked();
 
       return Column(
         children: [
@@ -71,7 +73,7 @@ class _WeekViewState extends State<WeekView>
               child: LayoutBuilder(
                 builder: (context, constraints) => RefreshIndicator(
                   onRefresh: _controller.refreshList,
-                  child: current.list.isEmpty
+                  child: items.isEmpty
                       ? ListView(
                           physics: const AlwaysScrollableScrollPhysics(),
                           children: const [
@@ -86,9 +88,9 @@ class _WeekViewState extends State<WeekView>
                             context,
                             constraints.maxWidth,
                           ),
-                          itemCount: current.list.length,
+                          itemCount: items.length,
                           itemBuilder: (context, i) =>
-                              _WeekCard(video: current.list[i]),
+                              _WeekCard(video: items[i]),
                         ),
                 ),
               ),

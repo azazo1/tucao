@@ -21,6 +21,7 @@ import 'package:tucao/pages/rank/hot_search_page.dart';
 import 'package:tucao/pages/rank/rank_page.dart';
 import 'package:tucao/pages/rank/user_rank_page.dart';
 import 'package:tucao/pages/search/search_page.dart';
+import 'package:tucao/pages/setting/blocked_page.dart';
 import 'package:tucao/pages/setting/setting_page.dart';
 import 'package:tucao/pages/space/space_page.dart';
 import 'package:tucao/pages/video/video_page.dart';
@@ -40,6 +41,7 @@ abstract final class AppPages {
     GetPage(name: Routes.downloads, page: () => const DownloadPage()),
     GetPage(name: Routes.favorites, page: () => const FavoritePage()),
     GetPage(name: Routes.setting, page: () => const SettingPage()),
+    GetPage(name: Routes.blocked, page: () => const BlockedVideoPage()),
     GetPage(name: Routes.login, page: () => const LoginPage()),
     GetPage(name: Routes.register, page: () => const RegisterPage()),
     GetPage(

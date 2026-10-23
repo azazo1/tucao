@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
+import 'package:tucao/common/widgets/video_block_sheet.dart';
 import 'package:tucao/common/widgets/video_card.dart';
 import 'package:tucao/models/site_favorite.dart';
 import 'package:tucao/pages/video/video_page.dart';
+import 'package:tucao/services/block_service.dart';
 import 'package:tucao/services/site_favorite_service.dart';
 
 /// 站点账号的追番列表.
@@ -83,14 +85,19 @@ class _SiteFavoriteListState extends State<SiteFavoriteList> {
     final side = Adaptive.sidePadding(context, maxWidth: Adaptive.listMaxWidth);
     return Obx(() {
       final error = _service.error.value;
-      final items = _service.list;
+      final all = _service.list;
+      final items = all
+          .where((item) => !BlockService.instance.isBlocked(item.hid))
+          .toList();
       return Column(
         children: [
           const Padding(
             padding: EdgeInsets.all(12),
             child: Text('与站点账号同步, 需要登录'),
           ),
-          Expanded(child: _buildBody(items, error, side)),
+          Expanded(
+            child: _buildBody(items, all.isEmpty, error, side),
+          ),
         ],
       );
     });
@@ -98,16 +105,17 @@ class _SiteFavoriteListState extends State<SiteFavoriteList> {
 
   Widget _buildBody(
     List<SiteFavoriteItem> items,
+    bool allEmpty,
     String? error,
     double side,
   ) {
-    if (_service.loading.value && items.isEmpty) {
+    if (_service.loading.value && allEmpty) {
       return const LoadingWidget();
     }
     if (items.isEmpty) {
       return EmptyWidget(
-        message: error ?? '还没有站点追番',
-        icon: Icons.star_outline,
+        message: error ?? (allEmpty ? '还没有站点追番' : '追番都已被屏蔽'),
+        icon: allEmpty ? Icons.star_outline : Icons.block,
         onRetry: error == null
             ? null
             : () => unawaited(_service.refresh(force: true)),
@@ -211,6 +219,7 @@ class _SiteFavoriteRow extends StatelessWidget {
         ? row
         : InkWell(
             onTap: () => VideoPage.open(video),
+            onLongPress: () => showVideoBlockSheet(context, video),
             borderRadius: BorderRadius.circular(12),
             child: row,
           );

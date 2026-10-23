@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/common/widgets/video_card.dart';
 import 'package:tucao/pages/bgm/week_bgm_controller.dart';
+import 'package:tucao/services/block_service.dart';
 
 /// 本周新番页.
 ///
@@ -43,7 +44,10 @@ class _WeekBgmPageState extends State<WeekBgmPage> {
         if (error != null) {
           return ErrorWidgetView(message: error, onRetry: _controller.load);
         }
-        final groups = _controller.groups;
+        final groups = [
+          for (final group in _controller.groups)
+            (title: group.title, list: group.list.withoutBlocked()),
+        ].where((group) => group.list.isNotEmpty).toList();
         if (groups.isEmpty) {
           return const EmptyWidget(message: '本周还没有更新');
         }

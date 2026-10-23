@@ -6,8 +6,10 @@ import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/common/style.dart';
 import 'package:tucao/pages/setting/widgets/site_host_tile.dart';
 import 'package:tucao/pages/video/widgets/danmaku_settings_sheet.dart';
+import 'package:tucao/router/routes.dart';
 import 'package:tucao/services/account_service.dart';
 import 'package:tucao/services/ad_service.dart';
+import 'package:tucao/services/block_service.dart';
 import 'package:tucao/services/danmaku_trend_service.dart';
 import 'package:tucao/services/history_service.dart';
 import 'package:tucao/services/pip_service.dart';
@@ -331,6 +333,18 @@ class _SettingPageState extends State<SettingPage> {
               },
             ),
           ),
+          Obx(() {
+            final count = BlockService.instance.list.length;
+            return ListTile(
+              leading: const Icon(Icons.block),
+              title: const Text('屏蔽管理'),
+              subtitle: Text(
+                count == 0 ? '长按列表条目或播放页菜单可屏蔽番剧与视频' : '已屏蔽 $count 项',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Get.toNamed(Routes.blocked),
+            );
+          }),
           ListTile(
             title: const Text('清除播放历史'),
             trailing: const Icon(Icons.chevron_right),
