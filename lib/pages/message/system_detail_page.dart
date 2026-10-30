@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/common/adaptive.dart';
+import 'package:tucao/common/widgets/copy_selection_area.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/http/message_http.dart';
 import 'package:tucao/models/message.dart';
@@ -113,24 +114,44 @@ class _SystemDetailPageState extends State<SystemDetailPage> {
       final theme = Theme.of(context);
       return RefreshIndicator(
         onRefresh: _controller.refresh,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          children: [
-            for (final block in detail.blocks) _buildBlock(block),
-            if (detail.time.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                detail.time,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+        child: CopySelectionArea(
+          text: _copyText(detail),
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            children: [
+              for (final block in detail.blocks) _buildBlock(block),
+              if (detail.time.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  detail.time,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       );
     });
+  }
+
+  /// 公告正文的纯文本, 用于选择菜单里的复制全文.
+  ///
+  /// 图片与时间不进入剪贴板, 标题也不包含, 只保留段落文字.
+  String _copyText(SystemMessageDetail detail) {
+    final paragraphs = <String>[];
+    for (final block in detail.blocks) {
+      if (block is! SystemParagraph) {
+        continue;
+      }
+      final text = block.parts.map((part) => part.text).join().trim();
+      if (text.isNotEmpty) {
+        paragraphs.add(text);
+      }
+    }
+    return paragraphs.join('\n');
   }
 
   Widget _buildBlock(SystemContentBlock block) {

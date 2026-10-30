@@ -3,8 +3,79 @@ import 'package:tucao/models/video.dart';
 import 'package:tucao/common/style.dart';
 import 'package:tucao/common/widgets/video_block_sheet.dart';
 import 'package:tucao/pages/video/video_page.dart';
+import 'package:tucao/utils/clipboard.dart';
+import 'package:tucao/utils/site_links.dart';
 import 'package:tucao/utils/utils.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+
+/// 视频卡片长按菜单的动作.
+enum _CardAction { copyTitle, copyLink, block }
+
+/// 视频卡片长按菜单: 复制标题, 复制视频链接与屏蔽.
+Future<void> showVideoCardMenu(BuildContext context, VideoModel video) async {
+  final action = await showModalBottomSheet<_CardAction>(
+    context: context,
+    showDragHandle: true,
+    builder: (sheetContext) {
+      final scheme = Theme.of(sheetContext).colorScheme;
+      return SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text(
+                video.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(sheetContext).textTheme.titleSmall,
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.title),
+              title: const Text('复制标题'),
+              onTap: () => Navigator.pop(sheetContext, _CardAction.copyTitle),
+            ),
+            ListTile(
+              leading: const Icon(Icons.link),
+              title: const Text('复制视频链接'),
+              onTap: () => Navigator.pop(sheetContext, _CardAction.copyLink),
+            ),
+            ListTile(
+              leading: Icon(Icons.block, color: scheme.error),
+              title: Text('屏蔽', style: TextStyle(color: scheme.error)),
+              subtitle: const Text('不再出现在首页, 番组, 搜索与排行等列表'),
+              onTap: () => Navigator.pop(sheetContext, _CardAction.block),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      );
+    },
+  );
+  if (action == null || !context.mounted) {
+    return;
+  }
+  switch (action) {
+    case _CardAction.copyTitle:
+      await copyText(context, video.title);
+    case _CardAction.copyLink:
+      final uri = SiteLinks.video(video.hid);
+      if (uri == null) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(
+            content: Text('无法生成视频链接'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
+      await copyText(context, uri.toString());
+    case _CardAction.block:
+      await showVideoBlockSheet(context, video);
+  }
+}
 
 /// 视频封面.
 ///
@@ -133,7 +204,7 @@ class VideoCardVertical extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap ?? () => VideoPage.open(video),
-        onLongPress: onLongPress ?? () => showVideoBlockSheet(context, video),
+        onLongPress: onLongPress ?? () => showVideoCardMenu(context, video),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -252,7 +323,7 @@ class VideoCardHorizontal extends StatelessWidget {
     final scheme = theme.colorScheme;
     return InkWell(
       onTap: onTap ?? () => VideoPage.open(video),
-      onLongPress: onLongPress ?? () => showVideoBlockSheet(context, video),
+      onLongPress: onLongPress ?? () => showVideoCardMenu(context, video),
       borderRadius: BorderRadius.circular(Style.cardRadius),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 6),

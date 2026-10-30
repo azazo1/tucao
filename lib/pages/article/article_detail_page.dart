@@ -1,10 +1,12 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/common/widgets/copy_selection_area.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/http/article_detail_http.dart';
 import 'package:tucao/pages/article/widgets/article_stats_bar.dart';
 import 'package:tucao/pages/reply/reply_page.dart';
+import 'package:tucao/utils/clipboard.dart';
 import 'package:tucao/utils/logger.dart';
 
 /// 档案详情控制器.
@@ -119,51 +121,75 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
   }
 
   Widget _buildArticle(BuildContext context, ArticleDetail detail) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-      children: [
-        Text(
-          detail.title,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-            height: 1.4,
-          ),
-        ),
-        if (detail.category.isNotEmpty || detail.publishedAt.isNotEmpty) ...[
-          const SizedBox(height: 6),
-          Text(
-            [
-              detail.category,
-              detail.publishedAt,
-            ].where((e) => e.isNotEmpty).join(' / '),
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+    return CopySelectionArea(
+      text: _articleText(detail),
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        children: [
+          // 标题排除在选择区域之外, 长按直接复制标题.
+          SelectionContainer.disabled(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onLongPress: () => copyText(context, detail.title),
+              child: Text(
+                detail.title,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  height: 1.4,
+                ),
+              ),
             ),
           ),
-        ],
-        const SizedBox(height: 10),
-        ArticleStatsBar(hid: detail.hid, commentTypeId: detail.commentTypeId),
-        if (detail.tags.isNotEmpty) ...[
+          if (detail.category.isNotEmpty || detail.publishedAt.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              [
+                detail.category,
+                detail.publishedAt,
+              ].where((e) => e.isNotEmpty).join(' / '),
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final tag in detail.tags)
-                Chip(
-                  label: Text(tag),
-                  padding: EdgeInsets.zero,
-                  labelStyle: const TextStyle(fontSize: 12),
-                  visualDensity: VisualDensity.compact,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-            ],
-          ),
+          ArticleStatsBar(hid: detail.hid, commentTypeId: detail.commentTypeId),
+          if (detail.tags.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final tag in detail.tags)
+                  Chip(
+                    label: Text(tag),
+                    padding: EdgeInsets.zero,
+                    labelStyle: const TextStyle(fontSize: 12),
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 14),
+          for (final block in detail.paragraphs) _buildBlock(context, block),
         ],
-        const SizedBox(height: 14),
-        for (final block in detail.paragraphs) _buildBlock(context, block),
-      ],
+      ),
     );
+  }
+
+  /// 档案正文的纯文本, 用于选择菜单里的复制全文.
+  ///
+  /// 标题与图片不进入剪贴板, 只保留正文段落.
+  String _articleText(ArticleDetail detail) {
+    final paragraphs = <String>[];
+    for (final block in detail.paragraphs) {
+      final text = block.text?.trim() ?? '';
+      if (text.isNotEmpty) {
+        paragraphs.add(text);
+      }
+    }
+    return paragraphs.join('\n');
   }
 
   Widget _buildComments(ArticleDetail detail) {

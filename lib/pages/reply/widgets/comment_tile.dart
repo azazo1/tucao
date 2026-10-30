@@ -3,10 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/common/constants.dart';
 import 'package:tucao/common/vip.dart';
+import 'package:tucao/common/widgets/content_copy_menu.dart';
 import 'package:tucao/models/reply.dart';
 import 'package:tucao/pages/reply/reply_content.dart';
+import 'package:tucao/pages/reply/reply_copy.dart';
 import 'package:tucao/pages/reply/widgets/comment_image.dart';
+import 'package:tucao/pages/reply/widgets/copy_reply_dialog.dart';
 import 'package:tucao/router/routes.dart';
+import 'package:tucao/utils/clipboard.dart';
 
 /// 单条评论.
 ///
@@ -43,26 +47,49 @@ class CommentTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final avatarSize = dense ? 26.0 : 36.0;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildAvatar(avatarSize),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(context),
-              const SizedBox(height: 3),
-              _buildContent(context),
-              const SizedBox(height: 4),
-              _buildActions(context),
-              if (footer != null) ...[const SizedBox(height: 6), footer!],
-            ],
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onLongPress: () => _showCopyMenu(context),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildAvatar(avatarSize),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeader(context),
+                const SizedBox(height: 3),
+                _buildContent(context),
+                const SizedBox(height: 4),
+                _buildActions(context),
+                if (footer != null) ...[const SizedBox(height: 6), footer!],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
+  }
+
+  /// 长按评论弹出复制菜单.
+  Future<void> _showCopyMenu(BuildContext context) async {
+    if (comment.content.trim().isEmpty) {
+      return;
+    }
+    final action = await showContentCopyMenu(context);
+    if (!context.mounted) {
+      return;
+    }
+    switch (action) {
+      case ContentCopyAction.copyAll:
+        await copyText(context, replyCopyText(comment));
+      case ContentCopyAction.freeCopy:
+        await showReplyCopyDialog(context, comment);
+      case null:
+        break;
+    }
   }
 
   /// 打开评论者主页, 匿名评论没有 uid 时不跳转.

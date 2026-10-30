@@ -12,6 +12,7 @@ import 'package:tucao/pages/space/space_controller.dart';
 import 'package:tucao/router/routes.dart';
 import 'package:tucao/services/account_service.dart';
 import 'package:tucao/services/block_service.dart';
+import 'package:tucao/utils/clipboard.dart';
 import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/utils.dart';
 
@@ -345,13 +346,18 @@ class _SpacePageState extends State<SpacePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildName(theme, info),
+                _buildName(context, theme, info),
                 if (info.userId > 0) ...[
                   const SizedBox(height: 4),
-                  Text(
-                    '用户 id: ${info.userId}',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onLongPress: () =>
+                        copyText(context, info.userId.toString()),
+                    child: Text(
+                      '用户 id: ${info.userId}',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
                 ],
@@ -391,16 +397,21 @@ class _SpacePageState extends State<SpacePage> {
   /// 空间主人的昵称.
   ///
   /// 破会员套一层金色流光, 与我的页面保持一致; 普通用户仍用主题色.
-  Widget _buildName(ThemeData theme, SpaceInfo info) {
+  /// 长按昵称直接复制名称.
+  Widget _buildName(BuildContext context, ThemeData theme, SpaceInfo info) {
     final name = Text(
       info.userName,
       style: theme.textTheme.titleMedium?.copyWith(
         fontWeight: FontWeight.w600,
       ),
     );
-    if (!info.isVip) {
-      return name;
-    }
-    return VipGold(particleSeed: info.userId, child: name);
+    final child = info.isVip
+        ? VipGold(particleSeed: info.userId, child: name)
+        : name;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onLongPress: () => copyText(context, info.userName),
+      child: child,
+    );
   }
 }

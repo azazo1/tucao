@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/common/style.dart';
+import 'package:tucao/common/widgets/copy_selection_area.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/models/video_subject.dart';
 import 'package:tucao/pages/video/widgets/subject_info.dart';
 import 'package:tucao/pages/video/widgets/video_stats_bar.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
 import 'package:tucao/router/routes.dart';
+import 'package:tucao/utils/clipboard.dart';
 import 'package:tucao/utils/date_utils.dart';
 import 'package:tucao/utils/html_text.dart';
 
@@ -36,11 +38,15 @@ class VideoInfoPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            video.title,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-              height: 1.3,
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onLongPress: () => copyText(context, video.title),
+            child: Text(
+              video.title,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                height: 1.3,
+              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -167,11 +173,14 @@ class _DescriptionState extends State<_Description> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              text,
-              maxLines: _expanded ? null : 3,
-              overflow: _expanded ? null : TextOverflow.ellipsis,
-              style: style,
+            CopySelectionArea(
+              text: text,
+              child: Text(
+                text,
+                maxLines: _expanded ? null : 3,
+                overflow: _expanded ? null : TextOverflow.ellipsis,
+                style: style,
+              ),
             ),
             if (overflows)
               GestureDetector(

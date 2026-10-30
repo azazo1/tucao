@@ -1,11 +1,14 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/common/widgets/content_copy_menu.dart';
+import 'package:tucao/common/widgets/free_copy_dialog.dart';
 import 'package:tucao/common/widgets/paging_list.dart';
 import 'package:tucao/http/message_http.dart';
 import 'package:tucao/models/message.dart';
 import 'package:tucao/router/routes.dart';
 import 'package:tucao/services/account_service.dart';
+import 'package:tucao/utils/clipboard.dart';
 import 'package:tucao/utils/logger.dart';
 
 /// 评论列表控制器.
@@ -132,6 +135,7 @@ class _CommentTile extends StatelessWidget {
     final target = item.target;
     return InkWell(
       onTap: target == null ? null : () => _open(target),
+      onLongPress: () => _showCopyMenu(context),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(
@@ -179,6 +183,26 @@ class _CommentTile extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// 长按评论弹出复制菜单.
+  Future<void> _showCopyMenu(BuildContext context) async {
+    final text = item.content.trim();
+    if (text.isEmpty) {
+      return;
+    }
+    final action = await showContentCopyMenu(context);
+    if (!context.mounted) {
+      return;
+    }
+    switch (action) {
+      case ContentCopyAction.copyAll:
+        await copyText(context, text);
+      case ContentCopyAction.freeCopy:
+        await showFreeCopyTextDialog(context, text: text);
+      case null:
+        break;
+    }
   }
 
   /// 打开被评论的内容, 档案与视频走不同的页面.

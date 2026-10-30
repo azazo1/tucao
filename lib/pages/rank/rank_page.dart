@@ -4,13 +4,11 @@ import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/common/style.dart';
 import 'package:tucao/common/widgets/channel_bar.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
-import 'package:tucao/common/widgets/video_block_sheet.dart';
 import 'package:tucao/common/widgets/video_card.dart';
 import 'package:tucao/http/rank_http.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/pages/rank/rank_controller.dart';
 import 'package:tucao/router/routes.dart';
-import 'package:tucao/services/block_service.dart';
 import 'package:tucao/utils/utils.dart';
 
 /// 排行榜页.
@@ -179,7 +177,7 @@ class _RankItem extends StatelessWidget {
     final highlight = rank <= 3;
     return InkWell(
       onTap: () => Get.toNamed(Routes.video, parameters: {'hid': video.hid}),
-      onLongPress: () => showVideoBlockSheet(context, video),
+      onLongPress: () => showVideoCardMenu(context, video),
       borderRadius: BorderRadius.circular(Style.cardRadius),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),

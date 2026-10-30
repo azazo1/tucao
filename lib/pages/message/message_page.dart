@@ -2,10 +2,13 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/common/adaptive.dart';
+import 'package:tucao/common/widgets/content_copy_menu.dart';
+import 'package:tucao/common/widgets/free_copy_dialog.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/http/message_http.dart';
 import 'package:tucao/models/message.dart';
 import 'package:tucao/services/account_service.dart';
+import 'package:tucao/utils/clipboard.dart';
 import 'package:tucao/utils/logger.dart';
 
 /// 私信会话控制器.
@@ -249,20 +252,23 @@ class _MessageBubble extends StatelessWidget {
         ? scheme.onPrimaryContainer
         : scheme.onSurface;
 
-    final bubble = Container(
-      constraints: BoxConstraints(
-        maxWidth: MediaQuery.sizeOf(context).width * 0.72,
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: bubbleColor,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        item.content,
-        style: theme.textTheme.bodyMedium?.copyWith(
-          color: textColor,
-          height: 1.4,
+    final bubble = GestureDetector(
+      onLongPress: () => _showCopyMenu(context),
+      child: Container(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.sizeOf(context).width * 0.72,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: bubbleColor,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          item.content,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: textColor,
+            height: 1.4,
+          ),
         ),
       ),
     );
@@ -304,6 +310,26 @@ class _MessageBubble extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// 长按气泡弹出复制菜单.
+  Future<void> _showCopyMenu(BuildContext context) async {
+    final text = item.content.trim();
+    if (text.isEmpty) {
+      return;
+    }
+    final action = await showContentCopyMenu(context);
+    if (!context.mounted) {
+      return;
+    }
+    switch (action) {
+      case ContentCopyAction.copyAll:
+        await copyText(context, text);
+      case ContentCopyAction.freeCopy:
+        await showFreeCopyTextDialog(context, text: text);
+      case null:
+        break;
+    }
   }
 }
 
