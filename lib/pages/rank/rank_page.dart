@@ -9,6 +9,7 @@ import 'package:tucao/http/rank_http.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/pages/rank/rank_controller.dart';
 import 'package:tucao/router/routes.dart';
+import 'package:tucao/services/block_service.dart';
 import 'package:tucao/utils/utils.dart';
 
 /// 排行榜页.
