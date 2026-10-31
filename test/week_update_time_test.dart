@@ -28,6 +28,14 @@ void main() {
       expect(_at(1, 50).minutesOfDay, 110);
       expect(_at(0, 0).minutesOfDay, 0);
     });
+
+    test('当天的时刻到过之后算可看', () {
+      final time = _at(20, 2);
+      expect(time.hasReached(DateTime(2026, 11, 1, 20, 1)), isFalse);
+      expect(time.hasReached(DateTime(2026, 11, 1, 20, 2)), isTrue);
+      expect(time.hasReached(DateTime(2026, 11, 1, 23, 59)), isTrue);
+      expect(time.hasReached(DateTime(2026, 11, 1, 0, 0)), isFalse);
+    });
   });
 
   group('时间表排序', () {

@@ -96,6 +96,7 @@ class _WeekViewState extends State<WeekView>
       }
       final index = _controller.index.value.clamp(0, groups.length - 1);
       final current = groups[index];
+      final todayIndex = WeekController.todayIndex(groups.length);
       final followed = {
         for (final item in _favorites?.list ?? const <SiteFavoriteItem>[])
           item.hid,
@@ -124,7 +125,7 @@ class _WeekViewState extends State<WeekView>
           _WeekTabBar(
             groups: groups,
             index: index,
-            todayIndex: WeekController.todayIndex(groups.length),
+            todayIndex: todayIndex,
             onChanged: _controller.changeIndex,
           ),
           Expanded(
@@ -152,6 +153,7 @@ class _WeekViewState extends State<WeekView>
                           times: times,
                           width: constraints.maxWidth,
                           availableHeight: constraints.maxHeight,
+                          isToday: index == todayIndex,
                         ),
                 ),
               ),
@@ -279,6 +281,7 @@ class _WeekGrid extends StatelessWidget {
     required this.times,
     required this.width,
     required this.availableHeight,
+    required this.isToday,
   });
 
   final List<VideoModel> items;
@@ -290,6 +293,9 @@ class _WeekGrid extends StatelessWidget {
 
   /// 网格容器的高度, 横屏矮屏下据此追加列数.
   final double availableHeight;
+
+  /// 当前分组是否就是当天, 只有当天才判断更新时刻到没到.
+  final bool isToday;
 
   /// 重排动画时长, 与项目里其他隐式动画接近.
   static const duration = Duration(milliseconds: 280);
@@ -314,6 +320,8 @@ class _WeekGrid extends StatelessWidget {
         rows * itemHeight +
         Style.gridRowSpacing * (rows - 1) +
         bottomPadding;
+    // 一次构建里用同一个时间点, 免得同一屏的卡片判断不一致.
+    final now = DateTime.now();
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
       child: SizedBox(
@@ -339,6 +347,9 @@ class _WeekGrid extends StatelessWidget {
                   video: items[index],
                   followed: followed.contains(items[index].hid),
                   updateTime: times[items[index].hid],
+                  available:
+                      isToday &&
+                      (times[items[index].hid]?.hasReached(now) ?? false),
                 ),
               ),
           ],
@@ -351,17 +362,21 @@ class _WeekGrid extends StatelessWidget {
 /// 时间表卡片.
 ///
 /// 直接用共享的竖版卡片, 集数状态作为封面角标展示, 更新时刻放在底部
-/// 信息行的右端.
+/// 信息行的右端; 当天已经到点的番把时钟换成播放图标, 提示可以看了.
 class _WeekCard extends StatelessWidget {
   const _WeekCard({
     required this.video,
     this.followed = false,
     this.updateTime,
+    this.available = false,
   });
 
   final VideoModel video;
   final bool followed;
   final WeekUpdateTime? updateTime;
+
+  /// 当天且更新时刻已到, 用播放图标标出来.
+  final bool available;
 
   @override
   Widget build(BuildContext context) {
@@ -378,13 +393,17 @@ class _WeekCard extends StatelessWidget {
           : Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.schedule, size: 12, color: scheme.outline),
+                Icon(
+                  available ? Icons.play_circle_fill : Icons.schedule,
+                  size: 12,
+                  color: available ? scheme.primary : scheme.outline,
+                ),
                 const SizedBox(width: 2),
                 Text(
                   time.label,
                   style: TextStyle(
                     fontSize: 11,
-                    color: scheme.onSurfaceVariant,
+                    color: available ? scheme.primary : scheme.onSurfaceVariant,
                   ),
                 ),
               ],
