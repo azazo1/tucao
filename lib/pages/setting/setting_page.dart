@@ -17,6 +17,7 @@ import 'package:tucao/services/history_service.dart';
 import 'package:tucao/services/home_display_service.dart';
 import 'package:tucao/services/pip_service.dart';
 import 'package:tucao/services/theme_service.dart';
+import 'package:tucao/services/update/update_source.dart';
 import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/storage_pref.dart';
 import 'package:tucao/utils/utils.dart';
@@ -59,6 +60,9 @@ class _SettingPageState extends State<SettingPage> {
 
   late int _searchHistoryLimit;
 
+  /// 更新包的下载源, 只影响应用内下载安装包, 不影响检查更新.
+  late UpdateSource _updateSource;
+
   @override
   void initState() {
     super.initState();
@@ -89,6 +93,8 @@ class _SettingPageState extends State<SettingPage> {
     _searchHistoryLimit = _historyLimits.contains(Pref.searchHistoryLimit)
         ? Pref.searchHistoryLimit
         : 20;
+
+    _updateSource = UpdateSource.saved;
 
     unawaited(_loadPipSupport());
   }
@@ -139,6 +145,11 @@ class _SettingPageState extends State<SettingPage> {
     }
     setState(() => _seedColor = value);
     _theme.setSeedColor(value);
+  }
+
+  void _setUpdateSource(UpdateSource value) {
+    setState(() => _updateSource = value);
+    Pref.updateSource = value.name;
   }
 
   Future<void> _clearHistory() async {
@@ -392,6 +403,22 @@ class _SettingPageState extends State<SettingPage> {
             ),
           ),
 
+          const _SectionTitle('更新'),
+          RadioGroup<UpdateSource>(
+            groupValue: _updateSource,
+            onChanged: (value) {
+              if (value != null) {
+                _setUpdateSource(value);
+              }
+            },
+            child: Column(
+              children: [
+                for (final source in UpdateSource.values)
+                  _UpdateSourceTile(source: source),
+              ],
+            ),
+          ),
+
           const _SectionTitle('其他'),
           const SiteHostTile(),
           ListTile(
@@ -514,6 +541,23 @@ class _ThemeModeTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return RadioListTile<int>(value: value, title: Text(label), dense: true);
+  }
+}
+
+/// 更新下载源的单选项, 选项值由上层 [RadioGroup] 管理.
+class _UpdateSourceTile extends StatelessWidget {
+  const _UpdateSourceTile({required this.source});
+
+  final UpdateSource source;
+
+  @override
+  Widget build(BuildContext context) {
+    return RadioListTile<UpdateSource>(
+      value: source,
+      title: Text(source.label),
+      subtitle: Text(source.description),
+      dense: true,
+    );
   }
 }
 

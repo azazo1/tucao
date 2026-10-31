@@ -7,6 +7,7 @@ import 'package:path/path.dart' as path;
 import 'package:tucao/models/release_asset.dart';
 import 'package:tucao/models/update_download.dart';
 import 'package:tucao/services/update/update_download_service.dart';
+import 'package:tucao/services/update/update_source.dart';
 import 'package:tucao/services/update/update_transport.dart';
 
 class _Transport implements UpdateTransport {
@@ -63,9 +64,11 @@ void main() {
     root = await temporary.createTemp('update-download-');
     directory = Directory(path.join(root.path, 'updates'));
     transport = _Transport();
+    // 其余用例的产物地址不在 github.com 上, 固定官方源以免读到本地设置.
     service = UpdateDownloadService(
       transport: transport,
       location: () async => directory,
+      source: () => UpdateSource.github,
     );
   });
 
@@ -100,7 +103,11 @@ void main() {
   });
 
   test('设备没有对应的安装包时直接失败, 不发请求', () async {
-    await service.start(version: 'v1.3.0', assets: apks(size: 3), abis: ['x86']);
+    await service.start(
+      version: 'v1.3.0',
+      assets: apks(size: 3),
+      abis: ['x86'],
+    );
     expect(service.state.value.status, UpdateDownloadStatus.failed);
     expect(service.state.value.error, contains('适配'));
     expect(transport.calls, isEmpty);
@@ -151,6 +158,62 @@ void main() {
     expect(service.state.value.status, UpdateDownloadStatus.ready);
     await service.discard();
     expect(service.state.value.status, UpdateDownloadStatus.idle);
+    expect(await directory.list().toList(), isEmpty);
+  });
+
+  test('镜像不可达时按顺序换到下一个下载源', () async {
+    final auto = UpdateDownloadService(
+      transport: transport,
+      location: () async => directory,
+      source: () => UpdateSource.auto,
+    );
+    addTearDown(auto.onClose);
+    final assets = [
+      ReleaseAsset(
+        name: 'tucao-1.3.0-android-arm64-v8a.apk',
+        size: 3,
+        downloadUrl:
+            'https://github.com/azazo1/tucao/releases/download/'
+            'v1.3.0/tucao-1.3.0-android-arm64-v8a.apk',
+      ),
+    ];
+    transport.behavior = (target, token) async {
+      if (transport.calls.last.host != 'github.com') {
+        throw Exception('镜像不可达');
+      }
+      await target.writeAsBytes(const [1, 2, 3], flush: true);
+      return 3;
+    };
+    await auto.start(version: 'v1.3.0', assets: assets, abis: ['arm64-v8a']);
+    expect(auto.state.value.status, UpdateDownloadStatus.ready);
+    expect(transport.calls, hasLength(UpdateSources.mirrors.length + 1));
+    expect(transport.calls.last.host, 'github.com');
+    expect(await File(auto.state.value.path).readAsBytes(), [1, 2, 3]);
+  });
+
+  test('所有下载源都失败时提示试过的地址数', () async {
+    final auto = UpdateDownloadService(
+      transport: transport,
+      location: () async => directory,
+      source: () => UpdateSource.auto,
+    );
+    addTearDown(auto.onClose);
+    transport.behavior = (target, token) async {
+      throw Exception('连不上');
+    };
+    final assets = [
+      ReleaseAsset(
+        name: 'tucao-1.3.0-android-arm64-v8a.apk',
+        size: 3,
+        downloadUrl:
+            'https://github.com/azazo1/tucao/releases/download/'
+            'v1.3.0/tucao-1.3.0-android-arm64-v8a.apk',
+      ),
+    ];
+    await auto.start(version: 'v1.3.0', assets: assets, abis: ['arm64-v8a']);
+    final failed = auto.state.value;
+    expect(failed.status, UpdateDownloadStatus.failed);
+    expect(failed.error, contains('已尝试 ${UpdateSources.mirrors.length + 1}'));
     expect(await directory.list().toList(), isEmpty);
   });
 }

@@ -26,6 +26,7 @@ abstract final class Pref {
   static const _kPlayerSeekStep = 'player_seek_step';
   static const _kDanmakuTrend = 'danmaku_trend';
   static const _kSkippedUpdateVersion = 'skipped_update_version';
+  static const _kUpdateSource = 'update_source';
   static const _kSiteHost = 'site_host';
 
   /// 跳转按钮的秒数下限.
@@ -228,6 +229,14 @@ abstract final class Pref {
   static String get siteHost =>
       GStorage.setting.get(_kSiteHost, defaultValue: '') as String;
   static set siteHost(String value) => GStorage.setting.put(_kSiteHost, value);
+
+  /// 更新包下载源, 存 UpdateSource 的枚举名, 为空表示还没有设置过.
+  ///
+  /// 存名字而不是序号, 以后增删下载源时旧值不会错位成别的源.
+  static String get updateSource =>
+      GStorage.setting.get(_kUpdateSource, defaultValue: '') as String;
+  static set updateSource(String value) =>
+      GStorage.setting.put(_kUpdateSource, value);
 
   /// 请求使用的站点地址.
   static String get baseUrl => Constants.baseUrl;

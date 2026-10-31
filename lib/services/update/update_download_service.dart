@@ -9,6 +9,7 @@ import 'package:tucao/models/release_asset.dart';
 import 'package:tucao/models/update_download.dart';
 import 'package:tucao/services/update/update_installer.dart';
 import 'package:tucao/services/update/update_location.dart';
+import 'package:tucao/services/update/update_source.dart';
 import 'package:tucao/services/update/update_transport.dart';
 import 'package:tucao/utils/logger.dart';
 
@@ -37,8 +38,10 @@ class UpdateDownloadService extends GetxController
   UpdateDownloadService({
     required UpdateTransport transport,
     Future<Directory> Function()? location,
+    UpdateSource Function()? source,
   }) : _transport = transport,
-       _location = location ?? UpdateLocation.directory;
+       _location = location ?? UpdateLocation.directory,
+       _source = source ?? (() => UpdateSource.saved);
 
   static UpdateDownloadService get instance =>
       Get.find<UpdateDownloadService>();
@@ -51,6 +54,7 @@ class UpdateDownloadService extends GetxController
 
   final UpdateTransport _transport;
   final Future<Directory> Function() _location;
+  final UpdateSource Function() _source;
 
   /// 当前任务状态, 界面订阅它.
   final state = UpdateDownloadState.idle.obs;
@@ -205,8 +209,7 @@ class UpdateDownloadService extends GetxController
   /// 用系统安装器打开已经下好的安装包.
   Future<UpdateInstallOutcome> install() async {
     final current = state.value;
-    if (current.status != UpdateDownloadStatus.ready ||
-        current.path.isEmpty) {
+    if (current.status != UpdateDownloadStatus.ready || current.path.isEmpty) {
       return UpdateInstallOutcome.missing;
     }
     var exists = false;
@@ -254,81 +257,107 @@ class UpdateDownloadService extends GetxController
     final temporary = File('${target.path}.part');
     // 目录里只保留本次要用的包, 旧版本与上次的半成品都没有别的用途.
     await _deletePackageFiles(keep: asset.name);
-    final watch = Stopwatch()..start();
-    var lastUpdate = -250;
-    state.value = UpdateDownloadState(
-      status: UpdateDownloadStatus.downloading,
-      version: version,
-      asset: asset,
-      total: asset.size > 0 ? asset.size : -1,
+    // 下载源可能给出多个候选地址: 镜像与官方源之间一个失败就换下一个,
+    // 全部失败才算这次下载失败.
+    final candidates = UpdateSources.candidates(
+      downloadUrl: asset.downloadUrl,
+      source: _source(),
     );
-    try {
-      Log.i('开始下载更新包 ${asset.name}');
-      final bytes = await _transport.fetch(
-        uri: Uri.parse(asset.downloadUrl),
-        target: temporary,
-        cancelToken: token,
-        onProgress: (received, total) {
-          if (watch.elapsedMilliseconds - lastUpdate < 250) {
-            return;
-          }
-          lastUpdate = watch.elapsedMilliseconds;
-          final current = state.value;
-          if (token.isCancelled ||
-              !identical(_cancel, token) ||
-              !current.isDownloading) {
-            return;
-          }
-          state.value = current.update(
-            received: received,
-            total: total > 0 ? total : current.total,
-          );
-        },
-      );
-      // 暂停或已被新任务取代时, 状态由那一侧负责, 这里只负责收尾.
-      if (token.isCancelled || !identical(_cancel, token)) {
-        return;
-      }
-      if (asset.size > 0 && bytes != asset.size) {
-        throw FormatException(
-          '安装包与发布记录的大小不一致, 预期 ${asset.size} 字节, 实际 $bytes 字节',
-        );
-      }
-      if (await target.exists()) {
-        await target.delete();
-      }
-      await temporary.rename(target.path);
+    if (candidates.isEmpty) {
       state.value = UpdateDownloadState(
-        status: UpdateDownloadStatus.ready,
+        status: UpdateDownloadStatus.failed,
         version: version,
         asset: asset,
-        received: bytes,
-        total: bytes,
-        path: target.path,
+        error: '安装包地址不可用, 请到发布页里下载',
       );
-      Log.i(
-        '更新包已就绪 ${asset.name}, $bytes 字节, 耗时 ${watch.elapsedMilliseconds}ms',
-      );
-    } catch (error, stackTrace) {
-      final cancelled = token.isCancelled;
-      if (!cancelled) {
-        Log.e('下载更新包失败', error: error, stackTrace: stackTrace);
-      }
-      if (identical(_cancel, token)) {
-        state.value = state.value.update(
-          status: cancelled
-              ? UpdateDownloadStatus.paused
-              : UpdateDownloadStatus.failed,
-          received: 0,
-          total: -1,
-          error: cancelled ? null : _errorText(error),
+      return;
+    }
+    final watch = Stopwatch()..start();
+    var lastUpdate = -250;
+    Object? lastError;
+    try {
+      for (final uri in candidates) {
+        if (token.isCancelled || !identical(_cancel, token)) {
+          return;
+        }
+        state.value = UpdateDownloadState(
+          status: UpdateDownloadStatus.downloading,
+          version: version,
+          asset: asset,
+          total: asset.size > 0 ? asset.size : -1,
         );
+        try {
+          Log.i('开始下载更新包 ${asset.name}, 来源 ${uri.host}');
+          final bytes = await _transport.fetch(
+            uri: uri,
+            target: temporary,
+            cancelToken: token,
+            onProgress: (received, total) {
+              if (watch.elapsedMilliseconds - lastUpdate < 250) {
+                return;
+              }
+              lastUpdate = watch.elapsedMilliseconds;
+              final current = state.value;
+              if (token.isCancelled ||
+                  !identical(_cancel, token) ||
+                  !current.isDownloading) {
+                return;
+              }
+              state.value = current.update(
+                received: received,
+                total: total > 0 ? total : current.total,
+              );
+            },
+          );
+          // 暂停或已被新任务取代时, 状态由那一侧负责, 这里只负责收尾.
+          if (token.isCancelled || !identical(_cancel, token)) {
+            return;
+          }
+          if (asset.size > 0 && bytes != asset.size) {
+            throw FormatException(
+              '安装包与发布记录的大小不一致, 预期 ${asset.size} 字节, 实际 $bytes 字节',
+            );
+          }
+          if (await target.exists()) {
+            await target.delete();
+          }
+          await temporary.rename(target.path);
+          state.value = UpdateDownloadState(
+            status: UpdateDownloadStatus.ready,
+            version: version,
+            asset: asset,
+            received: bytes,
+            total: bytes,
+            path: target.path,
+          );
+          Log.i(
+            '更新包已就绪 ${asset.name}, $bytes 字节, 来源 ${uri.host}, '
+            '耗时 ${watch.elapsedMilliseconds}ms',
+          );
+          return;
+        } catch (error) {
+          // 暂停与任务被取代时, 状态由那一侧负责, 这里不记成失败.
+          if (token.isCancelled || !identical(_cancel, token)) {
+            return;
+          }
+          lastError = error;
+          Log.w('从 ${uri.host} 下载更新包失败: $error');
+        } finally {
+          await _deleteFile(temporary);
+        }
       }
+      final error = _errorText(lastError, tried: candidates.length);
+      Log.e('更新包下载失败, 已尝试 ${candidates.length} 个下载地址: $error');
+      state.value = state.value.update(
+        status: UpdateDownloadStatus.failed,
+        received: 0,
+        total: -1,
+        error: error,
+      );
     } finally {
       if (identical(_cancel, token)) {
         _cancel = null;
       }
-      await _deleteFile(temporary);
     }
   }
 
@@ -382,13 +411,16 @@ class UpdateDownloadService extends GetxController
     }
   }
 
-  static String _errorText(Object error) {
+  /// 失败原因文案, [tried] 是这次实际试过的下载地址个数.
+  static String _errorText(Object? error, {int tried = 1}) {
+    final String message;
     if (error is FormatException) {
-      return error.message;
+      message = error.message;
+    } else if (error is FileSystemException) {
+      message = '无法写入安装包, 请检查剩余空间';
+    } else {
+      message = '下载失败, 请检查网络后重试';
     }
-    if (error is FileSystemException) {
-      return '无法写入安装包, 请检查剩余空间';
-    }
-    return '下载失败, 请检查网络后重试';
+    return tried > 1 ? '$message (已尝试 $tried 个下载地址)' : message;
   }
 }
