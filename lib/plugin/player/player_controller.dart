@@ -7,6 +7,7 @@ import 'package:tucao/http/danmaku_http.dart';
 import 'package:tucao/http/video_http.dart';
 import 'package:tucao/models/api_response.dart';
 import 'package:tucao/models/danmaku.dart';
+import 'package:tucao/models/danmaku_filter.dart';
 import 'package:tucao/models/danmaku_preferences.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/models/video_subject.dart';
@@ -16,6 +17,7 @@ import 'package:tucao/services/account_service.dart';
 import 'package:tucao/services/danmaku_trend_service.dart';
 import 'package:tucao/services/history_service.dart';
 import 'package:tucao/utils/date_utils.dart';
+import 'package:tucao/utils/danmaku_filter_store.dart';
 import 'package:tucao/utils/danmaku_preferences_store.dart';
 import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/storage_pref.dart';
@@ -138,6 +140,10 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
   /// 距离结尾这么近时从头播放.
   static const _endToleranceSeconds = 10.0;
 
+  /// 当前分P按时间排序的全部弹幕, 高能条按它统计.
+  List<DanmakuModel> _rawDanmaku = const [];
+
+  /// 经过屏蔽与合并后实际投递的弹幕.
   List<DanmakuModel> _danmaku = const [];
 
   /// 下一条待投递弹幕的下标.
@@ -162,6 +168,9 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
   DanmakuController<DanmakuModel>? _danmakuController;
   DanmakuPreferences? _danmakuPreferences;
   StreamSubscription<DanmakuPreferences>? _danmakuPreferenceChanges;
+
+  DanmakuFilter _danmakuFilter = DanmakuFilter.defaults;
+  StreamSubscription<DanmakuFilter>? _danmakuFilterChanges;
 
   Timer? _historyTimer;
 
@@ -195,6 +204,10 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     _danmakuPreferenceChanges = DanmakuPreferencesStore.watch().listen(
       applyDanmakuPreferences,
     );
+    _danmakuFilter = DanmakuFilterStore.read();
+    _danmakuFilterChanges = DanmakuFilterStore.watch().listen(
+      applyDanmakuFilter,
+    );
     // 播放到结尾时记一次完整进度, 下次进入从头开始.
     player.onCompleted = _onCompleted;
     _historyTimer = Timer.periodic(_historyInterval, (_) => _tickHistory());
@@ -206,6 +219,8 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     _closed = true;
     unawaited(_danmakuPreferenceChanges?.cancel());
     _danmakuPreferenceChanges = null;
+    unawaited(_danmakuFilterChanges?.cancel());
+    _danmakuFilterChanges = null;
     WidgetsBinding.instance.removeObserver(this);
     _requests.close();
     _trendWorker?.dispose();
@@ -548,7 +563,11 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     if (!_requests.isCurrent(request)) {
       return;
     }
-    _danmaku = list;
+    _rawDanmaku = list;
+    _danmaku = _danmakuFilter.apply(list);
+    if (_danmaku.length != list.length) {
+      Log.i('屏蔽与合并后剩余弹幕 ${_danmaku.length} 条');
+    }
     // 弹幕到位后重新定位, 避免把已经播过的弹幕一次性丢进渲染器.
     _lastPosition = -1;
     // 时长可能比弹幕先到, 弹幕一到就重算高能条.
@@ -564,6 +583,16 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     if (!_shouldRunDanmaku) {
       controller.pause();
     }
+  }
+
+  /// 屏蔽设置变化后按新规则重新过滤当前分P的弹幕, 从当前位置继续投递.
+  void applyDanmakuFilter(DanmakuFilter filter) {
+    if (_closed) return;
+    _danmakuFilter = filter;
+    _danmaku = filter.apply(_rawDanmaku);
+    Log.i('弹幕屏蔽设置已更新, 当前分P剩余 ${_danmaku.length} 条');
+    _rewindDanmaku();
+    _syncDanmaku();
   }
 
   /// 页面销毁时解绑.
@@ -797,6 +826,7 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
   }
 
   void _resetDanmaku() {
+    _rawDanmaku = const [];
     _danmaku = const [];
     danmakuTrend.value = null;
     _trendDurationMs = -1;
@@ -840,7 +870,8 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     final durationMs = player.duration.inMilliseconds;
     _trendDurationMs = durationMs;
     final trend = buildDanmakuTrend(
-      times: _danmaku.map((item) => item.time),
+      // 高能条反映的是全部弹幕的热度, 屏蔽与合并不影响它.
+      times: _rawDanmaku.map((item) => item.time),
       durationSeconds: durationMs / 1000,
     );
     danmakuTrend.value = trend.isEmpty ? null : trend;

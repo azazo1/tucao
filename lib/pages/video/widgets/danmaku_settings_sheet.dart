@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:tucao/models/danmaku_preferences.dart';
+import 'package:tucao/pages/video/widgets/danmaku_filter_page.dart';
 import 'package:tucao/utils/danmaku_preferences_store.dart';
 import 'package:tucao/utils/logger.dart';
 
@@ -351,6 +352,15 @@ class _DanmakuSettingsPanelState extends State<DanmakuSettingsPanel> {
           '底部弹幕',
           !value.hideBottom,
           (v) => value.copyWith(hideBottom: !v),
+        ),
+        _heading('屏蔽'),
+        ListTile(
+          key: const ValueKey('danmaku-filter-entry'),
+          leading: const Icon(Icons.block),
+          title: const Text('屏蔽词与重复合并'),
+          subtitle: const Text('按关键词或正则屏蔽弹幕, 合并刷屏'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => openDanmakuFilterPage(context),
         ),
       ],
     );
