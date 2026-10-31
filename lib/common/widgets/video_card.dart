@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/common/style.dart';
 import 'package:tucao/common/widgets/cover_hero.dart';
 import 'package:tucao/common/widgets/video_block_sheet.dart';
+import 'package:tucao/pages/mine/image_viewer_page.dart';
 import 'package:tucao/pages/video/video_page.dart';
 import 'package:tucao/utils/clipboard.dart';
 import 'package:tucao/utils/site_links.dart';
@@ -10,10 +12,11 @@ import 'package:tucao/utils/utils.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 /// 视频卡片长按菜单的动作.
-enum _CardAction { copyTitle, copyLink, block }
+enum _CardAction { viewCover, copyTitle, copyLink, block }
 
-/// 视频卡片长按菜单: 复制标题, 复制视频链接与屏蔽.
+/// 视频卡片长按菜单: 查看标题图, 复制标题, 复制视频链接与屏蔽.
 Future<void> showVideoCardMenu(BuildContext context, VideoModel video) async {
+  final hasCover = video.cover.isNotEmpty;
   final action = await showModalBottomSheet<_CardAction>(
     context: context,
     showDragHandle: true,
@@ -33,6 +36,13 @@ Future<void> showVideoCardMenu(BuildContext context, VideoModel video) async {
                 style: Theme.of(sheetContext).textTheme.titleSmall,
               ),
             ),
+            if (hasCover)
+              ListTile(
+                leading: const Icon(Icons.image_outlined),
+                title: const Text('查看标题图'),
+                onTap: () =>
+                    Navigator.pop(sheetContext, _CardAction.viewCover),
+              ),
             ListTile(
               leading: const Icon(Icons.title),
               title: const Text('复制标题'),
@@ -59,6 +69,14 @@ Future<void> showVideoCardMenu(BuildContext context, VideoModel video) async {
     return;
   }
   switch (action) {
+    case _CardAction.viewCover:
+      Get.to(
+        () => ImageViewerPage(
+          url: video.cover,
+          title: video.title,
+          prefix: 'tucao-cover',
+        ),
+      );
     case _CardAction.copyTitle:
       await copyText(context, video.title);
     case _CardAction.copyLink:
