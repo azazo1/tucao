@@ -8,6 +8,7 @@ import 'package:tucao/pages/video/widgets/subject_info.dart';
 import 'package:tucao/pages/video/widgets/video_stats_bar.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
 import 'package:tucao/router/routes.dart';
+import 'package:tucao/services/history_service.dart';
 import 'package:tucao/utils/clipboard.dart';
 import 'package:tucao/utils/date_utils.dart';
 import 'package:tucao/utils/html_text.dart';
@@ -203,33 +204,75 @@ class _DescriptionState extends State<_Description> {
 }
 
 /// 分P列表, 多于一个分P时展示.
-class VideoPartBar extends StatelessWidget {
+///
+/// 当前分P变化时自动滚到可见处, 看过的分P带标记.
+class VideoPartBar extends StatefulWidget {
   const VideoPartBar({super.key, required this.controller});
 
   final PlayerPageController controller;
 
   @override
+  State<VideoPartBar> createState() => _VideoPartBarState();
+}
+
+class _VideoPartBarState extends State<VideoPartBar> {
+  /// 每个分P的 key, 用来把当前分P滚到可见处.
+  final _keys = <int, GlobalKey>{};
+  int? _scrolledTo;
+
+  GlobalKey _keyOf(int index) => _keys.putIfAbsent(index, GlobalKey.new);
+
+  void _scrollToCurrent(int index) {
+    if (_scrolledTo == index) return;
+    _scrolledTo = index;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final context = _keyOf(index).currentContext;
+      if (!mounted || context == null) return;
+      Scrollable.ensureVisible(
+        context,
+        alignment: 0.5,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final controller = widget.controller;
+    final history = Get.isRegistered<HistoryService>()
+        ? HistoryService.instance
+        : null;
     return Obx(() {
       final parts = controller.parts;
       if (parts.length <= 1) {
         return const SizedBox.shrink();
       }
       final current = controller.part.value;
+      final watched = history?.partsOf(controller.hid) ?? const {};
+      _scrollToCurrent(current);
+      // 分P不多, 直接全部构建, 才能保证当前分P有 context 可以滚过去.
       return SizedBox(
         height: 38,
-        child: ListView.separated(
+        child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           padding: Style.pagePadding,
-          itemCount: parts.length,
-          separatorBuilder: (context, index) => const SizedBox(width: 6),
-          itemBuilder: (context, index) => _PartChip(
-            index: index,
-            title: parts[index].title,
-            selected: index == current,
-            // 第三方源已不再提供播放地址, 提前标出来, 避免用户点进去才发现.
-            unavailable: parts[index].isThirdParty,
-            onTap: () => controller.switchPart(index),
+          child: Row(
+            children: [
+              for (var index = 0; index < parts.length; index++) ...[
+                if (index > 0) const SizedBox(width: 6),
+                _PartChip(
+                  key: _keyOf(index),
+                  index: index,
+                  title: parts[index].title,
+                  selected: index == current,
+                  // 第三方源已不再提供播放地址, 提前标出来, 避免用户点进去才发现.
+                  unavailable: parts[index].isThirdParty,
+                  record: watched[index],
+                  onTap: () => controller.switchPart(index),
+                ),
+              ],
+            ],
           ),
         ),
       );
@@ -239,11 +282,13 @@ class VideoPartBar extends StatelessWidget {
 
 class _PartChip extends StatelessWidget {
   const _PartChip({
+    super.key,
     required this.index,
     required this.title,
     required this.selected,
     required this.onTap,
     this.unavailable = false,
+    this.record,
   });
 
   final int index;
@@ -253,47 +298,77 @@ class _PartChip extends StatelessWidget {
   /// 该分P没有可用的播放地址.
   final bool unavailable;
 
+  /// 该分P的观看记录, 没看过为空.
+  final HistoryItem? record;
+
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final label = title.isEmpty ? 'P${index + 1}' : 'P${index + 1} $title';
+    final record = this.record;
+    final finished = record?.finished ?? false;
+    // 看了一部分的分P在底边画一段进度, 看完的打勾.
+    final partial = record != null && !finished && record.percent > 0;
     final textColor = selected
         ? scheme.onPrimaryContainer
         : unavailable
         ? scheme.outline
         : scheme.onSurfaceVariant;
+    final content = InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (unavailable) ...[
+              Icon(Icons.link_off, size: 12, color: textColor),
+              const SizedBox(width: 4),
+            ] else if (finished && !selected) ...[
+              Icon(Icons.check, size: 12, color: textColor),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: textColor,
+                decoration: unavailable
+                    ? TextDecoration.lineThrough
+                    : TextDecoration.none,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
     return Center(
       child: Material(
         color: selected ? scheme.primaryContainer : scheme.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(6),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(6),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (unavailable) ...[
-                  Icon(Icons.link_off, size: 12, color: textColor),
-                  const SizedBox(width: 4),
-                ],
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: textColor,
-                    decoration: unavailable
-                        ? TextDecoration.lineThrough
-                        : TextDecoration.none,
+        clipBehavior: Clip.antiAlias,
+        child: !partial
+            ? content
+            : Stack(
+                children: [
+                  content,
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: FractionallySizedBox(
+                        widthFactor: record.percent,
+                        child: Container(height: 2, color: scheme.primary),
+                      ),
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-        ),
+                ],
+              ),
       ),
     );
   }

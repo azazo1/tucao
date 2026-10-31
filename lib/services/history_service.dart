@@ -28,6 +28,12 @@ class HistoryItem {
 
   double get percent => duration <= 0 ? 0 : (progress / duration).clamp(0, 1);
 
+  /// 距离结尾不到这么多秒就算看完, 与播放页从头播放的判断一致.
+  static const finishToleranceSeconds = 10.0;
+
+  bool get finished =>
+      duration > 0 && duration - progress <= finishToleranceSeconds;
+
   Map<String, dynamic> toJson() => {
     'video': {
       'hid': video.hid,
@@ -49,9 +55,7 @@ class HistoryItem {
   };
 
   factory HistoryItem.fromJson(Map<String, dynamic> json) => HistoryItem(
-    video: VideoModel.fromJson(
-      (json['video'] as Map).cast<String, dynamic>(),
-    ),
+    video: VideoModel.fromJson((json['video'] as Map).cast<String, dynamic>()),
     part: (json['part'] as num?)?.toInt() ?? 0,
     progress: (json['progress'] as num?)?.toDouble() ?? 0,
     duration: (json['duration'] as num?)?.toDouble() ?? 0,
@@ -70,6 +74,44 @@ class HistoryService extends GetxController {
 
   final list = <HistoryItem>[].obs;
 
+  /// 每个视频最近一条记录与看过的分P, 列表变化后在下次查询时重建.
+  ///
+  /// 卡片每次构建都要查一次, 不建索引的话一屏卡片要把 500 条历史扫好几十遍.
+  Map<String, HistoryItem>? _latest;
+  Map<String, Map<int, HistoryItem>>? _byPart;
+
+  void _invalidate() {
+    _latest = null;
+    _byPart = null;
+  }
+
+  void _buildIndex() {
+    final latest = <String, HistoryItem>{};
+    final byPart = <String, Map<int, HistoryItem>>{};
+    // 列表按时间倒序, 第一次遇到的就是最新的.
+    for (final item in list) {
+      latest.putIfAbsent(item.video.hid, () => item);
+      byPart.putIfAbsent(item.video.hid, () => {})[item.part] = item;
+    }
+    _latest = latest;
+    _byPart = byPart;
+  }
+
+  /// 视频最近一次的观看记录, 在 Obx 里调用时会跟着历史变化刷新.
+  HistoryItem? latestOf(String hid) {
+    // 先读一下列表, 让外层 Obx 订阅到历史变化.
+    list.length;
+    if (_latest == null) _buildIndex();
+    return _latest![hid];
+  }
+
+  /// 视频各分P的观看记录, 键是分P序号.
+  Map<int, HistoryItem> partsOf(String hid) {
+    list.length;
+    if (_byPart == null) _buildIndex();
+    return _byPart![hid] ?? const {};
+  }
+
   @override
   void onInit() {
     super.onInit();
@@ -86,13 +128,11 @@ class HistoryService extends GetxController {
             .toList(),
       );
     }
+    _invalidate();
   }
 
   Future<void> _save() async {
-    await GStorage.history.put(
-      _kHistory,
-      list.map((e) => e.toJson()).toList(),
-    );
+    await GStorage.history.put(_kHistory, list.map((e) => e.toJson()).toList());
   }
 
   /// 记录进度, 同一视频同一分P只保留最新一条.
@@ -116,6 +156,7 @@ class HistoryService extends GetxController {
     if (list.length > _maxCount) {
       list.removeRange(_maxCount, list.length);
     }
+    _invalidate();
     await _save();
   }
 
@@ -131,11 +172,13 @@ class HistoryService extends GetxController {
 
   Future<void> remove(HistoryItem item) async {
     list.remove(item);
+    _invalidate();
     await _save();
   }
 
   Future<void> clear() async {
     list.clear();
+    _invalidate();
     await _save();
   }
 }
