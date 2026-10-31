@@ -171,6 +171,9 @@ class _MirrorSourcesPageState extends State<MirrorSourcesPage> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final enabledCount = _mirrors.where((mirror) => mirror.enabled).length;
+    // 宽屏下内容居中, 窄屏为 0; 列表自身靠 ListTile 的内边距,
+    // 底栏不是 ListTile, 需要额外补 16 才能和列表内容对齐.
+    final side = Adaptive.sidePadding(context, maxWidth: Adaptive.listMaxWidth);
     return Scaffold(
       appBar: AppBar(
         title: const Text('国内镜像源'),
@@ -213,10 +216,7 @@ class _MirrorSourcesPageState extends State<MirrorSourcesPage> {
                 ? const Center(child: Text('还没有任何镜像源'))
                 : ListView.separated(
                     padding: EdgeInsets.symmetric(
-                      horizontal: Adaptive.sidePadding(
-                        context,
-                        maxWidth: Adaptive.listMaxWidth,
-                      ),
+                      horizontal: side,
                       vertical: 4,
                     ),
                     itemCount: _mirrors.length,
@@ -237,12 +237,9 @@ class _MirrorSourcesPageState extends State<MirrorSourcesPage> {
           SafeArea(
             top: false,
             child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                Adaptive.sidePadding(context),
-                8,
-                Adaptive.sidePadding(context),
-                12,
-              ),
+              // sidePadding 只是宽屏下的居中留白, 窄屏为 0,
+              // 这里不是 ListTile, 需要自己补上页面边距.
+              padding: EdgeInsets.fromLTRB(16 + side, 8, 16 + side, 12),
               child: Row(
                 children: [
                   Expanded(
@@ -318,7 +315,7 @@ class _MirrorRow extends StatelessWidget {
               ),
             )
           else
-            Text('点这一行测速', style: detail),
+            Text('点击测速', style: detail),
         ],
       ),
       trailing: Row(
