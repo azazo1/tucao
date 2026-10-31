@@ -50,6 +50,13 @@ class _SiteNoticeBarState extends State<SiteNoticeBar> {
   /// 页码从一个足够大的值开始, 向左向右都能一直滑, 显示时再对篇数取模.
   static const _startPage = 10000;
 
+  /// 第 [page] 页对应的文章下标.
+  ///
+  /// 取模基准是起始页而不是 0, 起始页就落在第一篇上. 若直接用 page 取模,
+  /// 篇数不整除 [_startPage] 时起始页对不上第一篇, 页码也跟着显示成 2/3.
+  /// 滑到起始页左边时偏移为负, Dart 的取模结果仍非负, 循环不会断.
+  static int _indexOf(int page, int length) => (page - _startPage) % length;
+
   final _pageController = PageController(initialPage: _startPage);
   Timer? _timer;
   int _page = _startPage;
@@ -187,7 +194,7 @@ class _SiteNoticeBarState extends State<SiteNoticeBar> {
                         : null,
                     onPageChanged: (page) => setState(() => _page = page),
                     itemBuilder: (context, page) {
-                      final notice = notices[page % notices.length];
+                      final notice = notices[_indexOf(page, notices.length)];
                       return InkWell(
                         onTap: () => _openNotice(notice),
                         child: _NoticeContent(notice: notice),
@@ -200,7 +207,7 @@ class _SiteNoticeBarState extends State<SiteNoticeBar> {
                 Padding(
                   padding: const EdgeInsets.only(left: 6),
                   child: _PageCounter(
-                    current: _page % notices.length + 1,
+                    current: _indexOf(_page, notices.length) + 1,
                     total: notices.length,
                   ),
                 ),
