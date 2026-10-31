@@ -23,8 +23,9 @@ typedef SeekPreviewCallback =
 ///   拖动到顶部左右角可取消.
 /// - 左半侧竖向拖动调整画面亮度, 右半侧调整音量.
 /// - 长按临时切换到 [PlayerGestureDetector.longPressSpeed], 松手恢复原速.
-/// - 单击切换控制条. 双击播放暂停; 开启 [PlayerGestureDetector.doubleTapSeek]
-///   后, 双击左右两侧改为快退快进 10 秒, 只有中间仍是播放暂停.
+/// - 单击抬手立刻切换控制条. 双击播放暂停, 并撤回第一下的切换;
+///   开启 [PlayerGestureDetector.doubleTapSeek] 后, 双击左右两侧改为快退快进
+///   10 秒, 只有中间仍是播放暂停.
 ///
 /// 手势层本身不绘制画面, 只在自己上面覆盖提示信息.
 class PlayerGestureDetector extends StatefulWidget {
@@ -126,8 +127,11 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
   /// 双击跳转提示停留的时长.
   static const _doubleTapHintDuration = Duration(milliseconds: 800);
 
-  /// 双击按下的横坐标, 双击确认时据此决定方向.
-  double? _doubleTapX;
+  /// 上一次单击抬起的位置, 在 [_tapWindow] 内再次点到附近算双击.
+  Offset? _lastTapAt;
+
+  /// 等待第二下点击的窗口, 到期后单击就不再能组成双击.
+  Timer? _tapWindow;
 
   /// 这一串双击累计跳过的时长, 为零表示不显示提示.
   Duration _doubleTapTotal = Duration.zero;
@@ -139,9 +143,9 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       dragStartBehavior: DragStartBehavior.down,
-      onTap: widget.onToggleControls,
-      onDoubleTapDown: (details) => _doubleTapX = details.localPosition.dx,
-      onDoubleTap: _onDoubleTap,
+      // 不用 onDoubleTap: 注册双击后单击要等双击超时 (约 300ms) 才触发,
+      // 控制条显隐会明显慢半拍. 这里单击抬手就响应, 双击自己判断.
+      onTapUp: _onTapUp,
       onLongPressStart: _onLongPressStart,
       onLongPressEnd: _onLongPressEnd,
       onLongPressCancel: _onLongPressEnd,
@@ -157,15 +161,30 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
     );
   }
 
+  /// 单击立刻切换控制条; 窗口内在附近再点一次时撤回这次切换, 按双击处理.
+  void _onTapUp(TapUpDetails details) {
+    final at = details.localPosition;
+    final last = _lastTapAt;
+    final pending = _tapWindow?.isActive ?? false;
+    _tapWindow?.cancel();
+    if (pending && last != null && (at - last).distance <= kDoubleTapSlop) {
+      _lastTapAt = null;
+      widget.onToggleControls();
+      _onDoubleTap(at.dx);
+      return;
+    }
+    _lastTapAt = at;
+    _tapWindow = Timer(kDoubleTapTimeout, () => _lastTapAt = null);
+    widget.onToggleControls();
+  }
+
   /// 双击位置: 开启快退快进时左右两侧各占 [_doubleTapSide] 宽度用来跳转,
   /// 其余位置以及关闭时都是播放暂停.
-  void _onDoubleTap() {
+  void _onDoubleTap(double x) {
     final width = context.size?.width ?? 1;
-    final x = _doubleTapX;
-    _doubleTapX = null;
     final player = widget.controller.player;
     final total = player.duration;
-    final seekable = widget.doubleTapSeek && x != null;
+    final seekable = widget.doubleTapSeek;
     final forward = seekable && x >= width * (1 - _doubleTapSide);
     final backward = seekable && x <= width * _doubleTapSide;
     if ((!forward && !backward) || total <= Duration.zero) {
@@ -194,6 +213,7 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
 
   @override
   void dispose() {
+    _tapWindow?.cancel();
     _doubleTapHintTimer?.cancel();
     super.dispose();
   }

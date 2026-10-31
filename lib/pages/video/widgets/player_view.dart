@@ -335,7 +335,6 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
       top: 0,
       child: PlayerControlsFade(
         visible: _showControls,
-        slideFrom: const Offset(0, -0.3),
         child: GestureDetector(
           onTap: _keepControls,
           child: Obx(() {
@@ -636,7 +635,6 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
         alignment: Alignment.bottomCenter,
         child: PlayerControlsFade(
           visible: _showControls,
-          slideFrom: const Offset(0, 0.25),
           child: GestureDetector(
             onTap: _keepControls,
             child: DecoratedBox(

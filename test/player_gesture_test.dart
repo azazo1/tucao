@@ -313,6 +313,8 @@ void main() {
     await tester.pump();
     expect(find.byKey(cancelled), findsNothing);
     await tap.up();
+    // 单击抬手就切换控制条, 不等双击超时.
+    expect(controls, 1);
     await tester.pump(const Duration(milliseconds: 350));
     expect(controls, 1);
     expect(controller.seeks, isEmpty);
@@ -335,6 +337,8 @@ void main() {
     await tester.tapAt(origin + const Offset(200, 20));
     await tester.pump(const Duration(milliseconds: 350));
     expect(controller.toggles, 1);
+    // 双击撤回第一下的切换, 控制条回到双击前的状态.
+    expect(controls, 3);
     final hold = await tester.startGesture(origin + const Offset(20, 20));
     await tester.pump(const Duration(milliseconds: 600));
     expect(controller.speeds, [3]);
