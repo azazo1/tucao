@@ -110,6 +110,27 @@ void main() {
     });
   }
 
+  testWidgets('双击左右两侧快退快进 10 秒, 结果夹在片头片尾之间, 不切换播放', (tester) async {
+    final controller = _Controller(duration: const Duration(seconds: 35));
+    final origin = await _mount(tester, controller);
+    Future<void> doubleTap(Offset at) async {
+      await tester.tapAt(origin + at);
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tapAt(origin + at);
+      await tester.pump(const Duration(milliseconds: 350));
+    }
+
+    // 当前进度固定 30 秒, 快进会被夹到 35 秒的片尾.
+    await doubleTap(const Offset(380, 130));
+    await doubleTap(const Offset(20, 130));
+    expect(controller.seeks, [
+      const Duration(seconds: 35),
+      const Duration(seconds: 20),
+    ]);
+    expect(controller.toggles, 0);
+    await tester.pump(const Duration(seconds: 1));
+  });
+
   testWidgets('取消区移回正常区域恢复 seek, pointer cancel 清理下一次拖动', (tester) async {
     final controller = _Controller();
     final origin = await _mount(tester, controller);
@@ -259,9 +280,9 @@ void main() {
     expect(controller.volumes, hasLength(1));
     expect(controller.seeks, isEmpty);
 
-    await tester.tapAt(origin + const Offset(380, 20));
+    await tester.tapAt(origin + const Offset(200, 20));
     await tester.pump(const Duration(milliseconds: 50));
-    await tester.tapAt(origin + const Offset(380, 20));
+    await tester.tapAt(origin + const Offset(200, 20));
     await tester.pump(const Duration(milliseconds: 350));
     expect(controller.toggles, 1);
     final hold = await tester.startGesture(origin + const Offset(20, 20));

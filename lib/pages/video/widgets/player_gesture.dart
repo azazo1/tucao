@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
@@ -19,7 +20,7 @@ typedef SeekPreviewCallback =
 ///   拖动到顶部左右角可取消.
 /// - 竖向拖动调整音量, 只作用于屏幕左半侧.
 /// - 长按临时切换到 3 倍速, 松手恢复原速.
-/// - 单击切换控制条, 双击播放暂停.
+/// - 单击切换控制条. 双击左右两侧快退快进 10 秒, 双击中间播放暂停.
 ///
 /// 手势层本身不绘制画面, 只在自己上面覆盖提示信息.
 class PlayerGestureDetector extends StatefulWidget {
@@ -81,13 +82,31 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
   /// 记录长按前的倍速.
   double _speedBeforeLongPress = 1;
 
+  /// 双击时左右两侧用来快退快进的宽度比例.
+  static const _doubleTapSide = 0.3;
+
+  /// 双击一次跳过的时长.
+  static const _doubleTapStep = Duration(seconds: 10);
+
+  /// 双击跳转提示停留的时长.
+  static const _doubleTapHintDuration = Duration(milliseconds: 800);
+
+  /// 双击按下的横坐标, 双击确认时据此决定方向.
+  double? _doubleTapX;
+
+  /// 这一串双击累计跳过的时长, 为零表示不显示提示.
+  Duration _doubleTapTotal = Duration.zero;
+
+  Timer? _doubleTapHintTimer;
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       dragStartBehavior: DragStartBehavior.down,
       onTap: widget.onToggleControls,
-      onDoubleTap: widget.controller.togglePlay,
+      onDoubleTapDown: (details) => _doubleTapX = details.localPosition.dx,
+      onDoubleTap: _onDoubleTap,
       onLongPressStart: _onLongPressStart,
       onLongPressEnd: _onLongPressEnd,
       onLongPressCancel: _onLongPressEnd,
@@ -101,6 +120,44 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
       onVerticalDragCancel: _onDragCancel,
       child: _buildIndicator(context),
     );
+  }
+
+  /// 双击位置: 左右两侧各占 [_doubleTapSide] 宽度用来快退快进, 中间播放暂停.
+  void _onDoubleTap() {
+    final width = context.size?.width ?? 1;
+    final x = _doubleTapX;
+    _doubleTapX = null;
+    final player = widget.controller.player;
+    final total = player.duration;
+    final forward = x != null && x >= width * (1 - _doubleTapSide);
+    final backward = x != null && x <= width * _doubleTapSide;
+    if ((!forward && !backward) || total <= Duration.zero) {
+      widget.controller.togglePlay();
+      return;
+    }
+    final step = forward ? _doubleTapStep : -_doubleTapStep;
+    final targetMs = (player.position + step).inMilliseconds.clamp(
+      0,
+      total.inMilliseconds,
+    );
+    widget.controller.seek(Duration(milliseconds: targetMs));
+    // 连续双击同一侧时累加提示的秒数, 换了方向重新计.
+    _doubleTapHintTimer?.cancel();
+    setState(() {
+      final sameSide = _doubleTapTotal.isNegative == step.isNegative;
+      _doubleTapTotal = sameSide ? _doubleTapTotal + step : step;
+    });
+    _doubleTapHintTimer = Timer(_doubleTapHintDuration, () {
+      if (mounted) {
+        setState(() => _doubleTapTotal = Duration.zero);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _doubleTapHintTimer?.cancel();
+    super.dispose();
   }
 
   void _onLongPressStart(LongPressStartDetails details) {
@@ -257,6 +314,10 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
     }
     if (_longPressing) {
       return '${_longPressSpeed.toStringAsFixed(0)}x 播放中';
+    }
+    if (_doubleTapTotal != Duration.zero) {
+      final seconds = _doubleTapTotal.inSeconds;
+      return seconds > 0 ? '快进 $seconds 秒' : '快退 ${-seconds} 秒';
     }
     return null;
   }
