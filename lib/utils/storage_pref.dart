@@ -28,6 +28,7 @@ abstract final class Pref {
   static const _kSkippedUpdateVersion = 'skipped_update_version';
   static const _kUpdateSource = 'update_source';
   static const _kUpdateMirrors = 'update_mirrors';
+  static const _kUpdateConnections = 'update_connections';
   static const _kSiteHost = 'site_host';
 
   /// 跳转按钮的秒数下限.
@@ -244,6 +245,28 @@ abstract final class Pref {
       GStorage.setting.get(_kUpdateMirrors, defaultValue: '') as String;
   static set updateMirrors(String value) =>
       GStorage.setting.put(_kUpdateMirrors, value);
+
+  /// 更新包下载的并发连接数, 1 表示单连接.
+  ///
+  /// 上限留 32: 每个连接一条 TCP, 再多只会互相抢带宽, 也容易被镜像站限速.
+  static const updateConnectionsMin = 1;
+  static const updateConnectionsMax = 32;
+  static const updateConnectionsDefault = 8;
+
+  static int get updateConnections {
+    final value =
+        GStorage.setting.get(
+              _kUpdateConnections,
+              defaultValue: updateConnectionsDefault,
+            )
+            as int;
+    return value.clamp(updateConnectionsMin, updateConnectionsMax);
+  }
+
+  static set updateConnections(int value) => GStorage.setting.put(
+    _kUpdateConnections,
+    value.clamp(updateConnectionsMin, updateConnectionsMax),
+  );
 
   /// 请求使用的站点地址.
   static String get baseUrl => Constants.baseUrl;

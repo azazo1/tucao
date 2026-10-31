@@ -5,6 +5,7 @@ import 'package:tucao/models/update_mirror.dart';
 import 'package:tucao/services/update/update_mirror_store.dart';
 import 'package:tucao/services/update/update_speed_test.dart';
 import 'package:tucao/utils/logger.dart';
+import 'package:tucao/utils/storage_pref.dart';
 
 /// 国内镜像源管理.
 ///
@@ -25,8 +26,14 @@ class _MirrorSourcesPageState extends State<MirrorSourcesPage> {
 
   late List<UpdateMirror> _mirrors;
 
-  /// 以镜像前缀为键的测速结果.
-  final _speeds = <String, MirrorSpeedResult>{};
+  /// 以镜像前缀为键的单连接测速结果.
+  final _singleSpeeds = <String, MirrorSpeedResult>{};
+
+  /// 以镜像前缀为键的并发测速结果, 并发数为 1 时为空.
+  final _concurrentSpeeds = <String, MirrorSpeedResult>{};
+
+  /// 并发测速用的连接数, 与下载设置一致.
+  late int _connections;
 
   /// 正在测速的镜像前缀.
   final _measuring = <String>{};
@@ -37,6 +44,7 @@ class _MirrorSourcesPageState extends State<MirrorSourcesPage> {
   void initState() {
     super.initState();
     _mirrors = UpdateMirrorStore.read();
+    _connections = Pref.updateConnections;
   }
 
   void _save() {
@@ -51,7 +59,8 @@ class _MirrorSourcesPageState extends State<MirrorSourcesPage> {
   void _remove(int index) {
     final mirror = _mirrors[index];
     setState(() => _mirrors.removeAt(index));
-    _speeds.remove(mirror.prefix);
+    _singleSpeeds.remove(mirror.prefix);
+    _concurrentSpeeds.remove(mirror.prefix);
     _save();
   }
 
@@ -80,7 +89,8 @@ class _MirrorSourcesPageState extends State<MirrorSourcesPage> {
   void _restoreDefaults() {
     setState(() {
       _mirrors = List.of(UpdateMirror.builtin);
-      _speeds.clear();
+      _singleSpeeds.clear();
+      _concurrentSpeeds.clear();
     });
     UpdateMirrorStore.restoreDefaults();
     _toast('已恢复内置默认镜像源');
@@ -104,25 +114,41 @@ class _MirrorSourcesPageState extends State<MirrorSourcesPage> {
     return _fallbackSpeedUrl;
   }
 
+  /// 同一个镜像测两遍: 先单连接, 再用设置里的连接数并发.
+  ///
+  /// 两个结果共用同一份探测字节, 因此速度可以直接对比.
   Future<void> _measure(UpdateMirror mirror, String targetUrl) async {
     if (_measuring.contains(mirror.prefix)) {
       return;
     }
     setState(() {
       _measuring.add(mirror.prefix);
-      _speeds.remove(mirror.prefix);
+      _singleSpeeds.remove(mirror.prefix);
+      _concurrentSpeeds.remove(mirror.prefix);
     });
-    final result = await UpdateSpeedTest.measure(
+    final single = await UpdateSpeedTest.measure(
       mirror: mirror,
       targetUrl: targetUrl,
     );
     if (!mounted) {
       return;
     }
-    setState(() {
-      _measuring.remove(mirror.prefix);
-      _speeds[mirror.prefix] = result;
-    });
+    setState(() => _singleSpeeds[mirror.prefix] = single);
+    if (_connections > 1) {
+      final concurrent = await UpdateSpeedTest.measureConcurrent(
+        mirror: mirror,
+        targetUrl: targetUrl,
+        connections: _connections,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() => _concurrentSpeeds[mirror.prefix] = concurrent);
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() => _measuring.remove(mirror.prefix));
   }
 
   Future<void> _testAll() async {
@@ -225,7 +251,9 @@ class _MirrorSourcesPageState extends State<MirrorSourcesPage> {
                       final mirror = _mirrors[index];
                       return _MirrorRow(
                         mirror: mirror,
-                        speed: _speeds[mirror.prefix],
+                        single: _singleSpeeds[mirror.prefix],
+                        concurrent: _concurrentSpeeds[mirror.prefix],
+                        connections: _connections,
                         measuring: _measuring.contains(mirror.prefix),
                         onEnabledChanged: (value) => _setEnabled(index, value),
                         onMeasure: () => _testOne(mirror),
@@ -270,7 +298,9 @@ class _MirrorSourcesPageState extends State<MirrorSourcesPage> {
 class _MirrorRow extends StatelessWidget {
   const _MirrorRow({
     required this.mirror,
-    required this.speed,
+    required this.single,
+    required this.concurrent,
+    required this.connections,
     required this.measuring,
     required this.onEnabledChanged,
     required this.onMeasure,
@@ -278,7 +308,9 @@ class _MirrorRow extends StatelessWidget {
   });
 
   final UpdateMirror mirror;
-  final MirrorSpeedResult? speed;
+  final MirrorSpeedResult? single;
+  final MirrorSpeedResult? concurrent;
+  final int connections;
   final bool measuring;
   final ValueChanged<bool> onEnabledChanged;
   final VoidCallback onMeasure;
@@ -293,31 +325,28 @@ class _MirrorRow extends StatelessWidget {
     return ListTile(
       onTap: onMeasure,
       title: Text(mirror.prefix),
-      subtitle: Row(
-        children: [
-          if (measuring) ...[
-            const SizedBox(
-              width: 12,
-              height: 12,
-              child: CircularProgressIndicator(strokeWidth: 1.5),
-            ),
-            const SizedBox(width: 6),
-            Text('测速中', style: detail),
-          ] else if (speed != null)
-            Flexible(
-              child: Text(
-                speed!.ok
-                    ? '${speed!.text}, 首字节 ${_milliseconds(speed!.firstByte)}'
-                    : speed!.text,
-                style: detail?.copyWith(
-                  color: speed!.ok ? scheme.primary : scheme.error,
+      subtitle: measuring
+          ? Row(
+              children: [
+                const SizedBox(
+                  width: 12,
+                  height: 12,
+                  child: CircularProgressIndicator(strokeWidth: 1.5),
                 ),
-              ),
+                const SizedBox(width: 6),
+                Text('测速中', style: detail),
+              ],
             )
-          else
-            Text('点击测速', style: detail),
-        ],
-      ),
+          : single == null
+          ? Text('点击测速', style: detail)
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _speedLine('1 连接', single!, scheme, detail),
+                if (connections > 1)
+                  _speedLine('$connections 连接', concurrent, scheme, detail),
+              ],
+            ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -329,6 +358,25 @@ class _MirrorRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  /// 一条测速结果, 没有结果时说明还在测.
+  static Widget _speedLine(
+    String label,
+    MirrorSpeedResult? result,
+    ColorScheme scheme,
+    TextStyle? style,
+  ) {
+    if (result == null) {
+      return Text('$label 待测', style: style);
+    }
+    final text = result.ok
+        ? '$label ${result.text}, 首字节 ${_milliseconds(result.firstByte)}'
+        : '$label ${result.text}';
+    return Text(
+      text,
+      style: style?.copyWith(color: result.ok ? scheme.primary : scheme.error),
     );
   }
 

@@ -19,6 +19,16 @@ class _Transport implements UpdateTransport {
     required CancelToken cancelToken,
     required void Function(int received, int total) onProgress,
   }) async => 0;
+
+  @override
+  Future<int> fetchRange({
+    required Uri uri,
+    required File target,
+    required int start,
+    required int end,
+    required CancelToken cancelToken,
+    required void Function(int received) onProgress,
+  }) async => 0;
 }
 
 /// 服务的 retry 要陪跑整个下载, 这里用永不完成的 Future 复现下载仍在进行.

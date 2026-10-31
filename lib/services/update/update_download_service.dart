@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart';
@@ -13,6 +14,7 @@ import 'package:tucao/services/update/update_mirror_store.dart';
 import 'package:tucao/services/update/update_source.dart';
 import 'package:tucao/services/update/update_transport.dart';
 import 'package:tucao/utils/logger.dart';
+import 'package:tucao/utils/storage_pref.dart';
 
 /// 安装包的安装结果, 界面据此给出不同提示.
 enum UpdateInstallOutcome {
@@ -34,17 +36,18 @@ enum UpdateInstallOutcome {
 /// 更新包只有一份且体积有限, 因此不做队列与断点续传: 同时只允许一个任务,
 /// 中断后从头再来, 半成品随任务一起丢弃. 下载全程要求应用在前台, 回到后台
 /// 就中断, 所以不需要前台服务与常驻通知, 也不申请额外的后台权限.
-class UpdateDownloadService extends GetxController
-    with WidgetsBindingObserver {
+class UpdateDownloadService extends GetxController with WidgetsBindingObserver {
   UpdateDownloadService({
     required UpdateTransport transport,
     Future<Directory> Function()? location,
     UpdateSource Function()? source,
     List<String> Function()? mirrorPrefixes,
+    int Function()? connections,
   }) : _transport = transport,
        _location = location ?? UpdateLocation.directory,
        _source = source ?? (() => UpdateSource.saved),
-       _mirrors = mirrorPrefixes ?? UpdateMirrorStore.enabledPrefixes;
+       _mirrors = mirrorPrefixes ?? UpdateMirrorStore.enabledPrefixes,
+       _connections = connections ?? (() => Pref.updateConnections);
 
   static UpdateDownloadService get instance =>
       Get.find<UpdateDownloadService>();
@@ -59,6 +62,7 @@ class UpdateDownloadService extends GetxController
   final Future<Directory> Function() _location;
   final UpdateSource Function() _source;
   final List<String> Function() _mirrors;
+  final int Function() _connections;
 
   /// 当前任务状态, 界面订阅它.
   final state = UpdateDownloadState.idle.obs;
@@ -297,10 +301,11 @@ class UpdateDownloadService extends GetxController
         );
         try {
           Log.i('开始下载更新包 ${asset.name}, 来源 ${uri.host}');
-          final bytes = await _transport.fetch(
+          final bytes = await _fetchPackage(
             uri: uri,
             target: temporary,
-            cancelToken: token,
+            size: asset.size,
+            token: token,
             onProgress: (received, total) {
               if (watch.elapsedMilliseconds - lastUpdate < 250) {
                 return;
@@ -370,6 +375,133 @@ class UpdateDownloadService extends GetxController
     }
   }
 
+  /// 按设置的连接数下载安装包, 镜像不支持分段时退回单连接.
+  Future<int> _fetchPackage({
+    required Uri uri,
+    required File target,
+    required int size,
+    required CancelToken token,
+    required void Function(int received, int total) onProgress,
+  }) async {
+    final connections = _connections().clamp(
+      Pref.updateConnectionsMin,
+      Pref.updateConnectionsMax,
+    );
+    if (connections <= 1 || size <= 0) {
+      return _transport.fetch(
+        uri: uri,
+        target: target,
+        cancelToken: token,
+        onProgress: onProgress,
+      );
+    }
+    try {
+      return await _fetchChunks(
+        uri: uri,
+        target: target,
+        size: size,
+        connections: connections,
+        userToken: token,
+        onProgress: onProgress,
+      );
+    } on RangeUnsupportedException {
+      // 服务端忽略 Range 时拿到的是整包, 只能老实单连接重下.
+      Log.w('镜像不支持分段下载, 改用单连接: ${uri.host}');
+      return _transport.fetch(
+        uri: uri,
+        target: target,
+        cancelToken: token,
+        onProgress: onProgress,
+      );
+    }
+  }
+
+  /// 把安装包切成 [connections] 段并发下载, 再按顺序拼成完整文件.
+  ///
+  /// 每段写自己的分片文件, 避免多个请求同时写同一个文件的偏移;
+  /// 拼好之前 [target] 不会被碰, 中途失败只需删掉分片.
+  Future<int> _fetchChunks({
+    required Uri uri,
+    required File target,
+    required int size,
+    required int connections,
+    required CancelToken userToken,
+    required void Function(int received, int total) onProgress,
+  }) async {
+    final chunkSize = (size / connections).ceil();
+    final parts = <File>[];
+    final tokens = <CancelToken>[];
+    final received = <int>[];
+    final futures = <Future<int>>[];
+    var total = 0;
+    try {
+      for (var index = 0; index < connections; index++) {
+        final start = index * chunkSize;
+        if (start >= size) {
+          break;
+        }
+        final end = math.min(size, start + chunkSize) - 1;
+        final part = File('${target.path}.chunk$index');
+        parts.add(part);
+        final partToken = CancelToken();
+        tokens.add(partToken);
+        received.add(0);
+        final slot = received.length - 1;
+        // 用户暂停或任务被关闭时, 把取消转给正在跑的分片.
+        unawaited(
+          userToken.whenCancel.then((_) {
+            if (!partToken.isCancelled) {
+              partToken.cancel('更新下载已暂停');
+            }
+          }),
+        );
+        futures.add(
+          _transport.fetchRange(
+            uri: uri,
+            target: part,
+            start: start,
+            end: end,
+            cancelToken: partToken,
+            onProgress: (got) {
+              total += got - received[slot];
+              received[slot] = got;
+              onProgress(total, size);
+            },
+          ),
+        );
+      }
+      await Future.wait(futures);
+      if (userToken.isCancelled) {
+        throw userToken.cancelError ?? const FormatException('下载已取消');
+      }
+      final sink = target.openWrite();
+      try {
+        for (final part in parts) {
+          await sink.addStream(part.openRead());
+        }
+      } finally {
+        await sink.close();
+      }
+      final length = await target.length();
+      if (length != size) {
+        throw FormatException('合并后的安装包大小不符, 预期 $size 字节, 实际 $length 字节');
+      }
+      return length;
+    } catch (error) {
+      // 有分片失败就别让其他的继续占带宽.
+      for (final partToken in tokens) {
+        if (!partToken.isCancelled) {
+          partToken.cancel('分段下载中止');
+        }
+      }
+      rethrow;
+    } finally {
+      for (final part in parts) {
+        await _deleteFile(part);
+      }
+    }
+  }
+
   Future<Directory> _ensureDirectory() async {
     final cached = _directory;
     if (cached != null) {
@@ -407,7 +539,10 @@ class UpdateDownloadService extends GetxController
 
   static bool _isPackage(String name) {
     final lower = name.toLowerCase();
-    return lower.endsWith('.apk') || lower.endsWith('.part');
+    // 分段下载的分片命名是 <包名>.part.chunkN, 也要一起清掉.
+    return lower.endsWith('.apk') ||
+        lower.endsWith('.part') ||
+        lower.contains('.part.chunk');
   }
 
   static Future<void> _deleteFile(File file) async {

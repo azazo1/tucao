@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:tucao/models/update_mirror.dart';
@@ -76,11 +77,11 @@ class MirrorSpeedResult {
 abstract final class UpdateSpeedTest {
   /// 每次测速读取的字节数.
   ///
-  /// 只取半个兆, 慢站在时限内也能读到一部分, 不至于一个字节都报不出来.
-  static const probeBytes = 512 * 1024;
+  /// 样本越大越接近真实下载速度, 太慢的站会用到时限后按已读部分估算.
+  static const probeBytes = 2 * 1024 * 1024;
 
   /// 单次测速的超时时间.
-  static const timeout = Duration(seconds: 12);
+  static const timeout = Duration(seconds: 20);
 
   static final Dio _dio = Dio(
     BaseOptions(
@@ -124,6 +125,123 @@ abstract final class UpdateSpeedTest {
         token.cancel('测速结束');
       }
     }
+  }
+
+  /// 用 [connections] 个连接同时读取开头一段, 返回合计速度.
+  ///
+  /// 与单连接测速共用同一份探测字节, 因此两个结果可以直接比较:
+  /// 并发明显更快说明镜像按单连接限速.
+  static Future<MirrorSpeedResult> measureConcurrent({
+    required UpdateMirror mirror,
+    required String targetUrl,
+    required int connections,
+    Dio? dio,
+  }) async {
+    if (connections <= 1) {
+      return measure(mirror: mirror, targetUrl: targetUrl, dio: dio);
+    }
+    final client = dio ?? _dio;
+    final token = CancelToken();
+    final watch = Stopwatch()..start();
+    Duration? firstByte;
+    void noteFirstByte() => firstByte ??= watch.elapsed;
+    Log.i('镜像并发测速开始 ${mirror.prefix}, $connections 连接');
+    try {
+      final chunkSize = (probeBytes / connections).ceil();
+      final futures = <Future<int>>[];
+      for (var index = 0; index < connections; index++) {
+        final start = index * chunkSize;
+        if (start >= probeBytes) {
+          break;
+        }
+        final end = math.min(probeBytes, start + chunkSize) - 1;
+        futures.add(
+          _readSegment(
+            client: client,
+            mirror: mirror,
+            targetUrl: targetUrl,
+            start: start,
+            end: end,
+            token: token,
+            watch: watch,
+            onFirstByte: noteFirstByte,
+          ),
+        );
+      }
+      final results = await Future.wait(
+        futures,
+      ).timeout(timeout + const Duration(seconds: 4));
+      final total = results.fold<int>(0, (sum, value) => sum + value);
+      if (total == 0) {
+        return const MirrorSpeedResult(error: '没有收到数据');
+      }
+      final result = MirrorSpeedResult(
+        bytes: total,
+        elapsed: watch.elapsed,
+        firstByte: firstByte,
+        timedOut: total < probeBytes && watch.elapsed >= timeout,
+      );
+      Log.i('镜像并发测速结果 ${mirror.prefix}: ${result.text}');
+      return result;
+    } on TimeoutException {
+      token.cancel('并发测速超时');
+      Log.w('镜像并发测速超时 ${mirror.prefix}');
+      return const MirrorSpeedResult(error: '测速超时');
+    } on _RangeUnsupported {
+      token.cancel('不支持分段');
+      Log.w('镜像不支持分段, 无法并发测速 ${mirror.prefix}');
+      return const MirrorSpeedResult(error: '不支持分段');
+    } catch (error) {
+      final message = _errorText(error);
+      Log.w('镜像并发测速失败 ${mirror.prefix}: $message ($error)');
+      return MirrorSpeedResult(error: message);
+    } finally {
+      if (!token.isCancelled) {
+        token.cancel('并发测速结束');
+      }
+    }
+  }
+
+  /// 读取一个区间, 只计数不落盘; 到时限就提前结束.
+  static Future<int> _readSegment({
+    required Dio client,
+    required UpdateMirror mirror,
+    required String targetUrl,
+    required int start,
+    required int end,
+    required CancelToken token,
+    required Stopwatch watch,
+    required void Function() onFirstByte,
+  }) async {
+    final response = await client.getUri<ResponseBody>(
+      Uri.parse(mirror.urlFor(targetUrl)),
+      cancelToken: token,
+      options: Options(
+        responseType: ResponseType.stream,
+        headers: {'range': 'bytes=$start-$end', 'User-Agent': 'tucao-android'},
+        validateStatus: (code) => code == 200 || code == 206,
+      ),
+    );
+    final body = response.data;
+    if (body == null) {
+      throw const FormatException('响应为空');
+    }
+    if (response.statusCode != 206) {
+      await body.stream.listen((_) {}).cancel();
+      throw const _RangeUnsupported();
+    }
+    var received = 0;
+    await for (final chunk in body.stream) {
+      if (chunk.isEmpty) {
+        continue;
+      }
+      onFirstByte();
+      received += chunk.length;
+      if (watch.elapsed >= timeout) {
+        break;
+      }
+    }
+    return received;
   }
 
   static Future<MirrorSpeedResult> _measure(
@@ -196,4 +314,9 @@ abstract final class UpdateSpeedTest {
     }
     return '测速失败';
   }
+}
+
+/// 并发测速时服务端忽略了 Range, 拿到的不是这一段的数据.
+class _RangeUnsupported implements Exception {
+  const _RangeUnsupported();
 }

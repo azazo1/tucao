@@ -63,6 +63,9 @@ class _SettingPageState extends State<SettingPage> {
   /// 更新包的下载源, 只影响应用内下载安装包, 不影响检查更新.
   late UpdateSource _updateSource;
 
+  /// 更新包下载的并发连接数, 1 为单连接.
+  late int _updateConnections;
+
   @override
   void initState() {
     super.initState();
@@ -95,6 +98,7 @@ class _SettingPageState extends State<SettingPage> {
         : 20;
 
     _updateSource = UpdateSource.saved;
+    _updateConnections = Pref.updateConnections;
 
     unawaited(_loadPipSupport());
   }
@@ -150,6 +154,18 @@ class _SettingPageState extends State<SettingPage> {
   void _setUpdateSource(UpdateSource value) {
     setState(() => _updateSource = value);
     Pref.updateSource = value.name;
+  }
+
+  Future<void> _editConnections() async {
+    final input = await showDialog<int>(
+      context: context,
+      builder: (_) => _ConnectionsDialog(initial: _updateConnections),
+    );
+    if (input == null || !mounted) {
+      return;
+    }
+    setState(() => _updateConnections = input);
+    Pref.updateConnections = input;
   }
 
   Future<void> _clearHistory() async {
@@ -419,6 +435,18 @@ class _SettingPageState extends State<SettingPage> {
             ),
           ),
           ListTile(
+            title: const Text('下载并发连接数'),
+            subtitle: const Text('1 为单连接; 镜像按单连接限速时, 分段并发能明显提速'),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('$_updateConnections'),
+                const Icon(Icons.chevron_right),
+              ],
+            ),
+            onTap: _editConnections,
+          ),
+          ListTile(
             title: const Text('国内镜像源'),
             subtitle: const Text('启用或添加 GitHub 加速站, 点条目可以测速'),
             trailing: const Icon(Icons.chevron_right),
@@ -563,6 +591,72 @@ class _UpdateSourceTile extends StatelessWidget {
       title: Text(source.label),
       subtitle: Text(source.description),
       dense: true,
+    );
+  }
+}
+
+/// 更新包下载并发连接数的输入框, 只负责校验范围.
+class _ConnectionsDialog extends StatefulWidget {
+  const _ConnectionsDialog({required this.initial});
+
+  final int initial;
+
+  @override
+  State<_ConnectionsDialog> createState() => _ConnectionsDialogState();
+}
+
+class _ConnectionsDialogState extends State<_ConnectionsDialog> {
+  late final TextEditingController _controller;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: '${widget.initial}');
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final value = int.tryParse(_controller.text.trim());
+    if (value == null ||
+        value < Pref.updateConnectionsMin ||
+        value > Pref.updateConnectionsMax) {
+      setState(
+        () => _error =
+            '请填 ${Pref.updateConnectionsMin} 到 ${Pref.updateConnectionsMax} 之间的整数',
+      );
+      return;
+    }
+    Navigator.pop(context, value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('下载并发连接数'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        keyboardType: TextInputType.number,
+        decoration: InputDecoration(
+          labelText: '连接数',
+          helperText: '1 为单连接, 上限 ${Pref.updateConnectionsMax}',
+          errorText: _error,
+        ),
+        onSubmitted: (_) => _submit(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        FilledButton(onPressed: _submit, child: const Text('保存')),
+      ],
     );
   }
 }

@@ -13,8 +13,14 @@ import 'package:tucao/services/update/update_transport.dart';
 class _Transport implements UpdateTransport {
   final calls = <Uri>[];
 
+  /// 每次分段请求的区间, 按调用顺序记录.
+  final rangeCalls = <({int start, int end})>[];
+
   /// 省略时按 [defaultBytes] 直接写满整个文件.
   Future<int> Function(File target, CancelToken token)? behavior;
+
+  /// 分段请求的自定义行为, 省略时按区间写入序号字节.
+  Future<int> Function(File target, int start, int end)? rangeBehavior;
 
   List<int> defaultBytes = const [1, 2, 3];
 
@@ -33,6 +39,27 @@ class _Transport implements UpdateTransport {
     await target.writeAsBytes(defaultBytes, flush: true);
     onProgress(defaultBytes.length, defaultBytes.length);
     return defaultBytes.length;
+  }
+
+  @override
+  Future<int> fetchRange({
+    required Uri uri,
+    required File target,
+    required int start,
+    required int end,
+    required CancelToken cancelToken,
+    required void Function(int received) onProgress,
+  }) async {
+    rangeCalls.add((start: start, end: end));
+    final custom = rangeBehavior;
+    if (custom != null) {
+      return custom(target, start, end);
+    }
+    final length = end - start + 1;
+    final bytes = List<int>.generate(length, (index) => start + index);
+    await target.writeAsBytes(bytes, flush: true);
+    onProgress(length);
+    return length;
   }
 }
 
@@ -69,6 +96,7 @@ void main() {
       transport: transport,
       location: () async => directory,
       source: () => UpdateSource.github,
+      connections: () => 1,
     );
   });
 
@@ -167,6 +195,7 @@ void main() {
       location: () async => directory,
       source: () => UpdateSource.auto,
       mirrorPrefixes: () => const ['https://mirror-a.example'],
+      connections: () => 1,
     );
     addTearDown(auto.onClose);
     final assets = [
@@ -202,6 +231,7 @@ void main() {
         'https://mirror-a.example',
         'https://mirror-b.example',
       ],
+      connections: () => 1,
     );
     addTearDown(auto.onClose);
     transport.behavior = (target, token) async {
@@ -221,5 +251,80 @@ void main() {
     expect(failed.status, UpdateDownloadStatus.failed);
     expect(failed.error, contains('已尝试 3'));
     expect(await directory.list().toList(), isEmpty);
+  });
+
+  test('按设置的连接数分段下载并拼成完整包', () async {
+    final chunked = UpdateDownloadService(
+      transport: transport,
+      location: () async => directory,
+      source: () => UpdateSource.github,
+      connections: () => 4,
+    );
+    addTearDown(chunked.onClose);
+    await chunked.start(
+      version: 'v1.3.0',
+      assets: [
+        ReleaseAsset(
+          name: 'tucao-1.3.0-android-arm64-v8a.apk',
+          size: 8,
+          downloadUrl: 'https://example.com/arm64.apk',
+        ),
+      ],
+      abis: ['arm64-v8a'],
+    );
+    expect(chunked.state.value.status, UpdateDownloadStatus.ready);
+    expect(transport.rangeCalls, hasLength(4));
+    expect(
+      [for (final call in transport.rangeCalls) '${call.start}-${call.end}'],
+      ['0-1', '2-3', '4-5', '6-7'],
+    );
+    expect(await File(chunked.state.value.path).readAsBytes(), [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+    ]);
+    expect(transport.calls, isEmpty);
+  });
+
+  test('镜像不支持分段时退回单连接', () async {
+    transport.rangeBehavior = (target, start, end) async {
+      throw const RangeUnsupportedException('不支持');
+    };
+    transport.defaultBytes = List<int>.generate(8, (index) => index);
+    final chunked = UpdateDownloadService(
+      transport: transport,
+      location: () async => directory,
+      source: () => UpdateSource.github,
+      connections: () => 4,
+    );
+    addTearDown(chunked.onClose);
+    await chunked.start(
+      version: 'v1.3.0',
+      assets: [
+        ReleaseAsset(
+          name: 'tucao-1.3.0-android-arm64-v8a.apk',
+          size: 8,
+          downloadUrl: 'https://example.com/arm64.apk',
+        ),
+      ],
+      abis: ['arm64-v8a'],
+    );
+    expect(chunked.state.value.status, UpdateDownloadStatus.ready);
+    expect(transport.calls, hasLength(1));
+    expect(await File(chunked.state.value.path).readAsBytes(), [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+    ]);
   });
 }

@@ -3,6 +3,18 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 
+/// 镜像或服务器不支持按字节区间下载.
+///
+/// 分段请求会拿到 200 和整包内容, 这时不能按偏移写文件, 只能退回单连接.
+class RangeUnsupportedException implements Exception {
+  const RangeUnsupportedException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => 'RangeUnsupportedException: $message';
+}
+
 /// 安装包的单文件传输, 目录与最终提交由下载服务负责.
 ///
 /// 与媒体缓存分开实现: 那边的校验只放行音视频响应, 这里的产物是 apk,
@@ -14,6 +26,19 @@ abstract class UpdateTransport {
     required CancelToken cancelToken,
     required void Function(int received, int total) onProgress,
   });
+
+  /// 分段下载 [start] 到 [end] 字节(闭区间), 写进 [target] 的独立分片文件.
+  ///
+  /// 服务器不支持区间请求时抛 [RangeUnsupportedException], 由服务层退回
+  /// 单连接重下; 其余失败照常上抛.
+  Future<int> fetchRange({
+    required Uri uri,
+    required File target,
+    required int start,
+    required int end,
+    required CancelToken cancelToken,
+    required void Function(int received) onProgress,
+  });
 }
 
 /// 使用独立 Dio 客户端的安装包传输.
@@ -21,8 +46,7 @@ class DioUpdateTransport implements UpdateTransport {
   /// 不传客户端时自建一个: 只连 GitHub, 不带站点 cookie 与 referer.
   DioUpdateTransport([Dio? dio])
     : _dio =
-          dio ??
-          Dio(BaseOptions(connectTimeout: const Duration(seconds: 8)));
+          dio ?? Dio(BaseOptions(connectTimeout: const Duration(seconds: 8)));
 
   final Dio _dio;
 
@@ -89,6 +113,71 @@ class DioUpdateTransport implements UpdateTransport {
       return received;
     } finally {
       // 拒绝响应或打开文件失败时, 也取消尚未消费的响应流.
+      try {
+        if (!streamStarted) {
+          await body.stream.listen((_) {}).cancel();
+        }
+      } finally {
+        await output?.close();
+      }
+    }
+  }
+
+  @override
+  Future<int> fetchRange({
+    required Uri uri,
+    required File target,
+    required int start,
+    required int end,
+    required CancelToken cancelToken,
+    required void Function(int received) onProgress,
+  }) async {
+    cancelToken.throwIfCancellationRequested();
+    final expected = end - start + 1;
+    final response = await _dio.getUri<ResponseBody>(
+      uri,
+      cancelToken: cancelToken,
+      options: Options(
+        responseType: ResponseType.stream,
+        headers: {'range': 'bytes=$start-$end'},
+        // 状态码自己判断: 200 说明服务端忽略了 Range.
+        validateStatus: (_) => true,
+      ),
+    );
+    final body = response.data;
+    if (body == null) {
+      throw const FormatException('下载响应为空');
+    }
+    if (response.statusCode != 206) {
+      // 不能把整包写进分片文件, 交给服务层退回单连接.
+      await body.stream.listen((_) {}).cancel();
+      throw const RangeUnsupportedException('服务端没有按区间返回');
+    }
+    RandomAccessFile? output;
+    var streamStarted = false;
+    try {
+      cancelToken.throwIfCancellationRequested();
+      output = await target.open(mode: FileMode.write);
+      var received = 0;
+      streamStarted = true;
+      await for (final chunk in body.stream) {
+        cancelToken.throwIfCancellationRequested();
+        if (chunk.isEmpty) {
+          continue;
+        }
+        if (received + chunk.length > expected) {
+          throw const FormatException('分段响应超过预期长度');
+        }
+        await output.writeFrom(chunk);
+        received += chunk.length;
+        onProgress(received);
+        cancelToken.throwIfCancellationRequested();
+      }
+      if (received != expected) {
+        throw FormatException('分段下载不完整, 预期 $expected 字节, 实际 $received 字节');
+      }
+      return received;
+    } finally {
       try {
         if (!streamStarted) {
           await body.stream.listen((_) {}).cancel();
