@@ -189,7 +189,13 @@ class TucaoPlayer extends ChangeNotifier {
       _duration = Duration.zero;
       _buffered = Duration.zero;
       _notify();
-      await player.open(Media(url, httpHeaders: _headers), play: autoPlay);
+      // 起始位置交给 mpv 在加载阶段处理. open 返回时网络流往往还没加载完,
+      // 此时再 seek 会被丢掉, 加载完成后仍从 0 开始播.
+      final start = startAt != null && startAt > Duration.zero ? startAt : null;
+      await player.open(
+        Media(url, httpHeaders: _headers, start: start),
+        play: autoPlay,
+      );
       if (!_requests.isCurrent(request)) {
         return;
       }
@@ -199,12 +205,6 @@ class TucaoPlayer extends ChangeNotifier {
         return;
       }
       await player.setVolume(_volume);
-      if (!_requests.isCurrent(request)) {
-        return;
-      }
-      if (startAt != null && startAt > Duration.zero) {
-        await player.seek(startAt);
-      }
     });
   }
 
