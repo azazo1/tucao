@@ -42,6 +42,9 @@ abstract final class Style {
   /// 网格内卡片之间的间距.
   static const gridSpacing = 10.0;
 
+  /// 网格内卡片之间的纵向间距.
+  static const gridRowSpacing = 12.0;
+
   /// 网格内卡片的最小宽度, 再窄标题就会挤成两三个字.
   static const minCardWidth = 165.0;
 
@@ -74,7 +77,7 @@ abstract final class Style {
     return SliverGridDelegateWithFixedCrossAxisCount(
       crossAxisCount: columns,
       crossAxisSpacing: gridSpacing,
-      mainAxisSpacing: 12,
+      mainAxisSpacing: gridRowSpacing,
       mainAxisExtent: verticalCardExtent(context, itemWidth),
     );
   }

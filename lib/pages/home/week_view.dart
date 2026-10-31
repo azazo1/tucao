@@ -144,19 +144,11 @@ class _WeekViewState extends State<WeekView>
                             EmptyWidget(message: '这一天还没有更新'),
                           ],
                         )
-                      : GridView.builder(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
-                          gridDelegate: Style.videoGrid(
-                            context,
-                            constraints.maxWidth,
-                          ),
-                          itemCount: items.length,
-                          itemBuilder: (context, i) => _WeekCard(
-                            video: items[i],
-                            followed: followed.contains(items[i].hid),
-                            updateTime: times[items[i].hid],
-                          ),
+                      : _WeekGrid(
+                          items: items,
+                          followed: followed,
+                          times: times,
+                          width: constraints.maxWidth,
                         ),
                 ),
               ),
@@ -243,6 +235,78 @@ class _WeekTabBar extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// 时间表的卡片网格, 重排时卡片平滑移到新位置.
+///
+/// GridView 没有位置动画, 时刻陆续到达引起的重排会让卡片瞬间跳位.
+/// 这里按网格算出每张卡片的坐标, 用 Stack 加 AnimatedPositioned 做补间;
+/// 一个分组最多十几张卡片, 全部构建也不影响滚动.
+class _WeekGrid extends StatelessWidget {
+  const _WeekGrid({
+    required this.items,
+    required this.followed,
+    required this.times,
+    required this.width,
+  });
+
+  final List<VideoModel> items;
+  final Set<String> followed;
+  final Map<String, WeekUpdateTime> times;
+
+  /// 网格容器的宽度, 含水平内边距.
+  final double width;
+
+  /// 重排动画时长, 与项目里其他隐式动画接近.
+  static const duration = Duration(milliseconds: 280);
+
+  static const topPadding = 10.0;
+  static const bottomPadding = 16.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final columns = Style.gridColumns(width);
+    final usable = width - Style.horizontalPadding * 2;
+    final itemWidth = (usable - Style.gridSpacing * (columns - 1)) / columns;
+    final itemHeight = Style.verticalCardExtent(context, itemWidth);
+    final rows = (items.length / columns).ceil();
+    final height =
+        topPadding +
+        rows * itemHeight +
+        Style.gridRowSpacing * (rows - 1) +
+        bottomPadding;
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      child: SizedBox(
+        height: height,
+        child: Stack(
+          children: [
+            for (var index = 0; index < items.length; index++)
+              AnimatedPositioned(
+                // 用视频 id 做 key, 重排后同一张卡片沿用原来的 element,
+                // 位置变化才会走补间而不是重新创建.
+                key: ValueKey(items[index].hid),
+                duration: duration,
+                curve: Curves.easeOutCubic,
+                left:
+                    Style.horizontalPadding +
+                    (index % columns) * (itemWidth + Style.gridSpacing),
+                top:
+                    topPadding +
+                    (index ~/ columns) * (itemHeight + Style.gridRowSpacing),
+                width: itemWidth,
+                height: itemHeight,
+                child: _WeekCard(
+                  video: items[index],
+                  followed: followed.contains(items[index].hid),
+                  updateTime: times[items[index].hid],
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
