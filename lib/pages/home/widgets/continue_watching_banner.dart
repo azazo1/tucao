@@ -120,7 +120,6 @@ class _ContinueWatchingBannerState extends State<ContinueWatchingBanner> {
   Widget _card(HistoryItem item, int index, int total) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final partText = item.video.partCount > 1 ? 'P${item.part + 1} · ' : '';
     final label = total > 1 ? '继续观看 ${index + 1}/$total' : '继续观看';
     return Material(
       color: scheme.secondaryContainer,
@@ -132,19 +131,7 @@ class _ContinueWatchingBannerState extends State<ContinueWatchingBanner> {
           children: [
             SizedBox(
               width: ContinueWatchingBanner.coverWidth,
-              child: VideoCover(
-                url: item.video.cover,
-                radius: 0,
-                bottom: SizedBox(
-                  height: 3,
-                  child: LinearProgressIndicator(
-                    value: item.percent,
-                    minHeight: 3,
-                    color: scheme.primary,
-                    backgroundColor: Colors.black38,
-                  ),
-                ),
-              ),
+              child: VideoCover(url: item.video.cover, radius: 0),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -170,7 +157,7 @@ class _ContinueWatchingBannerState extends State<ContinueWatchingBanner> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '$partText看到 ${(item.percent * 100).round()}%',
+                    '看到 P${item.part + 1} ${(item.percent * 100).round()}%',
                     style: theme.textTheme.labelSmall?.copyWith(
                       color: scheme.onSecondaryContainer,
                     ),
