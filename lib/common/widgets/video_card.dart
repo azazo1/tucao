@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/common/style.dart';
 import 'package:tucao/common/widgets/cover_hero.dart';
-import 'package:tucao/services/history_service.dart';
 import 'package:tucao/common/widgets/video_block_sheet.dart';
 import 'package:tucao/pages/video/video_page.dart';
 import 'package:tucao/utils/clipboard.dart';
@@ -152,40 +150,6 @@ class VideoCover extends StatelessWidget {
   }
 }
 
-/// 封面底部的观看进度条, 没看过或者没有历史服务时不占位.
-///
-/// 只要看过就显示, 看完的视频显示满条, 一眼能分出看过和没看过.
-class WatchProgressBar extends StatelessWidget {
-  const WatchProgressBar({super.key, required this.hid});
-
-  final String hid;
-
-  static const height = 3.0;
-
-  @override
-  Widget build(BuildContext context) {
-    if (hid.isEmpty || !Get.isRegistered<HistoryService>()) {
-      return const SizedBox.shrink();
-    }
-    final scheme = Theme.of(context).colorScheme;
-    return Obx(() {
-      final item = HistoryService.instance.latestOf(hid);
-      if (item == null || item.duration <= 0) {
-        return const SizedBox.shrink();
-      }
-      return SizedBox(
-        height: height,
-        child: LinearProgressIndicator(
-          value: item.percent,
-          minHeight: height,
-          color: scheme.primary,
-          backgroundColor: Colors.black38,
-        ),
-      );
-    });
-  }
-}
-
 /// 封面右下角的计数标签.
 class CoverBadge extends StatelessWidget {
   const CoverBadge({super.key, required this.text, this.icon});
@@ -283,7 +247,6 @@ class VideoCardVertical extends StatelessWidget {
                     text: Utils.formatCount(video.danmakuCount),
                     icon: Icons.subtitles_outlined,
                   ),
-                  bottom: WatchProgressBar(hid: video.hid),
                   heroTag: heroTag,
                 ),
                 if (badge != null && badge!.isNotEmpty)
@@ -441,7 +404,6 @@ class VideoCardHorizontal extends StatelessWidget {
                   text: Utils.formatCount(video.danmakuCount),
                   icon: Icons.subtitles_outlined,
                 ),
-                bottom: WatchProgressBar(hid: video.hid),
                 heroTag: heroTag,
               ),
             ),
