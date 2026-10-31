@@ -184,9 +184,12 @@ class _DescriptionState extends State<_Description> {
               ),
             ),
             if (overflows)
+              // 点击范围铺满整行, 文字仍靠左显示.
               GestureDetector(
+                behavior: HitTestBehavior.opaque,
                 onTap: () => setState(() => _expanded = !_expanded),
-                child: Padding(
+                child: Container(
+                  width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Text(
                     _expanded ? '收起' : '展开',
