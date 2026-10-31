@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/common/adaptive.dart';
@@ -5,9 +7,13 @@ import 'package:tucao/common/style.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/common/widgets/video_card.dart';
 import 'package:tucao/http/week_http.dart';
+import 'package:tucao/models/site_favorite.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/pages/home/week_controller.dart';
+import 'package:tucao/pages/home/widgets/continue_watching_banner.dart';
+import 'package:tucao/services/account_service.dart';
 import 'package:tucao/services/block_service.dart';
+import 'package:tucao/services/site_favorite_service.dart';
 
 /// 新番时间表.
 ///
@@ -24,13 +30,28 @@ class _WeekViewState extends State<WeekView>
     with AutomaticKeepAliveClientMixin {
   late final String _tag = 'week_${identityHashCode(this)}';
 
-  late final WeekController _controller = Get.put(
-    WeekController(),
-    tag: _tag,
-  );
+  late final WeekController _controller = Get.put(WeekController(), tag: _tag);
 
   @override
   bool get wantKeepAlive => true;
+
+  /// 站点追番整份缓存, 只在登录后拉取, 没登录时拉只会失败并进入冷却.
+  SiteFavoriteService? get _favorites {
+    if (!Get.isRegistered<AccountService>() ||
+        !AccountService.instance.isLogin) {
+      return null;
+    }
+    return SiteFavoriteService.instance;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final favorites = _favorites;
+    if (favorites != null) {
+      unawaited(favorites.ensureLoaded());
+    }
+  }
 
   @override
   void dispose() {
@@ -58,10 +79,15 @@ class _WeekViewState extends State<WeekView>
       }
       final index = _controller.index.value.clamp(0, groups.length - 1);
       final current = groups[index];
-      final items = current.list.withoutBlocked();
+      final followed = {
+        for (final item in _favorites?.list ?? const <SiteFavoriteItem>[])
+          item.hid,
+      };
+      final items = followedFirst(current.list.withoutBlocked(), followed);
 
       return Column(
         children: [
+          const ContinueWatchingBanner(),
           _WeekTabBar(
             groups: groups,
             index: index,
@@ -89,8 +115,10 @@ class _WeekViewState extends State<WeekView>
                             constraints.maxWidth,
                           ),
                           itemCount: items.length,
-                          itemBuilder: (context, i) =>
-                              _WeekCard(video: items[i]),
+                          itemBuilder: (context, i) => _WeekCard(
+                            video: items[i],
+                            followed: followed.contains(items[i].hid),
+                          ),
                         ),
                 ),
               ),
@@ -162,15 +190,26 @@ class _WeekTabBar extends StatelessWidget {
 ///
 /// 直接用共享的竖版卡片, 集数状态作为封面角标展示.
 class _WeekCard extends StatelessWidget {
-  const _WeekCard({required this.video});
+  const _WeekCard({required this.video, this.followed = false});
 
   final VideoModel video;
+  final bool followed;
 
   @override
   Widget build(BuildContext context) {
     return VideoCardVertical(
       video: video,
       badge: video.description.isEmpty ? null : video.description,
+      followed: followed,
     );
   }
+}
+
+/// 已追的番排到前面, 两部分内部保持站点原来的顺序.
+List<VideoModel> followedFirst(List<VideoModel> list, Set<String> followed) {
+  if (followed.isEmpty) return list;
+  return [
+    ...list.where((v) => followed.contains(v.hid)),
+    ...list.where((v) => !followed.contains(v.hid)),
+  ];
 }

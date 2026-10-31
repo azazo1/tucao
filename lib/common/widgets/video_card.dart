@@ -225,6 +225,7 @@ class VideoCardVertical extends StatelessWidget {
     this.onTap,
     this.onLongPress,
     this.badge,
+    this.followed = false,
   });
 
   final VideoModel video;
@@ -235,6 +236,9 @@ class VideoCardVertical extends StatelessWidget {
 
   /// 封面左上角的附加标签, 例如集数状态.
   final String? badge;
+
+  /// 站点账号已追番, 封面右上角标出.
+  final bool followed;
 
   @override
   Widget build(BuildContext context) {
@@ -264,6 +268,31 @@ class VideoCardVertical extends StatelessWidget {
                 ),
                 if (badge != null && badge!.isNotEmpty)
                   Positioned(left: 6, top: 6, child: CoverBadge(text: badge!)),
+                if (followed)
+                  Positioned(
+                    right: 6,
+                    top: 6,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: scheme.primary,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 1,
+                        ),
+                        child: Text(
+                          '已追',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: scheme.onPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
             Expanded(
