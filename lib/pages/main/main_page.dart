@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/common/adaptive.dart';
+import 'package:tucao/common/widgets/reselect_scroll.dart';
 import 'package:tucao/pages/home/home_page.dart';
 import 'package:tucao/pages/mine/mine_page.dart';
 import 'package:tucao/pages/rank/rank_page.dart';
 import 'package:tucao/services/message_count_service.dart';
+import 'package:tucao/utils/logger.dart';
 
 /// 应用主框架.
 ///
@@ -116,9 +118,33 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  void _select(int value) => setState(() => _index = value);
+  /// 每个常驻页面的 key, 重复点击时只在当前页里找列表.
+  final _pageKeys = [for (final _ in _pages) GlobalKey()];
+
+  void _select(int value) {
+    if (value == _index) {
+      _reselect();
+      return;
+    }
+    setState(() => _index = value);
+  }
+
+  /// 重复点击当前入口: 先回顶部, 已在顶部时下拉刷新.
+  void _reselect() {
+    final context = _pageKeys[_index].currentContext;
+    if (context == null) return;
+    final action = ReselectScroll.handle(context);
+    Log.d('重复点击 ${_items[_index].$3}: ${action.name}');
+  }
 
   Widget _buildPages() {
-    return IndexedStack(key: _pagesKey, index: _index, children: _pages);
+    return IndexedStack(
+      key: _pagesKey,
+      index: _index,
+      children: [
+        for (final (index, page) in _pages.indexed)
+          KeyedSubtree(key: _pageKeys[index], child: page),
+      ],
+    );
   }
 }
