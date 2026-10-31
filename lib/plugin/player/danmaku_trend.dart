@@ -60,6 +60,51 @@ List<double> buildDanmakuTrend({
   return [for (final value in counts) value / peak];
 }
 
+/// 高能段的密度门槛, 相对峰值.
+const danmakuPeakThreshold = 0.6;
+
+/// 跳到高能段时提前的秒数, 留一点铺垫.
+const danmakuPeakLeadSeconds = 2.0;
+
+const _peakSeekTolerance = 0.5;
+
+/// 在 [trend] 里找当前位置之后的下一个高能段, 返回应跳到的秒数.
+///
+/// 连续不低于 [threshold] 的点算一段, 跳转点是段起点再提前 [leadSeconds].
+/// 跳转点不在当前位置之后的段都跳过, 所以连按会一段一段往后走.
+/// 后面没有高能段时返回 null.
+double? nextDanmakuPeak({
+  required List<double> trend,
+  required double durationSeconds,
+  required double positionSeconds,
+  double threshold = danmakuPeakThreshold,
+  double leadSeconds = danmakuPeakLeadSeconds,
+}) {
+  if (trend.isEmpty || !durationSeconds.isFinite || durationSeconds <= 0) {
+    return null;
+  }
+  final step = durationSeconds / trend.length;
+  var index = 0;
+  while (index < trend.length) {
+    if (trend[index] < threshold) {
+      index++;
+      continue;
+    }
+    final start = index;
+    while (index < trend.length && trend[index] >= threshold) {
+      index++;
+    }
+    final target = (start * step - leadSeconds).clamp(0.0, durationSeconds);
+    // 正在这一段里, 刚跳到这一段的铺垫处, 或已经过了, 都继续往后找.
+    // 留半秒余量, 跳转落点通常不精确.
+    if (target <= positionSeconds + _peakSeekTolerance) {
+      continue;
+    }
+    return target;
+  }
+  return null;
+}
+
 int _pointCount(
   double durationSeconds,
   int minPoints,

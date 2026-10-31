@@ -653,6 +653,26 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     await player.seek(position);
   }
 
+  /// 跳到下一个高能段, 后面没有高能或高能条不可用时返回 false.
+  bool seekNextPeak() {
+    final trend = danmakuTrend.value;
+    if (trend == null) {
+      return false;
+    }
+    final target = nextDanmakuPeak(
+      trend: trend,
+      durationSeconds: player.duration.inMilliseconds / 1000,
+      positionSeconds: player.position.inMilliseconds / 1000,
+    );
+    if (target == null) {
+      Log.i('后面没有高能段');
+      return false;
+    }
+    Log.i('跳到下一个高能段 ${target.toStringAsFixed(1)}s');
+    unawaited(seek(Duration(milliseconds: (target * 1000).round())));
+    return true;
+  }
+
   /// 投屏前卸载本地播放.
   ///
   /// 只是暂停的话, 这条连接会一直挂着; 长时间投屏后服务端多半已经把它断开,

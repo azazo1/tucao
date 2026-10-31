@@ -88,6 +88,11 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
 
   Timer? _hideTimer;
 
+  /// 画面中央的短暂提示, 例如跳高能的结果. 全屏时看不到页面底部的提示条.
+  String? _notice;
+  Timer? _noticeTimer;
+  static const _noticeDuration = Duration(milliseconds: 1500);
+
   PlayerPageController get _controller => widget.controller;
 
   @override
@@ -111,6 +116,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
   @override
   void dispose() {
     _hideTimer?.cancel();
+    _noticeTimer?.cancel();
     unawaited(widget.brightness?.reset());
     super.dispose();
   }
@@ -145,6 +151,66 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
       setState(() => _showControls = true);
     }
     _restartHideTimer();
+  }
+
+  void _showNotice(String text) {
+    _noticeTimer?.cancel();
+    setState(() => _notice = text);
+    _noticeTimer = Timer(_noticeDuration, () {
+      if (mounted) {
+        setState(() => _notice = null);
+      }
+    });
+  }
+
+  Widget _buildNotice() {
+    final text = _notice;
+    return IgnorePointer(
+      child: Align(
+        alignment: const Alignment(0, -0.4),
+        child: AnimatedSwitcher(
+          duration: PlayerControlsFade.duration,
+          child: text == null
+              ? const SizedBox.shrink()
+              : DecoratedBox(
+                  key: ValueKey(text),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    child: Text(
+                      text,
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                    ),
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+
+  void _seekNextPeak() {
+    _showNotice(_controller.seekNextPeak() ? '已跳到下一个高能' : '后面没有高能了');
+  }
+
+  /// 全屏时的跳高能按钮, 高能条不可用时不显示.
+  ///
+  /// 竖屏控制条已经排满, 按钮只放在全屏.
+  Widget _buildPeakButton() {
+    if (!widget.fullscreen) {
+      return const SizedBox.shrink();
+    }
+    return Obx(() {
+      if (_controller.danmakuTrend.value == null) {
+        return const SizedBox.shrink();
+      }
+      return _iconButton(Icons.bolt, _seekNextPeak, tooltip: '下一个高能');
+    });
   }
 
   /// 手势拖动期间保持控制条可见, 让进度条游标跟着手指走.
@@ -211,6 +277,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
         if (!casting) _buildSourceTip(),
         if (!casting && !inPip) _buildAutoNext(),
         if (!casting && !inPip && !locked) _buildResumeHint(),
+        if (!casting && !inPip) _buildNotice(),
         if (casting && !inPip) _buildCastControls(context, cast),
         // 返回按钮放在遥控面板之上, 全屏时也能退出全屏.
         if (widget.fullscreen && !inPip && casting) _buildFullscreenBack(),
@@ -839,6 +906,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
         _iconButton(Icons.replay_5, () => _seekBy(const Duration(seconds: -5))),
         _iconButton(Icons.forward_5, () => _seekBy(const Duration(seconds: 5))),
         _buildSeekStepButton(),
+        _buildPeakButton(),
         const Spacer(),
         _buildPartButton(),
         Obx(
