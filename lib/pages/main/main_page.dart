@@ -28,11 +28,7 @@ class _MainPageState extends State<MainPage> {
   /// 页面栈用同一个 key 搬到新位置, 保留各页的滚动与分页状态.
   final _pagesKey = GlobalKey();
 
-  static const _pages = [
-    HomePage(),
-    RankPage(embedded: true),
-    MinePage(),
-  ];
+  static const _pages = [HomePage(), RankPage(embedded: true), MinePage()];
 
   /// 图标, 选中图标与标签.
   static const _items = [
