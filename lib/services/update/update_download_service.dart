@@ -9,6 +9,7 @@ import 'package:tucao/models/release_asset.dart';
 import 'package:tucao/models/update_download.dart';
 import 'package:tucao/services/update/update_installer.dart';
 import 'package:tucao/services/update/update_location.dart';
+import 'package:tucao/services/update/update_mirror_store.dart';
 import 'package:tucao/services/update/update_source.dart';
 import 'package:tucao/services/update/update_transport.dart';
 import 'package:tucao/utils/logger.dart';
@@ -39,9 +40,11 @@ class UpdateDownloadService extends GetxController
     required UpdateTransport transport,
     Future<Directory> Function()? location,
     UpdateSource Function()? source,
+    List<String> Function()? mirrorPrefixes,
   }) : _transport = transport,
        _location = location ?? UpdateLocation.directory,
-       _source = source ?? (() => UpdateSource.saved);
+       _source = source ?? (() => UpdateSource.saved),
+       _mirrors = mirrorPrefixes ?? UpdateMirrorStore.enabledPrefixes;
 
   static UpdateDownloadService get instance =>
       Get.find<UpdateDownloadService>();
@@ -55,6 +58,7 @@ class UpdateDownloadService extends GetxController
   final UpdateTransport _transport;
   final Future<Directory> Function() _location;
   final UpdateSource Function() _source;
+  final List<String> Function() _mirrors;
 
   /// 当前任务状态, 界面订阅它.
   final state = UpdateDownloadState.idle.obs;
@@ -259,16 +263,20 @@ class UpdateDownloadService extends GetxController
     await _deletePackageFiles(keep: asset.name);
     // 下载源可能给出多个候选地址: 镜像与官方源之间一个失败就换下一个,
     // 全部失败才算这次下载失败.
+    final source = _source();
     final candidates = UpdateSources.candidates(
       downloadUrl: asset.downloadUrl,
-      source: _source(),
+      source: source,
+      mirrorPrefixes: _mirrors(),
     );
     if (candidates.isEmpty) {
       state.value = UpdateDownloadState(
         status: UpdateDownloadStatus.failed,
         version: version,
         asset: asset,
-        error: '安装包地址不可用, 请到发布页里下载',
+        error: source == UpdateSource.mirror
+            ? '没有可用的国内镜像源, 请到设置里启用一个, 或改用官方源'
+            : '安装包地址不可用, 请到发布页里下载',
       );
       return;
     }

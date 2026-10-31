@@ -166,6 +166,7 @@ void main() {
       transport: transport,
       location: () async => directory,
       source: () => UpdateSource.auto,
+      mirrorPrefixes: () => const ['https://mirror-a.example'],
     );
     addTearDown(auto.onClose);
     final assets = [
@@ -186,7 +187,8 @@ void main() {
     };
     await auto.start(version: 'v1.3.0', assets: assets, abis: ['arm64-v8a']);
     expect(auto.state.value.status, UpdateDownloadStatus.ready);
-    expect(transport.calls, hasLength(UpdateSources.mirrors.length + 1));
+    expect(transport.calls, hasLength(2));
+    expect(transport.calls.first.host, 'mirror-a.example');
     expect(transport.calls.last.host, 'github.com');
     expect(await File(auto.state.value.path).readAsBytes(), [1, 2, 3]);
   });
@@ -196,6 +198,10 @@ void main() {
       transport: transport,
       location: () async => directory,
       source: () => UpdateSource.auto,
+      mirrorPrefixes: () => const [
+        'https://mirror-a.example',
+        'https://mirror-b.example',
+      ],
     );
     addTearDown(auto.onClose);
     transport.behavior = (target, token) async {
@@ -213,7 +219,7 @@ void main() {
     await auto.start(version: 'v1.3.0', assets: assets, abis: ['arm64-v8a']);
     final failed = auto.state.value;
     expect(failed.status, UpdateDownloadStatus.failed);
-    expect(failed.error, contains('已尝试 ${UpdateSources.mirrors.length + 1}'));
+    expect(failed.error, contains('已尝试 3'));
     expect(await directory.list().toList(), isEmpty);
   });
 }

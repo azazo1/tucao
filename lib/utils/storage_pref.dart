@@ -27,6 +27,7 @@ abstract final class Pref {
   static const _kDanmakuTrend = 'danmaku_trend';
   static const _kSkippedUpdateVersion = 'skipped_update_version';
   static const _kUpdateSource = 'update_source';
+  static const _kUpdateMirrors = 'update_mirrors';
   static const _kSiteHost = 'site_host';
 
   /// 跳转按钮的秒数下限.
@@ -237,6 +238,12 @@ abstract final class Pref {
       GStorage.setting.get(_kUpdateSource, defaultValue: '') as String;
   static set updateSource(String value) =>
       GStorage.setting.put(_kUpdateSource, value);
+
+  /// 更新镜像源配置的原始 json, 结构与版本由 UpdateMirrorStore 负责.
+  static String get updateMirrors =>
+      GStorage.setting.get(_kUpdateMirrors, defaultValue: '') as String;
+  static set updateMirrors(String value) =>
+      GStorage.setting.put(_kUpdateMirrors, value);
 
   /// 请求使用的站点地址.
   static String get baseUrl => Constants.baseUrl;

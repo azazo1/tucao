@@ -418,6 +418,12 @@ class _SettingPageState extends State<SettingPage> {
               ],
             ),
           ),
+          ListTile(
+            title: const Text('国内镜像源'),
+            subtitle: const Text('启用或添加 GitHub 加速站, 点条目可以测速'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Get.toNamed(Routes.mirrorSources),
+          ),
 
           const _SectionTitle('其他'),
           const SiteHostTile(),

@@ -30,20 +30,16 @@ enum UpdateSource {
 
 /// 下载地址的候选列表.
 abstract final class UpdateSources {
-  /// 按顺序尝试的国内镜像站.
-  ///
-  /// 前缀直接拼在原始 GitHub 地址前面, 由镜像站转发到 github.com.
-  /// 这里只放实测可用的站点, 某个站失效时换掉一条即可.
-  /// ghproxy.net 实测只有二十 KB/s 的量级, 会拖慢自动模式, 不要加回来.
-  static const mirrors = <String>['https://gh-proxy.com'];
-
   /// [downloadUrl] 在指定下载源下要依次尝试的地址.
   ///
-  /// 自动与国内镜像排在前面, GitHub 官方源排在最后, 只有一个候选时
-  /// 就是原地址. 不是 github.com 的地址没有可套的镜像, 只返回原地址.
+  /// [mirrorPrefixes] 是设置里启用的镜像前缀, 顺序即尝试顺序; 前缀拼在
+  /// 原始 GitHub 地址前面, 由镜像站转发到 github.com. 自动与国内镜像
+  /// 把镜像排在前面, GitHub 官方源排在最后, 只有一个候选时就是原地址.
+  /// 不是 github.com 的地址没有可套的镜像, 只返回原地址.
   static List<Uri> candidates({
     required String downloadUrl,
     required UpdateSource source,
+    List<String> mirrorPrefixes = const [],
   }) {
     final official = Uri.tryParse(downloadUrl);
     // 空串也会解析成没有 scheme 的 Uri, 这种地址请求不出去.
@@ -55,7 +51,8 @@ abstract final class UpdateSources {
     }
     return [
       if (source != UpdateSource.github)
-        for (final prefix in mirrors) Uri.parse('$prefix/$downloadUrl'),
+        for (final prefix in mirrorPrefixes)
+          if (prefix.trim().isNotEmpty) Uri.parse('$prefix/$downloadUrl'),
       if (source != UpdateSource.mirror) official,
     ];
   }
