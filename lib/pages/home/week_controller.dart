@@ -41,9 +41,15 @@ class WeekController extends GetxController {
       if (result.isEmpty) {
         error.value = '没有取到新番时间表';
       } else {
+        // 已经有数据说明是刷新, 保留用户选中的分组, 不能把周几重置回今天.
+        final keepIndex = _groups.isNotEmpty;
         groups.assignAll(result);
-        // 站点默认选中今天, 这里跟随设备当前星期.
-        index.value = _todayIndex(result.length);
+        if (keepIndex) {
+          index.value = index.value.clamp(0, result.length - 1);
+        } else {
+          // 首次加载才跟随设备当前星期.
+          index.value = _todayIndex(result.length);
+        }
       }
     } catch (e, stackTrace) {
       Log.e('加载新番时间表失败', error: e, stackTrace: stackTrace);
