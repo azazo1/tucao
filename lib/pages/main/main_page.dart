@@ -21,8 +21,26 @@ class MainPage extends StatefulWidget {
   State<MainPage> createState() => _MainPageState();
 }
 
-class _MainPageState extends State<MainPage> {
+class _MainPageState extends State<MainPage>
+    with SingleTickerProviderStateMixin {
   int _index = 0;
+
+  /// 切换入口时新页面淡入并微微上移, 不再生硬地闪一下.
+  ///
+  /// 初始停在终点, 冷启动的第一页不做动画.
+  late final _switchAnimation = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 200),
+    value: 1,
+  );
+  late final _fade = CurvedAnimation(
+    parent: _switchAnimation,
+    curve: Curves.easeOut,
+  );
+  late final _slide = Tween(
+    begin: const Offset(0, 0.02),
+    end: Offset.zero,
+  ).animate(_fade);
 
   /// 旋转屏幕时主框架在底部导航与侧边导航之间切换,
   /// 页面栈用同一个 key 搬到新位置, 保留各页的滚动与分页状态.
@@ -71,7 +89,7 @@ class _MainPageState extends State<MainPage> {
       canPop: _index == 0,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop && _index != 0) {
-          setState(() => _index = 0);
+          _switchTo(0);
         }
       },
       child: Scaffold(
@@ -122,7 +140,24 @@ class _MainPageState extends State<MainPage> {
       _reselect();
       return;
     }
+    _switchTo(value);
+  }
+
+  void _switchTo(int value) {
     setState(() => _index = value);
+    // 系统关闭了动画时直接切换.
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _switchAnimation.value = 1;
+      return;
+    }
+    _switchAnimation.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _fade.dispose();
+    _switchAnimation.dispose();
+    super.dispose();
   }
 
   /// 重复点击当前入口: 先回顶部, 已在顶部时下拉刷新.
@@ -133,14 +168,21 @@ class _MainPageState extends State<MainPage> {
     Log.d('重复点击 ${_items[_index].$3}: ${action.name}');
   }
 
+  /// 页面栈仍是 IndexedStack, 各页常驻保留状态, 动画只作用在最外层.
   Widget _buildPages() {
-    return IndexedStack(
+    return FadeTransition(
       key: _pagesKey,
-      index: _index,
-      children: [
-        for (final (index, page) in _pages.indexed)
-          KeyedSubtree(key: _pageKeys[index], child: page),
-      ],
+      opacity: _fade,
+      child: SlideTransition(
+        position: _slide,
+        child: IndexedStack(
+          index: _index,
+          children: [
+            for (final (index, page) in _pages.indexed)
+              KeyedSubtree(key: _pageKeys[index], child: page),
+          ],
+        ),
+      ),
     );
   }
 }
