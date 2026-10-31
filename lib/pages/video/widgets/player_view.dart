@@ -9,6 +9,7 @@ import 'package:tucao/pages/video/widgets/danmaku_input_sheet.dart';
 import 'package:tucao/pages/video/widgets/danmaku_settings_sheet.dart';
 import 'package:tucao/pages/video/widgets/danmaku_trend_bar.dart';
 import 'package:tucao/pages/video/widgets/part_picker_sheet.dart';
+import 'package:tucao/pages/video/widgets/player_controls_fade.dart';
 import 'package:tucao/pages/video/widgets/player_gesture.dart';
 import 'package:tucao/pages/video/widgets/player_top_bar.dart';
 import 'package:tucao/utils/danmaku_preferences_store.dart';
@@ -115,16 +116,19 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
 
   void _restartHideTimer() {
     _hideTimer?.cancel();
-    if (widget.pipMode ||
-        !widget.fullscreen ||
-        _settingsOpen ||
-        _partPickerOpen) {
+    if (widget.pipMode || _settingsOpen || _partPickerOpen) {
       return;
     }
     _hideTimer = Timer(_hideDelay, () {
-      if (mounted) {
-        setState(() => _showControls = false);
+      if (!mounted) {
+        return;
       }
+      // 竖屏暂停时保留控制条, 方便直接点播放, 开始播放后再按时收起.
+      if (!widget.fullscreen && !_controller.player.playing) {
+        _restartHideTimer();
+        return;
+      }
+      setState(() => _showControls = false);
     });
   }
 
@@ -200,8 +204,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
               onTap: _toggleControls,
             ),
           ),
-        if (!casting && _showControls && !inPip && !locked)
-          _buildControls(context),
+        if (!casting && !inPip && !locked) _buildControls(context),
         if (!casting) _buildBuffering(),
         if (!casting) _buildSourceTip(),
         if (!casting && !inPip) _buildAutoNext(),
@@ -209,10 +212,8 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
         if (casting && !inPip) _buildCastControls(context, cast),
         // 返回按钮放在遥控面板之上, 全屏时也能退出全屏.
         if (widget.fullscreen && !inPip && casting) _buildFullscreenBack(),
-        if (widget.fullscreen && !inPip && !casting && _showControls && !locked)
-          _buildTopBar(),
-        if (widget.fullscreen && !inPip && !casting && _showControls)
-          _buildLockButton(locked),
+        if (widget.fullscreen && !inPip && !casting && !locked) _buildTopBar(),
+        if (widget.fullscreen && !inPip && !casting) _buildLockButton(locked),
       ],
     );
   }
@@ -226,20 +227,23 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
       child: SafeArea(
         right: false,
         child: Center(
-          child: Padding(
-            padding: const EdgeInsets.only(left: 12),
-            child: IconButton(
-              key: const ValueKey('player-lock'),
-              onPressed: () {
-                setState(() => _locked = !_locked);
-                _restartHideTimer();
-              },
-              style: IconButton.styleFrom(backgroundColor: Colors.black38),
-              icon: Icon(
-                locked ? Icons.lock : Icons.lock_open,
-                color: Colors.white,
+          child: PlayerControlsFade(
+            visible: _showControls,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 12),
+              child: IconButton(
+                key: const ValueKey('player-lock'),
+                onPressed: () {
+                  setState(() => _locked = !_locked);
+                  _restartHideTimer();
+                },
+                style: IconButton.styleFrom(backgroundColor: Colors.black38),
+                icon: Icon(
+                  locked ? Icons.lock : Icons.lock_open,
+                  color: Colors.white,
+                ),
+                tooltip: locked ? '解锁' : '锁定屏幕',
               ),
-              tooltip: locked ? '解锁' : '锁定屏幕',
             ),
           ),
         ),
@@ -253,30 +257,34 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
       left: 0,
       right: 0,
       top: 0,
-      child: GestureDetector(
-        onTap: _keepControls,
-        child: Obx(() {
-          final video = _controller.video.value;
-          final parts = _controller.parts;
-          final index = _controller.part.value;
-          String? subtitle;
-          if (parts.length > 1 && index < parts.length) {
-            final name = parts[index].title;
-            subtitle = name.isEmpty ? 'P${index + 1}' : 'P${index + 1} $name';
-          }
-          return PlayerTopBar(
-            title: video?.title ?? '',
-            subtitle: subtitle,
-            onBack: widget.onToggleFullscreen,
-            actions: [
-              _iconButton(
-                Icons.chat_bubble_outline,
-                _openDanmakuInput,
-                tooltip: '发弹幕',
-              ),
-            ],
-          );
-        }),
+      child: PlayerControlsFade(
+        visible: _showControls,
+        slideFrom: const Offset(0, -0.3),
+        child: GestureDetector(
+          onTap: _keepControls,
+          child: Obx(() {
+            final video = _controller.video.value;
+            final parts = _controller.parts;
+            final index = _controller.part.value;
+            String? subtitle;
+            if (parts.length > 1 && index < parts.length) {
+              final name = parts[index].title;
+              subtitle = name.isEmpty ? 'P${index + 1}' : 'P${index + 1} $name';
+            }
+            return PlayerTopBar(
+              title: video?.title ?? '',
+              subtitle: subtitle,
+              onBack: widget.onToggleFullscreen,
+              actions: [
+                _iconButton(
+                  Icons.chat_bubble_outline,
+                  _openDanmakuInput,
+                  tooltip: '发弹幕',
+                ),
+              ],
+            );
+          }),
+        ),
       ),
     );
   }
@@ -414,7 +422,11 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
                 ),
                 IconButton(
                   onPressed: _controller.dismissResumeHint,
-                  icon: const Icon(Icons.close, size: 16, color: Colors.white70),
+                  icon: const Icon(
+                    Icons.close,
+                    size: 16,
+                    color: Colors.white70,
+                  ),
                   visualDensity: VisualDensity.compact,
                   tooltip: '关闭',
                 ),
@@ -528,21 +540,25 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
     return Positioned.fill(
       child: Align(
         alignment: Alignment.bottomCenter,
-        child: GestureDetector(
-          onTap: _keepControls,
-          child: DecoratedBox(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Colors.transparent, Colors.black54],
+        child: PlayerControlsFade(
+          visible: _showControls,
+          slideFrom: const Offset(0, 0.25),
+          child: GestureDetector(
+            onTap: _keepControls,
+            child: DecoratedBox(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, Colors.black54],
+                ),
               ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 16, 10, 4),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [_buildProgressRow(), _buildButtonRow()],
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 16, 10, 4),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [_buildProgressRow(), _buildButtonRow()],
+                ),
               ),
             ),
           ),

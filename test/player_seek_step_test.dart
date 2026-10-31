@@ -6,6 +6,7 @@ import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:tucao/models/danmaku.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/pages/video/widgets/danmaku_trend_bar.dart';
+import 'package:tucao/pages/video/widgets/player_controls_fade.dart';
 import 'package:tucao/pages/video/widgets/player_gesture.dart';
 import 'package:tucao/pages/video/widgets/player_view.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
@@ -250,6 +251,10 @@ void main() {
       await _mount(tester, controller, fullscreen: true);
       // 全屏静置后控制条自动隐藏.
       await tester.pump(const Duration(seconds: 5));
+      // 计时到点后控制条先淡出, 动画从下一帧起计时, 结束后才卸载.
+      await tester.pump();
+      await tester.pump(PlayerControlsFade.settleDuration);
+      await tester.pump();
       expect(find.byType(PlayerProgressBar), findsNothing);
 
       final gesture = await tester.startGesture(
@@ -264,6 +269,10 @@ void main() {
       await tester.pump();
       // 松手后重新开始计时隐藏.
       await tester.pump(const Duration(seconds: 5));
+      // 计时到点后控制条先淡出, 动画从下一帧起计时, 结束后才卸载.
+      await tester.pump();
+      await tester.pump(PlayerControlsFade.settleDuration);
+      await tester.pump();
       expect(find.byType(PlayerProgressBar), findsNothing);
 
       await tester.pumpWidget(const SizedBox.shrink());

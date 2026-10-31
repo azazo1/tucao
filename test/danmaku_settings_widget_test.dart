@@ -9,6 +9,7 @@ import 'package:tucao/models/danmaku.dart';
 import 'package:tucao/models/danmaku_preferences.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/pages/video/widgets/danmaku_settings_sheet.dart';
+import 'package:tucao/pages/video/widgets/player_controls_fade.dart';
 import 'package:tucao/pages/video/widgets/player_gesture.dart';
 import 'package:tucao/pages/video/widgets/player_view.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
@@ -208,6 +209,10 @@ void main() {
     final back = find.widgetWithIcon(IconButton, Icons.arrow_back);
     expect(back, findsOneWidget);
     await tester.pump(const Duration(seconds: 4));
+    // 计时到点后控制条先淡出, 动画从下一帧起计时, 结束后才卸载.
+    await tester.pump();
+    await tester.pump(PlayerControlsFade.settleDuration);
+    await tester.pump();
     expect(back, findsNothing);
     expect(find.byType(PlayerProgressBar), findsNothing);
     await tester.tapAt(tester.getCenter(find.byType(PlayerGestureDetector)));
