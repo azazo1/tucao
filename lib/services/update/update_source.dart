@@ -34,10 +34,8 @@ abstract final class UpdateSources {
   ///
   /// 前缀直接拼在原始 GitHub 地址前面, 由镜像站转发到 github.com.
   /// 这里只放实测可用的站点, 某个站失效时换掉一条即可.
-  static const mirrors = <String>[
-    'https://gh-proxy.com',
-    'https://ghproxy.net',
-  ];
+  /// ghproxy.net 实测只有二十 KB/s 的量级, 会拖慢自动模式, 不要加回来.
+  static const mirrors = <String>['https://gh-proxy.com'];
 
   /// [downloadUrl] 在指定下载源下要依次尝试的地址.
   ///
