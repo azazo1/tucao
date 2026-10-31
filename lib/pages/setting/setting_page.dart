@@ -303,7 +303,7 @@ class _SettingPageState extends State<SettingPage> {
           ),
           SwitchListTile(
             title: const Text('续播上次进度'),
-            subtitle: const Text('进入播放页时跳转到上次观看的位置'),
+            subtitle: const Text('进入播放页或切换分P时跳转到上次观看的位置'),
             value: _continueLast,
             onChanged: (value) {
               setState(() => _continueLast = value);

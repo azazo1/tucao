@@ -195,8 +195,26 @@ class _History extends GetxController implements HistoryService {
   Completer<void>? writing;
   final recorded = <int>[];
 
+  /// 各分P已保存的播放进度, 秒.
+  final saved = <int, double>{};
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+
+  @override
+  HistoryItem? find(String hid, int part) {
+    final progress = saved[part];
+    if (progress == null) {
+      return null;
+    }
+    return HistoryItem(
+      video: _video,
+      part: part,
+      progress: progress,
+      duration: 600,
+      updateTime: 0,
+    );
+  }
 
   @override
   Future<void> record({
@@ -516,6 +534,24 @@ void main() {
     history.writing!.complete();
     await Future.wait([second, latest]);
     expect(player.opens.last, 'https://example.invalid/c');
+  });
+
+  test('来回切集时接着各分P上次的进度, 没看过的分P从头播', () async {
+    (GStorage.setting as _Settings).data['player_continue_last'] = true;
+    final history = Get.put<HistoryService>(_History()) as _History;
+    history.saved[1] = 120;
+    final player = _Player();
+    final controller = PlayerPageController(
+      hid: '123',
+      player: player,
+      loadVideo: (_) async => _response(_video),
+      loadDanmaku: (_, _, _) async => [],
+    );
+    addTearDown(controller.onClose);
+    await controller.load();
+    await controller.switchPart(1);
+    await controller.switchPart(2);
+    expect(player.startAts, [null, const Duration(seconds: 120), null]);
   });
 
   test('重新加载把重启前的进度随加载交给播放器, 关闭续播也不从 0 开始', () async {

@@ -140,7 +140,7 @@ abstract final class Pref {
   static set playerAutoPlay(bool value) =>
       GStorage.setting.put(_kPlayerAutoPlay, value);
 
-  /// 进入播放页是否续播上次进度.
+  /// 进入播放页或切换分P时是否续播上次进度.
   static bool get playerContinueLast =>
       GStorage.setting.get(_kPlayerContinueLast, defaultValue: true) as bool;
   static set playerContinueLast(bool value) =>

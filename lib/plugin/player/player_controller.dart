@@ -450,7 +450,8 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     error.value = null;
     await history;
     if (_requests.isCurrent(request)) {
-      await _loadPart(index, resume: false, request: request);
+      // 来回切集时接着这一集上次看到的位置, 规则与进入播放页时一致.
+      await _loadPart(index, resume: true, request: request);
     }
   }
 
@@ -535,7 +536,7 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
 
   /// 查询上次播放位置, 不满足续播条件时返回空.
   Duration? _resumePosition(int index) {
-    if (!Pref.playerContinueLast) {
+    if (!Pref.playerContinueLast || !Get.isRegistered<HistoryService>()) {
       return null;
     }
     final item = HistoryService.instance.find(hid, index);
