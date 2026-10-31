@@ -13,7 +13,7 @@ import 'package:tucao/utils/logger.dart';
 /// 太久以前的记录多半已经不打算接着看了, 只取 [maxAge] 以内的.
 /// 关掉的那条本次启动内不再出现, 下次启动重新判断.
 class ContinueWatchingBanner extends StatefulWidget {
-  const ContinueWatchingBanner({super.key});
+  const ContinueWatchingBanner({super.key, this.compact = false});
 
   static const maxAge = Duration(days: 7);
 
@@ -25,6 +25,12 @@ class ContinueWatchingBanner extends StatefulWidget {
 
   /// 封面宽度, 卡片高度跟着封面比例走.
   static const coverWidth = 96.0;
+
+  /// 与站务通知并排时的高度, 两边取一样高才齐平.
+  static const compactHeight = 64.0;
+
+  /// 是否按横屏的一行横幅来排, 此时不再自带外边距.
+  final bool compact;
 
   /// 本次启动内用户关掉过的视频.
   static final _dismissed = <String>{};
@@ -100,15 +106,20 @@ class _ContinueWatchingBannerState extends State<ContinueWatchingBanner> {
   }
 
   Widget _build(List<HistoryItem> items) {
-    const height = ContinueWatchingBanner.coverWidth / Style.coverAspectRatio;
+    final compact = widget.compact;
+    final height = compact
+        ? ContinueWatchingBanner.compactHeight
+        : ContinueWatchingBanner.coverWidth / Style.coverAspectRatio;
     if (items.length == 1) {
       return Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+        padding: compact
+            ? EdgeInsets.zero
+            : const EdgeInsets.fromLTRB(12, 8, 12, 0),
         child: SizedBox(height: height, child: _card(items.first, 0, 1)),
       );
     }
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
+      padding: compact ? EdgeInsets.zero : const EdgeInsets.only(top: 8),
       child: SizedBox(
         height: height,
         child: PageView.builder(

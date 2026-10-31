@@ -20,13 +20,20 @@ void _openNotice(SiteNotice notice) {
 /// 点卡片打开文章, 关掉后本次运行内不再显示.
 /// 卡片挂在顶栏的 bottom 里, 顶栏需要固定高度, 因此高度固定为 [height],
 /// 是否占位由 [visible] 决定, 设置页关掉公告顶幅后不再占位.
+/// 横屏矮屏时并用 [compact], 缩成一行横幅的一格, 由外层决定左右留白.
 class SiteNoticeBar extends StatefulWidget {
-  const SiteNoticeBar({super.key});
+  const SiteNoticeBar({super.key, this.compact = false});
 
   static const interval = Duration(seconds: 5);
 
   /// 含上下留白的总高度.
   static const height = 72.0;
+
+  /// 横向并排显示时的高度, 此时上下留白由外层负责.
+  static const compactHeight = 64.0;
+
+  /// 是否按横屏的一行横幅来排, 此时不再自带外边距.
+  final bool compact;
 
   /// 是否显示通知卡片, 在 Obx 里调用才会跟着变化.
   static bool get visible =>
@@ -155,10 +162,13 @@ class _SiteNoticeBarState extends State<SiteNoticeBar> {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final single = notices.length < 2;
+    final compact = widget.compact;
     return SizedBox(
-      height: SiteNoticeBar.height,
+      height: compact ? SiteNoticeBar.compactHeight : SiteNoticeBar.height,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+        padding: compact
+            ? EdgeInsets.zero
+            : const EdgeInsets.fromLTRB(12, 4, 12, 4),
         child: Material(
           color: scheme.surfaceContainerHigh,
           borderRadius: BorderRadius.circular(10),

@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 
 /// 横屏与平板适配用的断点与容器.
 ///
-/// 断点选择对齐 Material 3 的窗口尺寸分级, 但只关心宽度:
-/// 手机竖屏按单栏排布, 手机横屏与平板按宽度增加内容密度.
-/// 高度不参与判断, 免得软键盘弹出时布局来回跳.
+/// 断点主要看宽度: 手机竖屏按单栏排布, 手机横屏与平板按宽度增加内容密度.
+/// 高度只在横屏矮屏这一种情形参与判断: 这种屏幕上纵向空间比宽度更紧,
+/// 需要把顶上的横排标签竖到一边. 竖屏不看高度, 免得软键盘弹出时布局来回跳.
 abstract final class Adaptive {
   /// 手机竖屏的上界, 也是宽屏主框架的起点.
   static const compactWidth = 600.0;
@@ -29,6 +29,11 @@ abstract final class Adaptive {
   /// 竖版卡片网格的最大内容宽度.
   static const gridMaxWidth = 1200.0;
 
+  /// 横屏手机的内容区高度上限, 低于它就算矮屏.
+  ///
+  /// 手机横屏常见 360~430 高, 顶栏与首页横幅放完就只剩一截内容区.
+  static const shortHeight = 480.0;
+
   static double widthOf(BuildContext context) =>
       MediaQuery.sizeOf(context).width;
 
@@ -48,6 +53,20 @@ abstract final class Adaptive {
     return (size.width > size.height && size.width >= splitWidth) ||
         size.width >= expandedWidth;
   }
+
+  /// 首页主标签是否放到左侧竖排.
+  ///
+  /// 只在横屏矮屏这样做: 顶上一条横向标签加上首页横幅后, 内容区被压到
+  /// 一张卡片都放不下, 竖过来能把这几十个 dp 还给内容.
+  static bool useSideTabs(BuildContext context) => sideTabs(sizeOf(context));
+
+  /// [useSideTabs] 的纯函数版本, 便于单独验证.
+  ///
+  /// 宽度不够时主框架还是底部导航, 撑不出侧栏, 因此一并要求宽屏.
+  static bool sideTabs(Size size) =>
+      size.width > size.height &&
+      size.height < shortHeight &&
+      size.width >= compactWidth;
 
   /// 宽屏下内容居中所需的水平留白, 窄屏为 0.
   ///

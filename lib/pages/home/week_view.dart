@@ -119,7 +119,8 @@ class _WeekViewState extends State<WeekView>
 
       return Column(
         children: [
-          const ContinueWatchingBanner(),
+          // 横屏矮屏时继续观看并进首页顶部的一行横幅, 这里不再重复显示.
+          if (!Adaptive.useSideTabs(context)) const ContinueWatchingBanner(),
           _WeekTabBar(
             groups: groups,
             index: index,
@@ -150,6 +151,7 @@ class _WeekViewState extends State<WeekView>
                           followed: followed,
                           times: times,
                           width: constraints.maxWidth,
+                          availableHeight: constraints.maxHeight,
                         ),
                 ),
               ),
@@ -276,6 +278,7 @@ class _WeekGrid extends StatelessWidget {
     required this.followed,
     required this.times,
     required this.width,
+    required this.availableHeight,
   });
 
   final List<VideoModel> items;
@@ -285,6 +288,9 @@ class _WeekGrid extends StatelessWidget {
   /// 网格容器的宽度, 含水平内边距.
   final double width;
 
+  /// 网格容器的高度, 横屏矮屏下据此追加列数.
+  final double availableHeight;
+
   /// 重排动画时长, 与项目里其他隐式动画接近.
   static const duration = Duration(milliseconds: 280);
 
@@ -293,9 +299,14 @@ class _WeekGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final columns = Style.gridColumns(width);
-    final usable = width - Style.horizontalPadding * 2;
-    final itemWidth = (usable - Style.gridSpacing * (columns - 1)) / columns;
+    final columns = Style.gridColumnsForHeight(
+      context,
+      width,
+      availableHeight: Adaptive.useSideTabs(context)
+          ? availableHeight - topPadding - bottomPadding
+          : null,
+    );
+    final itemWidth = Style.cardWidth(width, columns);
     final itemHeight = Style.verticalCardExtent(context, itemWidth);
     final rows = (items.length / columns).ceil();
     final height =
