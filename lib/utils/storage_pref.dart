@@ -21,6 +21,8 @@ abstract final class Pref {
   static const _kHardwareDecode = 'player_hardware_decode';
   static const _kSearchHistoryLimit = 'search_history_limit';
   static const _kShowAdEntry = 'show_ad_entry';
+  static const _kShowHomeNotice = 'show_home_notice';
+  static const _kShowContinueWatching = 'show_continue_watching';
   static const _kPlayerSeekStep = 'player_seek_step';
   static const _kDanmakuTrend = 'danmaku_trend';
   static const _kSkippedUpdateVersion = 'skipped_update_version';
@@ -179,6 +181,18 @@ abstract final class Pref {
       GStorage.setting.get(_kShowAdEntry, defaultValue: true) as bool;
   static set showAdEntry(bool value) =>
       GStorage.setting.put(_kShowAdEntry, value);
+
+  /// 是否在首页主标签栏上方显示站务文章卡片.
+  static bool get showHomeNotice =>
+      GStorage.setting.get(_kShowHomeNotice, defaultValue: true) as bool;
+  static set showHomeNotice(bool value) =>
+      GStorage.setting.put(_kShowHomeNotice, value);
+
+  /// 是否在首页时间表顶部显示继续观看卡片.
+  static bool get showContinueWatching =>
+      GStorage.setting.get(_kShowContinueWatching, defaultValue: true) as bool;
+  static set showContinueWatching(bool value) =>
+      GStorage.setting.put(_kShowContinueWatching, value);
 
   /// 播放器跳转按钮一次前进的秒数.
   ///

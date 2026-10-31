@@ -12,6 +12,7 @@ import 'package:tucao/services/danmaku_trend_service.dart';
 import 'package:tucao/services/download/download_service.dart';
 import 'package:tucao/services/download/download_transport.dart';
 import 'package:tucao/services/history_service.dart';
+import 'package:tucao/services/home_display_service.dart';
 import 'package:tucao/services/favorite_service.dart';
 import 'package:tucao/services/message_count_service.dart';
 import 'package:tucao/services/site_favorite_service.dart';
@@ -42,6 +43,8 @@ Future<void> main() async {
   Get.put(AdService());
   // 高能条开关在设置页和播放页共用, 播放页需要即时响应.
   Get.put(DanmakuTrendService());
+  // 首页公告顶幅与继续观看卡片的开关, 设置页改动后首页即时收起或展开.
+  Get.put(HomeDisplayService());
   Get.put(HistoryService());
   // 评论区的破会员标记, 只在内存里攒, 不做持久化.
   Get.put(VipService());

@@ -4,6 +4,7 @@ import 'package:tucao/common/style.dart';
 import 'package:tucao/common/widgets/video_card.dart';
 import 'package:tucao/pages/video/video_page.dart';
 import 'package:tucao/services/history_service.dart';
+import 'package:tucao/services/home_display_service.dart';
 import 'package:tucao/utils/logger.dart';
 
 /// 首页顶部的继续观看卡片, 取最近几条没看完的记录.
@@ -74,11 +75,16 @@ class _ContinueWatchingBannerState extends State<ContinueWatchingBanner> {
 
   @override
   Widget build(BuildContext context) {
-    if (!Get.isRegistered<HistoryService>()) {
+    if (!Get.isRegistered<HistoryService>() ||
+        !Get.isRegistered<HomeDisplayService>()) {
       return const SizedBox.shrink();
     }
     final history = HistoryService.instance;
+    final display = HomeDisplayService.instance;
     return Obx(() {
+      if (!display.showContinueWatching.value) {
+        return const SizedBox.shrink();
+      }
       final items = ContinueWatchingBanner.pickAll(
         history.list,
         DateTime.now(),

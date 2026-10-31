@@ -14,6 +14,7 @@ import 'package:tucao/services/ad_service.dart';
 import 'package:tucao/services/block_service.dart';
 import 'package:tucao/services/danmaku_trend_service.dart';
 import 'package:tucao/services/history_service.dart';
+import 'package:tucao/services/home_display_service.dart';
 import 'package:tucao/services/pip_service.dart';
 import 'package:tucao/services/theme_service.dart';
 import 'package:tucao/utils/logger.dart';
@@ -238,6 +239,32 @@ class _SettingPageState extends State<SettingPage> {
             onChanged: _setSeedColor,
           ),
 
+          const _SectionTitle('首页'),
+          Obx(
+            () => SwitchListTile(
+              title: const Text('显示公告顶幅'),
+              subtitle: const Text('主标签栏上方轮播站务文章'),
+              value: HomeDisplayService.instance.showNotice.value,
+              onChanged: HomeDisplayService.instance.setShowNotice,
+            ),
+          ),
+          Obx(
+            () => SwitchListTile(
+              title: const Text('显示继续观看卡片'),
+              subtitle: const Text('时间表顶部列出最近看过的视频'),
+              value: HomeDisplayService.instance.showContinueWatching.value,
+              onChanged: HomeDisplayService.instance.setShowContinueWatching,
+            ),
+          ),
+          Obx(
+            () => SwitchListTile(
+              title: const Text('显示广告入口'),
+              subtitle: const Text('关闭后首页标题栏不再显示广告按钮'),
+              value: AdService.instance.enabled.value,
+              onChanged: (value) => AdService.instance.setEnabled(value),
+            ),
+          ),
+
           const _SectionTitle('播放器'),
           ListTile(
             title: const Text('默认倍速'),
@@ -366,14 +393,6 @@ class _SettingPageState extends State<SettingPage> {
           ),
 
           const _SectionTitle('其他'),
-          Obx(
-            () => SwitchListTile(
-              title: const Text('显示广告入口'),
-              subtitle: const Text('关闭后首页标题栏不再显示广告按钮'),
-              value: AdService.instance.enabled.value,
-              onChanged: (value) => AdService.instance.setEnabled(value),
-            ),
-          ),
           const SiteHostTile(),
           ListTile(
             title: const Text('搜索历史条数上限'),

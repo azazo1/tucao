@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/http/site_notice_http.dart';
 import 'package:tucao/router/routes.dart';
+import 'package:tucao/services/home_display_service.dart';
 import 'package:tucao/services/site_notice_service.dart';
 import 'package:tucao/utils/logger.dart';
 
@@ -18,7 +19,7 @@ void _openNotice(SiteNotice notice) {
 /// 每 [interval] 自动切到下一篇, 也可以左右滑动切换, 手指拖动期间暂停自动切换.
 /// 点卡片打开文章, 关掉后本次运行内不再显示.
 /// 卡片挂在顶栏的 bottom 里, 顶栏需要固定高度, 因此高度固定为 [height],
-/// 是否占位由 [visible] 决定.
+/// 是否占位由 [visible] 决定, 设置页关掉公告顶幅后不再占位.
 class SiteNoticeBar extends StatefulWidget {
   const SiteNoticeBar({super.key});
 
@@ -30,6 +31,8 @@ class SiteNoticeBar extends StatefulWidget {
   /// 是否显示通知卡片, 在 Obx 里调用才会跟着变化.
   static bool get visible =>
       Get.isRegistered<SiteNoticeService>() &&
+      Get.isRegistered<HomeDisplayService>() &&
+      HomeDisplayService.instance.showNotice.value &&
       SiteNoticeService.instance.visible;
 
   @override
@@ -141,7 +144,7 @@ class _SiteNoticeBarState extends State<SiteNoticeBar> {
     }
     final service = SiteNoticeService.instance;
     return Obx(() {
-      if (!service.visible) {
+      if (!SiteNoticeBar.visible) {
         return const SizedBox.shrink();
       }
       return _build(service, service.notices.toList());
