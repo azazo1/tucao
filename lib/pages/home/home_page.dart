@@ -119,7 +119,6 @@ class _HomePageState extends State<HomePage>
                 ? const AdEntryButton()
                 : const SizedBox.shrink(),
           ),
-          const SiteNoticeBell(),
           PopupMenuButton<String>(
             icon: const Icon(Icons.calendar_month_outlined),
             tooltip: '新番',

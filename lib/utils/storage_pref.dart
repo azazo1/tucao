@@ -25,7 +25,6 @@ abstract final class Pref {
   static const _kDanmakuTrend = 'danmaku_trend';
   static const _kSkippedUpdateVersion = 'skipped_update_version';
   static const _kSiteHost = 'site_host';
-  static const _kSeenSiteNotices = 'seen_site_notices';
 
   /// 跳转按钮的秒数下限.
   static const playerSeekStepMin = 80.0;
@@ -215,15 +214,6 @@ abstract final class Pref {
   static String get siteHost =>
       GStorage.setting.get(_kSiteHost, defaultValue: '') as String;
   static set siteHost(String value) => GStorage.setting.put(_kSiteHost, value);
-
-  /// 看过或关掉的首页站务文章编号, 新的在后.
-  static List<String> get seenSiteNotices =>
-      (GStorage.setting.get(_kSeenSiteNotices, defaultValue: const <String>[])
-              as List)
-          .cast<String>()
-          .toList();
-  static set seenSiteNotices(List<String> value) =>
-      GStorage.setting.put(_kSeenSiteNotices, value);
 
   /// 请求使用的站点地址.
   static String get baseUrl => Constants.baseUrl;

@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tucao/common/constants.dart';
 import 'package:tucao/http/site_notice_http.dart';
-import 'package:tucao/services/site_notice_service.dart';
 
 void main() {
   test('轮转区只取站务文章, 去重并补全图片地址', () {
@@ -20,17 +19,5 @@ void main() {
     expect(list[0].summary, '做任务');
     expect(list[1].summary, isEmpty);
     expect(list[1].cover, 'https://img.example/c.jpg');
-  });
-
-  test('已读记录去重, 只留最近的若干条', () {
-    final hids = [
-      for (var i = 0; i < SiteNoticeService.maxSeen + 5; i++) '$i',
-      '3',
-    ];
-    final kept = SiteNoticeService.trimSeen(hids);
-    expect(kept.length, SiteNoticeService.maxSeen);
-    expect(kept.last, '3');
-    expect(kept.where((hid) => hid == '3').length, 1);
-    expect(kept.first, '6');
   });
 }
