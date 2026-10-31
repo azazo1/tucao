@@ -660,6 +660,53 @@ void main() {
     }
   });
 
+  testWidgets('播完倒计时连播下一个可播放分P, 手动操作会取消', (tester) async {
+    const video = VideoModel(
+      hid: '123',
+      title: 'next',
+      parts: [
+        VideoPart(title: 'A', file: 'https://example.invalid/a'),
+        VideoPart(title: 'missing'),
+        VideoPart(title: 'C', file: 'https://example.invalid/c'),
+      ],
+    );
+    final player = _Player();
+    final controller = PlayerPageController(
+      hid: '123',
+      player: player,
+      loadVideo: (_) async => _response(video),
+      loadDanmaku: (_, _, _) async => [],
+    );
+    controller.onInit();
+    try {
+      await tester.pump();
+      expect(player.opens, ['https://example.invalid/a']);
+
+      // 中间的失效源被跳过, 倒计时期间用户点播放就取消.
+      player.onCompleted!();
+      expect(controller.autoNextPart.value, 2);
+      await controller.togglePlay();
+      expect(controller.autoNextPart.value, isNull);
+      await tester.pump(const Duration(seconds: 6));
+      expect(player.opens, ['https://example.invalid/a']);
+
+      // 不打断时倒计时走完自动切过去.
+      player.onCompleted!();
+      await tester.pump(
+        const Duration(seconds: PlayerPageController.autoNextDelay),
+      );
+      await tester.pump();
+      expect(controller.part.value, 2);
+      expect(player.opens.last, 'https://example.invalid/c');
+
+      // 最后一个分P播完没有下一个, 不再倒计时.
+      player.onCompleted!();
+      expect(controller.autoNextPart.value, isNull);
+    } finally {
+      controller.onClose();
+    }
+  });
+
   testWidgets('播放错误事件显示覆盖层并保留浏览器回调, 全屏返回不受影响', (tester) async {
     final player = _Player();
     final controller = PlayerPageController(hid: '123', player: player);

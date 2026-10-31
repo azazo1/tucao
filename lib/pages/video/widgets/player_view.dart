@@ -179,6 +179,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
         if (!casting && _showControls && !inPip) _buildControls(context),
         if (!casting) _buildBuffering(),
         if (!casting) _buildSourceTip(),
+        if (!casting && !inPip) _buildAutoNext(),
         if (casting && !inPip) _buildCastControls(context, cast),
         // 返回按钮放在遥控面板之上, 全屏时也能退出全屏.
         if (widget.fullscreen &&
@@ -271,6 +272,86 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
         );
       }),
     );
+  }
+
+  /// 连播倒计时卡片, 可以取消或立即播放.
+  Widget _buildAutoNext() {
+    return Obx(() {
+      final target = _controller.autoNextPart.value;
+      final seconds = _controller.autoNextSeconds.value;
+      final parts = _controller.parts;
+      if (target == null || target >= parts.length) {
+        return const SizedBox.shrink();
+      }
+      final title = parts[target].title;
+      final label = title.isEmpty ? 'P${target + 1}' : 'P${target + 1} $title';
+      final scheme = Theme.of(context).colorScheme;
+      return Center(
+        child: Container(
+          key: const ValueKey('player-auto-next'),
+          constraints: const BoxConstraints(maxWidth: 320),
+          margin: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$seconds 秒后播放',
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white, fontSize: 15),
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(2),
+                child: TweenAnimationBuilder<double>(
+                  // 每秒换一次目标值, 进度条在一秒内平滑走完这一格.
+                  tween: Tween(
+                    end: 1 - seconds / PlayerPageController.autoNextDelay,
+                  ),
+                  duration: const Duration(seconds: 1),
+                  builder: (context, value, _) => LinearProgressIndicator(
+                    value: value,
+                    minHeight: 3,
+                    backgroundColor: Colors.white24,
+                    color: scheme.primary,
+                  ),
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: _controller.cancelAutoNext,
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white70,
+                    ),
+                    child: const Text('取消'),
+                  ),
+                  TextButton(
+                    onPressed: () => unawaited(_controller.playAutoNextNow()),
+                    style: TextButton.styleFrom(
+                      foregroundColor: scheme.primary,
+                    ),
+                    child: const Text('立即播放'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    });
   }
 
   Widget _buildBuffering() {

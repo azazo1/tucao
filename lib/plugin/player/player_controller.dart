@@ -107,6 +107,17 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
 
   final sending = false.obs;
 
+  /// 连播倒计时的目标分P, 为空表示没有在倒计时.
+  final autoNextPart = RxnInt();
+
+  /// 连播倒计时剩余秒数.
+  final autoNextSeconds = 0.obs;
+
+  /// 播完后等待多久切到下一个分P.
+  static const autoNextDelay = 5;
+
+  Timer? _autoNextTimer;
+
   /// 记录进度的间隔.
   static const _historyInterval = Duration(seconds: 5);
 
@@ -177,7 +188,7 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
       applyDanmakuPreferences,
     );
     // 播放到结尾时记一次完整进度, 下次进入从头开始.
-    player.onCompleted = () => unawaited(recordHistory());
+    player.onCompleted = _onCompleted;
     _historyTimer = Timer.periodic(_historyInterval, (_) => _tickHistory());
     load();
   }
@@ -194,6 +205,8 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     _trendService = null;
     _historyTimer?.cancel();
     _historyTimer = null;
+    _autoNextTimer?.cancel();
+    _autoNextTimer = null;
     // 退出前再记一次, 不等待写入完成.
     unawaited(recordHistory());
     player.removeListener(_onPlayerChanged);
@@ -229,6 +242,63 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
   void _tickHistory() {
     if (player.playing) {
       unawaited(recordHistory());
+    }
+  }
+
+  /// 播放到结尾: 记一次完整进度, 有下一个可播放分P时开始连播倒计时.
+  void _onCompleted() {
+    unawaited(recordHistory());
+    if (_closed || !Pref.playerAutoNext) {
+      return;
+    }
+    final next = nextPlayableIndex(part.value);
+    if (next == null) {
+      return;
+    }
+    Log.i('分P ${part.value + 1} 播完, ${autoNextDelay}s 后连播分P ${next + 1}');
+    _autoNextTimer?.cancel();
+    autoNextPart.value = next;
+    autoNextSeconds.value = autoNextDelay;
+    _autoNextTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_closed) {
+        timer.cancel();
+        return;
+      }
+      final left = autoNextSeconds.value - 1;
+      if (left > 0) {
+        autoNextSeconds.value = left;
+        return;
+      }
+      unawaited(playAutoNextNow());
+    });
+  }
+
+  /// 当前分P之后第一个有播放地址的分P, 第三方失效源直接跳过.
+  int? nextPlayableIndex(int from) {
+    final list = parts;
+    for (var index = from + 1; index < list.length; index++) {
+      if (!list[index].isThirdParty) {
+        return index;
+      }
+    }
+    return null;
+  }
+
+  /// 立刻切到倒计时的目标分P.
+  Future<void> playAutoNextNow() async {
+    final target = autoNextPart.value;
+    cancelAutoNext();
+    if (target != null) {
+      await switchPart(target);
+    }
+  }
+
+  /// 取消连播倒计时, 用户手动操作播放时调用.
+  void cancelAutoNext() {
+    _autoNextTimer?.cancel();
+    _autoNextTimer = null;
+    if (!_closed && autoNextPart.value != null) {
+      autoNextPart.value = null;
     }
   }
 
@@ -275,6 +345,7 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     if (_closed) {
       return;
     }
+    cancelAutoNext();
     final resumeAt = player.position;
     final wasPlaying = player.playing;
     // 先把进度写进历史, 重新加载时会按它续播.
@@ -318,6 +389,7 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     if (_closed || index < 0 || index >= partCount || index == part.value) {
       return;
     }
+    cancelAutoNext();
     final request = _requests.begin();
     // 历史写入先捕获旧进度, 新选择立刻生效, 不等待磁盘写入.
     final history = recordHistory();
@@ -500,6 +572,7 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
   }
 
   Future<void> togglePlay() async {
+    cancelAutoNext();
     if (player.completed) {
       // 从头重播, 弹幕游标归零但保留已拉取的弹幕.
       await player.seek(Duration.zero);
@@ -511,6 +584,7 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
   }
 
   Future<void> seek(Duration position) async {
+    cancelAutoNext();
     await player.seek(position);
   }
 
@@ -519,6 +593,7 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
   /// 只是暂停的话, 这条连接会一直挂着; 长时间投屏后服务端多半已经把它断开,
   /// 退出投屏再接着读写就会直接报 tcp 错误. 这里干脆卸掉, 退出时重新打开.
   Future<void> releaseForCast() async {
+    cancelAutoNext();
     await player.stop();
   }
 

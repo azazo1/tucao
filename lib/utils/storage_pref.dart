@@ -15,6 +15,7 @@ abstract final class Pref {
   static const _kPlayerContinueLast = 'player_continue_last';
   static const _kPlayerBackground = 'player_background';
   static const _kPlayerPipAuto = 'player_pip_auto';
+  static const _kPlayerAutoNext = 'player_auto_next';
   static const _kHardwareDecode = 'player_hardware_decode';
   static const _kSearchHistoryLimit = 'search_history_limit';
   static const _kShowAdEntry = 'show_ad_entry';
@@ -142,6 +143,12 @@ abstract final class Pref {
       GStorage.setting.get(_kPlayerPipAuto, defaultValue: true) as bool;
   static set playerPipAuto(bool value) =>
       GStorage.setting.put(_kPlayerPipAuto, value);
+
+  /// 播完一个分P后是否倒计时连播下一个可播放的分P.
+  static bool get playerAutoNext =>
+      GStorage.setting.get(_kPlayerAutoNext, defaultValue: true) as bool;
+  static set playerAutoNext(bool value) =>
+      GStorage.setting.put(_kPlayerAutoNext, value);
 
   static bool get hardwareDecode =>
       GStorage.setting.get(_kHardwareDecode, defaultValue: true) as bool;

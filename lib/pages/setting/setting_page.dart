@@ -45,6 +45,7 @@ class _SettingPageState extends State<SettingPage> {
   late double _seekStep;
   late bool _autoPlay;
   late bool _continueLast;
+  late bool _autoNext;
   late bool _hardwareDecode;
   late bool _background;
   late bool _pipAuto;
@@ -70,6 +71,7 @@ class _SettingPageState extends State<SettingPage> {
     _seekStep = Pref.playerSeekStep;
     _autoPlay = Pref.playerAutoPlay;
     _continueLast = Pref.playerContinueLast;
+    _autoNext = Pref.playerAutoNext;
     _hardwareDecode = Pref.hardwareDecode;
     _background = Pref.playerBackground;
     _pipAuto = Pref.playerPipAuto;
@@ -259,6 +261,15 @@ class _SettingPageState extends State<SettingPage> {
             onChanged: (value) {
               setState(() => _continueLast = value);
               Pref.playerContinueLast = value;
+            },
+          ),
+          SwitchListTile(
+            title: const Text('自动连播'),
+            subtitle: const Text('播完一个分P后倒计时 5 秒播放下一个, 跳过失效源'),
+            value: _autoNext,
+            onChanged: (value) {
+              setState(() => _autoNext = value);
+              Pref.playerAutoNext = value;
             },
           ),
           SwitchListTile(
