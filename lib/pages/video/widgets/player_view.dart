@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:canvas_danmaku/canvas_danmaku.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:tucao/models/danmaku.dart';
@@ -307,6 +308,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
               child: IconButton(
                 key: const ValueKey('player-lock'),
                 onPressed: () {
+                  unawaited(HapticFeedback.mediumImpact());
                   setState(() => _locked = !_locked);
                   _restartHideTimer();
                 },

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:tucao/plugin/player/player_brightness.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
 import 'package:tucao/plugin/player/player_speeds.dart';
@@ -165,6 +166,7 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
       return;
     }
     final step = forward ? _doubleTapStep : -_doubleTapStep;
+    unawaited(HapticFeedback.lightImpact());
     final targetMs = (player.position + step).inMilliseconds.clamp(
       0,
       total.inMilliseconds,
@@ -193,6 +195,8 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
     final player = widget.controller.player;
     _speedBeforeLongPress = player.speed;
     _longPressing = true;
+    // 倍速是看不见的状态变化, 震一下让人知道已经生效.
+    unawaited(HapticFeedback.mediumImpact());
     widget.controller.setSpeed(widget.longPressSpeed);
     setState(() {});
   }
@@ -242,6 +246,10 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
     final ratio = dx / width;
     final targetMs = _startPosition.inMilliseconds + span * ratio;
     final clamped = targetMs.clamp(0, total.inMilliseconds);
+    // 进出取消区时提示一下, 不用盯着角落也知道松手会不会跳转.
+    if (cancelling != _seekCancelling && _seekTarget != null) {
+      unawaited(HapticFeedback.selectionClick());
+    }
     setState(() {
       _seekCancelling = cancelling;
       _seekTarget = Duration(milliseconds: clamped.toInt());
