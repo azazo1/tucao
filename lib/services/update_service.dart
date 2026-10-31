@@ -305,13 +305,12 @@ abstract final class UpdateService {
       }
     }
     unawaited(download.start(version: version, assets: assets, abis: abis));
+    // 只是一句通知, 不提供操作入口, 也不该在屏幕上停留太久;
+    // 取消与进度都在"关于"里的下载面板.
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('已开始下载安装包, 进度在"关于"里查看'),
-        action: SnackBarAction(
-          label: '取消',
-          onPressed: () => unawaited(download.pause()),
-        ),
+      const SnackBar(
+        content: Text('已开始下载安装包, 进度在"关于"里查看'),
+        duration: Duration(seconds: 2),
       ),
     );
   }
