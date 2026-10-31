@@ -79,6 +79,8 @@ class ErrorWidgetView extends StatelessWidget {
 }
 
 /// 视频卡片骨架屏, 用于首屏加载时占位.
+///
+/// 封面占满标题以外的高度, 放进固定高度的网格格子里也不会溢出.
 class VideoCardSkeleton extends StatelessWidget {
   const VideoCardSkeleton({super.key});
 
@@ -88,13 +90,13 @@ class VideoCardSkeleton extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AspectRatio(
-          aspectRatio: 362 / 233,
+        Expanded(
           child: DecoratedBox(
             decoration: BoxDecoration(
               color: base,
               borderRadius: BorderRadius.circular(8),
             ),
+            child: const SizedBox.expand(),
           ),
         ),
         const SizedBox(height: 6),
@@ -102,6 +104,56 @@ class VideoCardSkeleton extends StatelessWidget {
         const SizedBox(height: 5),
         _Bar(color: base, width: 90),
       ],
+    );
+  }
+}
+
+/// 首屏的骨架网格, 整体做一明一暗的呼吸动画, 网格排布与真实卡片一致.
+class VideoGridSkeleton extends StatefulWidget {
+  const VideoGridSkeleton({
+    super.key,
+    required this.gridDelegate,
+    this.padding = EdgeInsets.zero,
+    this.count = 12,
+  });
+
+  final SliverGridDelegate gridDelegate;
+  final EdgeInsetsGeometry padding;
+  final int count;
+
+  @override
+  State<VideoGridSkeleton> createState() => _VideoGridSkeletonState();
+}
+
+class _VideoGridSkeletonState extends State<VideoGridSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat(reverse: true);
+
+  late final Animation<double> _opacity = Tween<double>(
+    begin: 0.45,
+    end: 1,
+  ).animate(CurvedAnimation(parent: _pulse, curve: Curves.easeInOut));
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _opacity,
+      child: GridView.builder(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: widget.padding,
+        gridDelegate: widget.gridDelegate,
+        itemCount: widget.count,
+        itemBuilder: (context, index) => const VideoCardSkeleton(),
+      ),
     );
   }
 }

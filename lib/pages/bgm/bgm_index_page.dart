@@ -196,7 +196,10 @@ class _BgmIndexPageState extends State<BgmIndexPage> {
       final raw = _controller.list;
       final list = raw.withoutBlocked();
       if (_controller.firstLoading.value) {
-        return const LoadingWidget();
+        return VideoGridSkeleton(
+          gridDelegate: Style.videoGrid(context, maxWidth),
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+        );
       }
       final error = _controller.error.value;
       if (error != null && raw.isEmpty) {

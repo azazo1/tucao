@@ -226,10 +226,7 @@ class _ChannelTabViewState extends State<_ChannelTabView>
   }
 
   Widget _buildBody() {
-    return AdaptiveBody(
-      maxWidth: Adaptive.gridMaxWidth,
-      child: _buildGrid(),
-    );
+    return AdaptiveBody(maxWidth: Adaptive.gridMaxWidth, child: _buildGrid());
   }
 
   Widget _buildGrid() {
@@ -239,7 +236,11 @@ class _ChannelTabViewState extends State<_ChannelTabView>
         final items = raw.withoutBlocked();
         final error = _controller.error.value;
         if (_controller.firstLoading.value) {
-          return const LoadingWidget();
+          // 用和真实卡片同样排布的骨架占位, 数据到了不会整屏跳一下.
+          return VideoGridSkeleton(
+            gridDelegate: Style.videoGrid(context, constraints.maxWidth),
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+          );
         }
         if (error != null && raw.isEmpty) {
           return ErrorWidgetView(
