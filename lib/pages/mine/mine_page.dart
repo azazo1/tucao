@@ -190,7 +190,7 @@ class _MinePageState extends State<MinePage> {
             ),
             ListTile(
               leading: const Icon(Icons.settings_outlined),
-              title: const Text('我的设置'),
+              title: const Text('设置'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Get.toNamed(Routes.setting),
             ),
