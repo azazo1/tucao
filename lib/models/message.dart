@@ -1,3 +1,5 @@
+import 'package:tucao/common/rich_html/rich_content.dart';
+
 /// 收件箱里的一条私信.
 ///
 /// 字段与官方客户端的消息模型一致.
@@ -115,35 +117,7 @@ class SystemMessageDetail {
   final String time;
 
   /// 正文分块, 按页面顺序排列, 交给界面用原生组件渲染.
-  final List<SystemContentBlock> blocks;
-}
-
-/// 公告正文里的一块内容.
-sealed class SystemContentBlock {
-  const SystemContentBlock();
-}
-
-/// 一个段落, 段落内的文字与链接按顺序排列.
-class SystemParagraph extends SystemContentBlock {
-  const SystemParagraph(this.parts);
-
-  final List<SystemTextPart> parts;
-}
-
-/// 段落里的一段文字, [url] 非空时是链接.
-class SystemTextPart {
-  const SystemTextPart(this.text, {this.url});
-
-  final String text;
-
-  final String? url;
-}
-
-/// 独立成块的图片, [url] 已经补成绝对地址.
-class SystemImage extends SystemContentBlock {
-  const SystemImage(this.url);
-
-  final String url;
+  final List<RichBlock> blocks;
 }
 
 /// 评论列表里的一条, 对应自己在站点发表的评论.

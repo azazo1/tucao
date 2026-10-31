@@ -65,7 +65,10 @@ String dayStamp(DateTime time) {
 ///
 /// 富文本里的图片地址由别人提交, 站外的地址不该在列表滚动时自动联网,
 /// 否则一条内容就能让本机向任意主机发请求, 界面据此改为等用户点击.
-bool isSiteImage(String url) {
+bool isSiteImage(String url) => isSiteUrl(url);
+
+/// 地址是否属于站点自己, 子域名与去掉 www 的主域名都算, 只认 http(s).
+bool isSiteUrl(String url) {
   final uri = Uri.tryParse(url);
   if (uri == null) {
     return false;

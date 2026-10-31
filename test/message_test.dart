@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tucao/common/constants.dart';
+import 'package:tucao/common/rich_html/rich_content.dart';
 import 'package:tucao/http/message_http.dart';
 import 'package:tucao/models/message.dart';
 import 'package:tucao/utils/site_url.dart';
@@ -151,39 +152,31 @@ void main() {
       expect(detail.time, '2026-06-29 14:25:04');
     });
 
-    test('正文按段落与图片分块', () {
-      expect(detail.blocks, hasLength(4));
-      expect(detail.blocks[0], isA<SystemImage>());
+    test('正文按段落, 图片与空行分块', () {
+      expect(detail.blocks, hasLength(5));
       expect(
-        (detail.blocks[0] as SystemImage).url,
+        (detail.blocks[0] as RichImage).url,
         '${Constants.baseUrl}uploadfile/2026/0620/cover.jpg',
       );
-      final first = detail.blocks[1] as SystemParagraph;
-      expect(first.parts.single.text, '第一段文字');
+      final first = detail.blocks[1] as RichParagraph;
+      expect(first.spans.single.text, '第一段文字');
+      // 站点用 `<p>&nbsp;</p>` 撑出的空行记成空行块, 不是一段空文字.
+      expect(detail.blocks[2], isA<RichSpacer>());
     });
 
     test('段落里的链接单独成段并补成绝对地址', () {
-      final paragraph = detail.blocks[2] as SystemParagraph;
+      final paragraph = detail.blocks[3] as RichParagraph;
       expect(
-        paragraph.parts.map((e) => e.text).toList(),
+        paragraph.spans.map((e) => e.text).toList(),
         ['带着', '外部链接', '的段落'],
       );
-      expect(paragraph.parts[1].url, 'https://store.rg-adguard.net/');
-      expect(paragraph.parts[0].url, isNull);
-    });
-
-    test('只有空白的段落不产生块', () {
-      // 正文里的空行是站点用一行空段落撑出来的, 不该变成空的一段.
-      final texts = detail.blocks
-          .whereType<SystemParagraph>()
-          .expand((block) => block.parts)
-          .map((part) => part.text);
-      expect(texts.every((text) => text.trim().isNotEmpty), isTrue);
+      expect(paragraph.spans[1].style.url, 'https://store.rg-adguard.net/');
+      expect(paragraph.spans[0].style.url, isNull);
     });
 
     test('br 换行保留在段落里', () {
-      final last = detail.blocks[3] as SystemParagraph;
-      expect(last.parts.single.text, '第一行\n第二行');
+      final last = detail.blocks[4] as RichParagraph;
+      expect(last.spans.single.text, '第一行\n第二行');
     });
 
     test('空页面不抛异常', () {

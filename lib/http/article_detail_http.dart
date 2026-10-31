@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:html/dom.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:tucao/common/constants.dart';
+import 'package:tucao/common/rich_html/rich_content.dart';
+import 'package:tucao/common/rich_html/rich_html_parser.dart';
 import 'package:tucao/utils/http_util.dart';
 
 /// 档案详情.
@@ -11,7 +13,7 @@ class ArticleDetail {
     required this.title,
     required this.cover,
     required this.tags,
-    required this.paragraphs,
+    required this.blocks,
     this.category = '',
     this.publishedAt = '',
     this.commentTypeId = 0,
@@ -37,18 +39,8 @@ class ArticleDetail {
   /// 正文里以 # 开头的标签.
   final List<String> tags;
 
-  /// 正文段落, 已按原顺序保留图片与文本.
-  final List<ArticleBlock> paragraphs;
-}
-
-/// 正文中的一段, 可能是文字也可能是图片.
-class ArticleBlock {
-  const ArticleBlock.text(this.text) : image = null;
-
-  const ArticleBlock.image(this.image) : text = null;
-
-  final String? text;
-  final String? image;
+  /// 正文分块, 按页面顺序保留段落, 图片与空行, 段落内带样式与链接.
+  final List<RichBlock> blocks;
 }
 
 /// 档案详情数据源.
@@ -86,51 +78,30 @@ abstract final class ArticleDetailHttp {
     final commentTypeId = _parseCommentTypeId(raw);
 
     final content = _contentContainer(document);
-    final blocks = <ArticleBlock>[];
+    final blocks = <RichBlock>[];
     final tags = <String>[];
     if (content != null) {
-      for (final node in content.nodes) {
-        if (node is Text) {
-          // 直接写在容器里的文字也要保留.
-          final text = node.text.trim();
-          if (text.isNotEmpty) {
-            blocks.add(ArticleBlock.text(text));
-          }
-          continue;
-        }
-        if (node is! Element) {
-          continue;
-        }
-        final tag = node.localName;
-        if (tag == 'img') {
-          _addImage(blocks, node.attributes['src'] ?? '');
-          continue;
-        }
-        // 正文里形如 `#忍空` 的段落是标签, 单独收集.
-        final text = node.text.trim();
-        if (text.isNotEmpty) {
+      // 站点在正文末尾放了一个清除浮动用的空块, 不属于正文.
+      for (final clear in content.querySelectorAll('div.clear')) {
+        clear.remove();
+      }
+      for (final block in parseRichHtml(content)) {
+        // 正文里形如 `#忍空` 的段落是标签, 单独收集. 带链接的段落仍算正文.
+        if (block is RichParagraph &&
+            block.spans.every((span) => span.style.url == null)) {
+          final text = block.text.trim();
           if (RegExp(r'^(#[^\s#]+)+$').hasMatch(text)) {
             tags.addAll(
-              text
-                  .split(RegExp(r'\s+'))
-                  .map((e) => e.replaceFirst('#', ''))
-                  .where((e) => e.isNotEmpty),
+              text.split('#').map((e) => e.trim()).where((e) => e.isNotEmpty),
             );
-          } else {
-            blocks.add(ArticleBlock.text(text));
+            continue;
           }
         }
-        // 图片可能单独成段, 文字为空时也要保留.
-        for (final image in node.querySelectorAll('img')) {
-          _addImage(blocks, image.attributes['src'] ?? '');
-        }
+        blocks.add(block);
       }
-      // 没有块级子节点时退化为整段文字.
-      if (blocks.isEmpty) {
-        final text = content.text.trim();
-        if (text.isNotEmpty) {
-          blocks.add(ArticleBlock.text(text));
-        }
+      // 标签行拿走后, 末尾可能剩下空行.
+      while (blocks.isNotEmpty && blocks.last is RichSpacer) {
+        blocks.removeLast();
       }
     }
 
@@ -142,7 +113,7 @@ abstract final class ArticleDetailHttp {
       publishedAt: header.publishedAt,
       commentTypeId: commentTypeId,
       tags: tags,
-      paragraphs: blocks,
+      blocks: blocks,
     );
   }
 
@@ -194,19 +165,5 @@ abstract final class ArticleDetailHttp {
       category: parts[parts.length - (hasDate ? 2 : 1)],
       publishedAt: hasDate ? parts.last : '',
     );
-  }
-
-  static void _addImage(List<ArticleBlock> blocks, String src) {
-    if (src.isEmpty) {
-      return;
-    }
-    blocks.add(ArticleBlock.image(_absolute(src)));
-  }
-
-  static String _absolute(String url) {
-    if (url.startsWith('http')) {
-      return url;
-    }
-    return '${Constants.baseUrl}${url.replaceFirst(RegExp(r'^/'), '')}';
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tucao/common/rich_html/rich_content.dart';
 import 'package:tucao/http/article_detail_http.dart';
 import 'package:tucao/http/article_http.dart';
 
@@ -65,10 +66,10 @@ void main() {
     });
 
     test('正文有内容', () {
-      expect(detail.paragraphs, isNotEmpty);
-      final texts = detail.paragraphs
-          .where((e) => e.text != null)
-          .map((e) => e.text!)
+      expect(detail.blocks, isNotEmpty);
+      final texts = detail.blocks
+          .whereType<RichParagraph>()
+          .map((e) => e.text)
           .toList();
       expect(texts, isNotEmpty);
       // 正文段落应当有一定长度, 说明取到了正确的容器.
@@ -79,10 +80,8 @@ void main() {
     });
 
     test('图片地址补全为绝对地址', () {
-      for (final block in detail.paragraphs) {
-        if (block.image != null) {
-          expect(block.image, startsWith('http'));
-        }
+      for (final image in detail.blocks.whereType<RichImage>()) {
+        expect(image.url, startsWith('http'));
       }
     });
   });
