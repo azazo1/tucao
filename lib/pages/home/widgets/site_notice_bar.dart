@@ -45,17 +45,56 @@ class _SiteNoticeBarState extends State<SiteNoticeBar> {
   int _page = _startPage;
   bool _dragging = false;
 
+  /// 通知列表变化时预加载封面.
+  Worker? _noticesWorker;
+
+  /// 已经发起预加载的封面地址.
+  final _precached = <String>{};
+
   @override
   void initState() {
     super.initState();
     _restartTimer();
+    if (Get.isRegistered<SiteNoticeService>()) {
+      _noticesWorker = ever<List<SiteNotice>>(
+        SiteNoticeService.instance.notices,
+        (_) => _precacheCovers(),
+      );
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _precacheCovers();
   }
 
   @override
   void dispose() {
+    _noticesWorker?.dispose();
     _timer?.cancel();
     _pageController.dispose();
     super.dispose();
+  }
+
+  /// 提前把所有封面载入图片缓存, 切到下一篇时图片已经解码好, 不会先空白再出现.
+  void _precacheCovers() {
+    if (!mounted || !Get.isRegistered<SiteNoticeService>()) {
+      return;
+    }
+    for (final notice in SiteNoticeService.instance.notices) {
+      final url = notice.cover;
+      if (url.isEmpty || !_precached.add(url)) {
+        continue;
+      }
+      unawaited(
+        precacheImage(
+          CachedNetworkImageProvider(url),
+          context,
+          onError: (error, _) => Log.w('预加载通知封面失败: $url, $error'),
+        ),
+      );
+    }
   }
 
   void _restartTimer() {
@@ -128,6 +167,8 @@ class _SiteNoticeBarState extends State<SiteNoticeBar> {
                   onNotification: _onScroll,
                   child: PageView.builder(
                     controller: _pageController,
+                    // 提前构建相邻页, 滑进来时内容已经就绪.
+                    allowImplicitScrolling: true,
                     physics: single
                         ? const NeverScrollableScrollPhysics()
                         : null,
@@ -145,11 +186,9 @@ class _SiteNoticeBarState extends State<SiteNoticeBar> {
               if (!single)
                 Padding(
                   padding: const EdgeInsets.only(left: 6),
-                  child: Text(
-                    '${_page % notices.length + 1}/${notices.length}',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    ),
+                  child: _PageCounter(
+                    current: _page % notices.length + 1,
+                    total: notices.length,
                   ),
                 ),
               IconButton(
@@ -166,6 +205,37 @@ class _SiteNoticeBarState extends State<SiteNoticeBar> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 通知卡片右侧的页码, 宽度按最宽的写法固定.
+///
+/// 页码文字宽度一变, 左边滑动区域就跟着变宽变窄, 正在进行的切换动画会被打乱,
+/// 动画末尾出现跳动, 所以这里始终按 total/total 的宽度占位.
+class _PageCounter extends StatelessWidget {
+  const _PageCounter({required this.current, required this.total});
+
+  final int current;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final style = theme.textTheme.labelSmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        // 只用来撑开宽度, 不显示.
+        Visibility.maintain(
+          visible: false,
+          child: Text('$total/$total', style: style),
+        ),
+        Text('$current/$total', style: style),
+      ],
     );
   }
 }
@@ -191,6 +261,10 @@ class _NoticeContent extends StatelessWidget {
               : CachedNetworkImage(
                   imageUrl: notice.cover,
                   fit: BoxFit.cover,
+                  // 封面已预先加载, 不做淡入, 免得每次滑到新页时闪一下.
+                  fadeInDuration: Duration.zero,
+                  fadeOutDuration: Duration.zero,
+                  placeholder: (context, url) => placeholder,
                   errorWidget: (context, url, error) => placeholder,
                 ),
         ),
