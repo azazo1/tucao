@@ -122,10 +122,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     // 表单在宽屏下收窄居中, 输入框不横跨整个屏幕.
-    final side = Adaptive.sidePadding(
-      context,
-      maxWidth: Adaptive.formMaxWidth,
-    );
+    final side = Adaptive.sidePadding(context, maxWidth: Adaptive.formMaxWidth);
     return Scaffold(
       appBar: AppBar(title: const Text('找回密码')),
       body: SafeArea(

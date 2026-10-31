@@ -24,10 +24,7 @@ abstract final class Style {
   /// 卡片是封面加下方内容区, 内容区含标题两行, 统计行与作者行,
   /// 因此这里按字号估算, 并跟随系统字体缩放. 常数项是内容区的内边距
   /// 与三行之间的间距.
-  static double verticalCardExtent(
-    BuildContext context,
-    double itemWidth,
-  ) {
+  static double verticalCardExtent(BuildContext context, double itemWidth) {
     final theme = Theme.of(context);
     final scaler = MediaQuery.textScalerOf(context);
     final titleSize = theme.textTheme.bodyMedium?.fontSize ?? 14;
@@ -59,8 +56,8 @@ abstract final class Style {
     if (usable <= 0) {
       return 2;
     }
-    final columns =
-        ((usable + gridSpacing) / (minCardWidth + gridSpacing)).floor();
+    final columns = ((usable + gridSpacing) / (minCardWidth + gridSpacing))
+        .floor();
     return columns.clamp(2, maxGridColumns).toInt();
   }
 
@@ -97,16 +94,12 @@ abstract final class Style {
     );
   }
 
-  static ThemeData light(ColorScheme? dynamicScheme) => _build(
-    dynamicScheme ?? ColorScheme.fromSeed(seedColor: seedColor),
-  );
+  static ThemeData light(ColorScheme? dynamicScheme) =>
+      _build(dynamicScheme ?? ColorScheme.fromSeed(seedColor: seedColor));
 
   static ThemeData dark(ColorScheme? dynamicScheme) => _build(
     dynamicScheme ??
-        ColorScheme.fromSeed(
-          seedColor: seedColor,
-          brightness: Brightness.dark,
-        ),
+        ColorScheme.fromSeed(seedColor: seedColor, brightness: Brightness.dark),
   );
 
   static ThemeData _build(ColorScheme scheme) {

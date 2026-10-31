@@ -327,9 +327,8 @@ class _SpacePageState extends State<SpacePage> {
                     : CachedNetworkImage(
                         imageUrl: info.avatar,
                         fit: BoxFit.cover,
-                        placeholder: (context, url) => ColoredBox(
-                          color: scheme.surfaceContainerHighest,
-                        ),
+                        placeholder: (context, url) =>
+                            ColoredBox(color: scheme.surfaceContainerHighest),
                         errorWidget: (context, url, error) => ColoredBox(
                           color: scheme.surfaceContainerHighest,
                           child: Icon(
@@ -401,9 +400,7 @@ class _SpacePageState extends State<SpacePage> {
   Widget _buildName(BuildContext context, ThemeData theme, SpaceInfo info) {
     final name = Text(
       info.userName,
-      style: theme.textTheme.titleMedium?.copyWith(
-        fontWeight: FontWeight.w600,
-      ),
+      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
     );
     final child = info.isVip
         ? VipGold(particleSeed: info.userId, child: name)

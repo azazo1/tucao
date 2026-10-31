@@ -244,10 +244,7 @@ class _ImageViewerPageState extends State<ImageViewerPage>
               );
             case LoadState.failed:
               return const Center(
-                child: Text(
-                  '图片加载失败',
-                  style: TextStyle(color: Colors.white70),
-                ),
+                child: Text('图片加载失败', style: TextStyle(color: Colors.white70)),
               );
             case LoadState.completed:
               // 返回 null 表示走默认渲染.
