@@ -250,7 +250,8 @@ class _WeekTabBar extends StatelessWidget {
 
 /// 时间表卡片.
 ///
-/// 直接用共享的竖版卡片, 集数状态作为封面角标展示, 右下角显示更新时刻.
+/// 直接用共享的竖版卡片, 集数状态作为封面角标展示, 更新时刻放在底部
+/// 信息行的右端.
 class _WeekCard extends StatelessWidget {
   const _WeekCard({
     required this.video,
@@ -264,15 +265,30 @@ class _WeekCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final time = updateTime;
     return VideoCardVertical(
       video: video,
       badge: video.description.isEmpty ? null : video.description,
       followed: followed,
-      // 时间表的列表接口没有弹幕数, 右下角让给更新时刻.
+      // 时间表的列表接口没有弹幕数, 恒为 0, 封面角标不再显示.
       showDanmakuCount: false,
-      cornerBadge: updateTime == null
+      footerTrailing: time == null
           ? null
-          : CoverBadge(text: updateTime!.label, icon: Icons.schedule),
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.schedule, size: 12, color: scheme.outline),
+                const SizedBox(width: 2),
+                Text(
+                  time.label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }

@@ -216,8 +216,8 @@ class VideoCardVertical extends StatelessWidget {
     this.onLongPress,
     this.badge,
     this.followed = false,
-    this.cornerBadge,
     this.showDanmakuCount = true,
+    this.footerTrailing,
   });
 
   final VideoModel video;
@@ -232,15 +232,15 @@ class VideoCardVertical extends StatelessWidget {
   /// 站点账号已追番, 封面右上角标出.
   final bool followed;
 
-  /// 封面右下角的内容, 传入时替换默认的弹幕数角标.
+  /// 是否显示弹幕数, 封面角标与底部统计行都受它控制.
   ///
-  /// 时间表用它在封面右下角显示更新时刻.
-  final Widget? cornerBadge;
-
-  /// 是否在封面右下角显示弹幕数.
-  ///
-  /// 时间表的列表接口不给弹幕数, 恒为 0, 这类页面关掉, 免得占着角标.
+  /// 时间表的列表接口不给弹幕数, 恒为 0, 这类页面关掉.
   final bool showDanmakuCount;
+
+  /// 底部信息行最右端的内容, 例如时间表的更新时刻.
+  ///
+  /// 放在播放数同一行的右侧, 用 Expanded 把统计行顶在左边.
+  final Widget? footerTrailing;
 
   @override
   Widget build(BuildContext context) {
@@ -273,14 +273,12 @@ class VideoCardVertical extends StatelessWidget {
                 VideoCover(
                   url: video.cover,
                   radius: 0,
-                  overlay:
-                      cornerBadge ??
-                      (showDanmakuCount
-                          ? CoverBadge(
-                              text: Utils.formatCount(video.danmakuCount),
-                              icon: Icons.subtitles_outlined,
-                            )
-                          : null),
+                  overlay: showDanmakuCount
+                      ? CoverBadge(
+                          text: Utils.formatCount(video.danmakuCount),
+                          icon: Icons.subtitles_outlined,
+                        )
+                      : null,
                   heroTag: heroTag,
                 ),
                 if (badge != null && badge!.isNotEmpty)
@@ -329,7 +327,17 @@ class VideoCardVertical extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    _StatRow(video: video),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _StatRow(
+                            video: video,
+                            showDanmaku: showDanmakuCount,
+                          ),
+                        ),
+                        if (footerTrailing != null) footerTrailing!,
+                      ],
+                    ),
                     if (video.userName.isNotEmpty) ...[
                       const SizedBox(height: 3),
                       Row(
@@ -366,9 +374,12 @@ class VideoCardVertical extends StatelessWidget {
 
 /// 卡片的统计行, 播放数与弹幕数.
 class _StatRow extends StatelessWidget {
-  const _StatRow({required this.video});
+  const _StatRow({required this.video, this.showDanmaku = true});
 
   final VideoModel video;
+
+  /// 是否显示弹幕数, 列表接口不给弹幕数时关掉.
+  final bool showDanmaku;
 
   @override
   Widget build(BuildContext context) {
@@ -379,10 +390,12 @@ class _StatRow extends StatelessWidget {
         Icon(Icons.play_circle_outline, size: 12, color: scheme.outline),
         const SizedBox(width: 2),
         Text(Utils.formatCount(video.playCount), style: style),
-        const SizedBox(width: 8),
-        Icon(Icons.subtitles_outlined, size: 12, color: scheme.outline),
-        const SizedBox(width: 2),
-        Text(Utils.formatCount(video.danmakuCount), style: style),
+        if (showDanmaku) ...[
+          const SizedBox(width: 8),
+          Icon(Icons.subtitles_outlined, size: 12, color: scheme.outline),
+          const SizedBox(width: 2),
+          Text(Utils.formatCount(video.danmakuCount), style: style),
+        ],
       ],
     );
   }
