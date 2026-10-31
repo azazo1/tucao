@@ -436,7 +436,6 @@ class _SettingPageState extends State<SettingPage> {
           ),
           ListTile(
             title: const Text('下载并发连接数'),
-            subtitle: const Text('1 为单连接; 镜像按单连接限速时, 分段并发能明显提速'),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
