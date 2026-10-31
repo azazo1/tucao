@@ -73,11 +73,25 @@ void main() {
         'style="width: 50%;">后</p>',
       );
       expect(blocks, hasLength(3));
-      final image = blocks[1] as RichImage;
-      expect(image.url, '${Constants.baseUrl}a.jpg');
-      expect(image.widthFactor, 0.5);
-      expect(image.align, TextAlign.center);
+      final row = blocks[1] as RichImageRow;
+      expect(row.images.single.url, '${Constants.baseUrl}a.jpg');
+      expect(row.images.single.widthFactor, 0.5);
+      expect(row.align, TextAlign.center);
       expect((blocks[2] as RichParagraph).align, TextAlign.center);
+    });
+
+    test('同一段落里相邻的图片排成一行, 文字与换行把它们隔开', () {
+      // 结构取自档案 d7320: 五张 20% 宽的截图各自包在链接里, 并排贴在一段.
+      const link = '<a href="/s.jpg"><img src="/s.jpg" style="width: 20%;"></a>';
+      final blocks = _parse(
+        '<p><span>${List.filled(5, link).join(' ')}</span></p>'
+        '<p><img src="/a.jpg"><br><img src="/b.jpg">文字<img src="/c.jpg"></p>',
+      );
+      final rows = blocks.whereType<RichImageRow>().toList();
+      expect(rows.first.images, hasLength(5));
+      expect(rows.first.images.every((e) => e.widthFactor == 0.2), isTrue);
+      expect(rows.skip(1).map((e) => e.images.length), [1, 1, 1]);
+      expect(blocks.whereType<RichParagraph>().single.text, '文字');
     });
 
     test('em 字号相对父元素换算', () {

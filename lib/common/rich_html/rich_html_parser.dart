@@ -69,6 +69,12 @@ class _RichHtmlParser {
   /// 当前段落的对齐方式, 由外层块级元素决定.
   TextAlign? _align;
 
+  /// 正在收集的一行图片, 遇到文字, 换行或段落结束时落成 [RichImageRow].
+  final _row = <RichImage>[];
+
+  /// 这一行图片所在段落的对齐方式.
+  TextAlign? _rowAlign;
+
   List<RichBlock> parse(Node root) {
     _walkChildren(root, RichStyle.plain);
     _flush();
@@ -198,6 +204,12 @@ class _RichHtmlParser {
     if (text.isEmpty) {
       return;
     }
+    // 图片后面出现文字或换行, 这一行图片到此为止. 图片之间只有空白时,
+    // 空白在浏览器里只是图片间的一点空隙, 直接丢掉.
+    if (_row.isNotEmpty && (text.trim().isNotEmpty || text.contains('\n'))) {
+      _pending.clear();
+      _closeRow();
+    }
     // 相邻同样式的文字合成一段, 减少渲染时的 span 数量.
     if (_pending.isNotEmpty && _pending.last.style == style) {
       final last = _pending.removeLast();
@@ -215,8 +227,23 @@ class _RichHtmlParser {
     return text.endsWith(' ') || text.endsWith('\n');
   }
 
-  /// 把缓冲的文字落成一个段落, 只有空白的段落直接丢弃.
+  /// 落下正在收集的一行图片.
+  void _closeRow() {
+    if (_row.isEmpty) {
+      return;
+    }
+    _out.add(
+      RichImageRow(List<RichImage>.unmodifiable(_row), align: _rowAlign),
+    );
+    _row.clear();
+  }
+
+  /// 把缓冲的图片与文字落成块, 只有空白的段落直接丢弃.
+  ///
+  /// 收集中的图片一定排在缓冲文字前面: 图片后面出现文字时这一行已经落下,
+  /// 剩下的只会是图片之间的空白.
   void _flush() {
+    _closeRow();
     if (_pending.isEmpty) {
       return;
     }
@@ -259,7 +286,7 @@ class _RichHtmlParser {
     return spans;
   }
 
-  /// 图片独立成块, 前后的文字分属两个段落.
+  /// 图片前后的文字分属两个段落, 中间没有文字的相邻图片排在同一行.
   ///
   /// 包在链接里的图片也按图片处理, 点开进入图片查看, 不跟随链接.
   void _addImage(Element image) {
@@ -270,7 +297,13 @@ class _RichHtmlParser {
     if (src.isEmpty || src.startsWith('data:')) {
       return;
     }
-    _flush();
+    if (_row.isEmpty) {
+      _flush();
+      _rowAlign = _align;
+    } else {
+      // 能走到这里说明两张图片之间只有空白, 见 [_writeRaw].
+      _pending.clear();
+    }
     final css = _CssDeclarations.parse(image.attributes['style'] ?? '');
     final width = css.width ?? image.attributes['width']?.trim() ?? '';
     final percent = RegExp(r'^([\d.]+)\s*%$').firstMatch(width);
@@ -278,12 +311,11 @@ class _RichHtmlParser {
     final factor = percent == null
         ? null
         : (double.tryParse(percent.group(1)!) ?? 100) / 100;
-    _out.add(
+    _row.add(
       RichImage(
         _absoluteUrl(src),
         widthFactor: factor?.clamp(0.05, 1.0),
         maxWidth: pixels == null ? null : double.tryParse(pixels.group(1)!),
-        align: _align,
       ),
     );
   }

@@ -155,7 +155,7 @@ void main() {
     test('正文按段落, 图片与空行分块', () {
       expect(detail.blocks, hasLength(5));
       expect(
-        (detail.blocks[0] as RichImage).url,
+        (detail.blocks[0] as RichImageRow).images.single.url,
         '${Constants.baseUrl}uploadfile/2026/0620/cover.jpg',
       );
       final first = detail.blocks[1] as RichParagraph;

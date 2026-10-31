@@ -21,9 +21,22 @@ class RichParagraph extends RichBlock {
   String get text => spans.map((span) => span.text).join();
 }
 
-/// 独立成块的图片.
-class RichImage extends RichBlock {
-  const RichImage(this.url, {this.widthFactor, this.maxWidth, this.align});
+/// 一行图片, 同一段落里中间没有文字的相邻图片归为一行.
+///
+/// 图片在网页里是行内元素, 站点常把几张 `width: 20%` 的截图并排贴在一个
+/// 段落里, 浏览器会把它们排成一行, 放不下时才换行. 界面按同样的规则排列.
+class RichImageRow extends RichBlock {
+  const RichImageRow(this.images, {this.align});
+
+  final List<RichImage> images;
+
+  /// 图片所在段落的对齐方式.
+  final TextAlign? align;
+}
+
+/// 正文里的一张图片.
+class RichImage {
+  const RichImage(this.url, {this.widthFactor, this.maxWidth});
 
   /// 已经补成绝对地址.
   final String url;
@@ -33,9 +46,6 @@ class RichImage extends RichBlock {
 
   /// 站点按像素写的宽度, 界面里作为上限, 不超过内容宽度.
   final double? maxWidth;
-
-  /// 图片所在段落的对齐方式.
-  final TextAlign? align;
 }
 
 /// 站点用 `<p>&nbsp;</p>` 撑出来的空行.

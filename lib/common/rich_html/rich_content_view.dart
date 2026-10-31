@@ -41,10 +41,10 @@ class RichContentView extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 3),
               child: _RichParagraphText(paragraph: paragraph),
             ),
-            final RichImage image => Padding(
+            final RichImageRow row => Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),
-              child: _RichImageView(
-                image: image,
+              child: _RichImageRowView(
+                row: row,
                 title: imageTitle,
                 prefix: imagePrefix,
               ),
@@ -181,7 +181,67 @@ class _RichParagraphTextState extends State<_RichParagraphText> {
   }
 }
 
-/// 正文里的图片.
+/// 一行图片, 按网页的行内排版排列.
+///
+/// 每张图的宽度按站点写的百分比或像素换算, 没写时占满整行; 一行放不下时
+/// 换到下一行, 与浏览器一致. 五张 `width: 20%` 的截图因此并排成一行.
+class _RichImageRowView extends StatelessWidget {
+  const _RichImageRowView({required this.row, this.title, this.prefix});
+
+  final RichImageRow row;
+  final String? title;
+  final String? prefix;
+
+  /// 并排图片之间的空隙.
+  static const _gap = 4.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final full = constraints.maxWidth;
+        return Wrap(
+          spacing: _gap,
+          runSpacing: _gap,
+          alignment: switch (row.align) {
+            TextAlign.center => WrapAlignment.center,
+            TextAlign.right || TextAlign.end => WrapAlignment.end,
+            _ => WrapAlignment.start,
+          },
+          children: [
+            for (final image in row.images)
+              SizedBox(
+                key: ValueKey(image.url),
+                width: _imageWidth(image, full),
+                child: _RichImageView(
+                  image: image,
+                  title: title,
+                  prefix: prefix,
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// 图片在界面里的宽度.
+  ///
+  /// 百分比宽度扣掉一点空隙, 合计正好 100% 的几张图仍能排进一行.
+  static double _imageWidth(RichImage image, double full) {
+    final factor = image.widthFactor;
+    if (factor != null) {
+      return factor >= 1 ? full : (full * factor - _gap).clamp(1.0, full);
+    }
+    final maxWidth = image.maxWidth;
+    if (maxWidth != null) {
+      return maxWidth.clamp(1.0, full);
+    }
+    return full;
+  }
+}
+
+/// 正文里的图片, 宽度由外层的图片行决定.
 ///
 /// 站外图片不自动联网, 与评论里的图片同一套规则, 免得正文里塞的外部地址
 /// 一打开页面就让本机发请求.
@@ -212,34 +272,7 @@ class _RichImageViewState extends State<_RichImageView> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final image = widget.image;
-    return Align(
-      alignment: switch (image.align) {
-        TextAlign.center => Alignment.center,
-        TextAlign.right || TextAlign.end => Alignment.centerRight,
-        _ => Alignment.centerLeft,
-      },
-      child: _sized(
-        image,
-        _allowed ? _buildImage(context, scheme) : _buildBlocked(scheme),
-      ),
-    );
-  }
-
-  /// 按站点写的宽度约束图片, 没写时铺满内容宽度.
-  Widget _sized(RichImage image, Widget child) {
-    final factor = image.widthFactor;
-    if (factor != null) {
-      return FractionallySizedBox(widthFactor: factor, child: child);
-    }
-    final maxWidth = image.maxWidth;
-    if (maxWidth != null) {
-      return ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
-        child: child,
-      );
-    }
-    return child;
+    return _allowed ? _buildImage(context, scheme) : _buildBlocked(scheme);
   }
 
   Widget _buildBlocked(ColorScheme scheme) {
@@ -253,8 +286,13 @@ class _RichImageViewState extends State<_RichImageView> {
           color: scheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(8),
         ),
+        padding: const EdgeInsets.all(6),
+        // 并排的小图只有几十像素宽, 文字限制行数, 不撑破占位框.
         child: Text(
           '站外图片, 点击加载',
+          textAlign: TextAlign.center,
+          maxLines: 4,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(color: scheme.onSurfaceVariant),
         ),
       ),

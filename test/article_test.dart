@@ -80,7 +80,10 @@ void main() {
     });
 
     test('图片地址补全为绝对地址', () {
-      for (final image in detail.blocks.whereType<RichImage>()) {
+      final images = detail.blocks
+          .whereType<RichImageRow>()
+          .expand((row) => row.images);
+      for (final image in images) {
         expect(image.url, startsWith('http'));
       }
     });
