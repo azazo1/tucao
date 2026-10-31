@@ -15,6 +15,11 @@ class WeekUpdateTime {
   /// 当天的分钟数, 排序用.
   int get minutesOfDay => hour * 60 + minute;
 
+  /// 当天的这个时刻是否已经到过.
+  ///
+  /// 只对当天的分组有意义: 别的日子没有 "现在" 可比, 调用方自行限制.
+  bool hasReached(DateTime now) => now.hour * 60 + now.minute >= minutesOfDay;
+
   /// 显示用的时刻, 形如 `01:50`.
   String get label =>
       '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
