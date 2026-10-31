@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:tucao/utils/toast.dart';
 import 'package:tucao/pages/reply/reply_page.dart';
 import 'package:tucao/pages/favorite/widgets/favorite_button.dart';
+import 'package:tucao/pages/video/widgets/danmaku_style_picker.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
 import 'package:tucao/utils/utils.dart';
 
@@ -94,7 +95,14 @@ class _VideoActionBarState extends State<VideoActionBar> {
               },
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 4),
+          IconButton(
+            onPressed: () =>
+                showDanmakuStyleSheet(context, PlayerPageController.sendStyle),
+            icon: Icon(Icons.palette_outlined, size: 20, color: scheme.primary),
+            visualDensity: VisualDensity.compact,
+            tooltip: '弹幕样式',
+          ),
           Obx(
             () => IconButton.filled(
               onPressed: widget.controller.sending.value ? null : _send,

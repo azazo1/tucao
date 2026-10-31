@@ -9,6 +9,7 @@ import 'package:tucao/models/api_response.dart';
 import 'package:tucao/models/danmaku.dart';
 import 'package:tucao/models/danmaku_filter.dart';
 import 'package:tucao/models/danmaku_preferences.dart';
+import 'package:tucao/models/danmaku_send_style.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/models/video_subject.dart';
 import 'package:tucao/plugin/player/danmaku_trend.dart';
@@ -108,6 +109,9 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
   Worker? _trendWorker;
 
   final sending = false.obs;
+
+  /// 发送弹幕的位置与颜色, 竖屏和全屏输入框共用, 只在本次运行内记住.
+  static final sendStyle = Rx<DanmakuSendStyle>(const DanmakuSendStyle());
 
   /// 连播倒计时的目标分P, 为空表示没有在倒计时.
   final autoNextPart = RxnInt();
@@ -719,6 +723,7 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     }
     final request = _requests.current;
     final time = player.position.inMilliseconds / 1000;
+    final style = sendStyle.value;
     sending.value = true;
     try {
       final raw = await DanmakuHttp.send(
@@ -727,22 +732,27 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
         part: part.value,
         text: content,
         time: time,
+        mode: style.mode.code,
+        color: style.color,
       );
       final result = _parseSendResult(raw);
       if (result != null || !_requests.isCurrent(request)) {
         return result;
       }
-      // 站点不返回弹幕内容, 本地先按默认样式显示一条, 带边框作为发送成功的反馈.
+      // 站点不返回弹幕内容, 本地按发送样式显示一条, 带边框作为发送成功的反馈.
       final item = DanmakuModel(
         time: time,
-        mode: 1,
+        mode: style.mode.code,
         fontSize: 25,
-        color: 0xFFFFFF,
+        color: style.color,
         timestamp: DateUtil.nowSeconds(),
         text: content,
       );
       _danmakuController?.addDanmaku(_toContentItem(item, selfSend: true));
-      Log.i('弹幕发送成功: $content');
+      Log.i(
+        '弹幕发送成功: $content, ${style.mode.label}, '
+        '颜色 #${style.color.toRadixString(16).padLeft(6, '0')}',
+      );
       return null;
     } catch (e, stackTrace) {
       Log.e('弹幕发送失败', error: e, stackTrace: stackTrace);

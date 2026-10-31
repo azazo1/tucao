@@ -368,7 +368,11 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
   Future<void> _openDanmakuInput() async {
     _hideTimer?.cancel();
     try {
-      await showDanmakuInputSheet(context, onSend: _controller.sendDanmaku);
+      await showDanmakuInputSheet(
+        context,
+        onSend: _controller.sendDanmaku,
+        style: PlayerPageController.sendStyle,
+      );
     } finally {
       if (mounted) {
         _restartHideTimer();
