@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tucao/pages/video/widgets/player_gesture.dart';
+import 'package:tucao/plugin/player/player_brightness.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
 import 'package:tucao/plugin/player/tucao_player.dart';
 
@@ -21,6 +22,19 @@ class _Player implements TucaoPlayer {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _Brightness implements PlayerBrightness {
+  final values = <double>[];
+
+  @override
+  Future<double?> current() async => 0.4;
+
+  @override
+  Future<void> set(double value) async => values.add(value);
+
+  @override
+  Future<void> reset() async {}
 }
 
 class _Controller implements PlayerPageController {
@@ -55,6 +69,7 @@ Future<Offset> _mount(
   _Controller controller, {
   VoidCallback? onToggleControls,
   SeekPreviewCallback? onSeekPreview,
+  PlayerBrightness? brightness,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -70,6 +85,7 @@ Future<Offset> _mount(
                 controller: controller,
                 onToggleControls: onToggleControls ?? () {},
                 onSeekPreview: onSeekPreview,
+                brightness: brightness,
               ),
             ),
           ],
@@ -129,6 +145,21 @@ void main() {
     ]);
     expect(controller.toggles, 0);
     await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('右半侧竖滑从当前亮度起调节亮度, 不改音量', (tester) async {
+    final controller = _Controller();
+    final brightness = _Brightness();
+    final origin = await _mount(tester, controller, brightness: brightness);
+    await tester.pump();
+    await tester.dragFrom(
+      origin + const Offset(300, 200),
+      const Offset(0, -80),
+    );
+    await tester.pump();
+    expect(brightness.values.last, closeTo(0.4 + 80 / 240, 0.01));
+    expect(controller.volumes, isEmpty);
+    await tester.pump(const Duration(milliseconds: 400));
   });
 
   testWidgets('取消区移回正常区域恢复 seek, pointer cancel 清理下一次拖动', (tester) async {

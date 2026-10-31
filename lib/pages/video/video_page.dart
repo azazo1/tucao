@@ -13,6 +13,7 @@ import 'package:tucao/pages/video/widgets/video_action.dart';
 import 'package:tucao/pages/video/widgets/video_info.dart';
 import 'package:tucao/pages/video/widgets/video_link_menu.dart';
 import 'package:tucao/pages/video/widgets/download_sheet.dart';
+import 'package:tucao/plugin/player/player_brightness.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
 import 'package:tucao/router/routes.dart';
 import 'package:tucao/services/cast/proxy.dart';
@@ -417,6 +418,7 @@ class _VideoPageState extends State<VideoPage>
       onEnterPip: _pipSupported ? _enterPip : null,
       onToggleFullscreen: _fullscreen ? _exitFullscreen : _enterFullscreen,
       onOpenWebsite: _openWebsite,
+      brightness: const ScreenPlayerBrightness(),
     );
   }
 

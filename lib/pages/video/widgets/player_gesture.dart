@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:tucao/plugin/player/player_brightness.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
 import 'package:tucao/plugin/player/player_speeds.dart';
 
@@ -19,7 +20,7 @@ typedef SeekPreviewCallback =
 /// 参照常见播放器的交互:
 /// - 横向拖动调整进度, 拖动中通过 [onSeekPreview] 上报预览位置, 松手生效,
 ///   拖动到顶部左右角可取消.
-/// - 竖向拖动调整音量, 只作用于屏幕左半侧.
+/// - 左半侧竖向拖动调整音量, 右半侧调整画面亮度.
 /// - 长按临时切换到 [PlayerGestureDetector.longPressSpeed], 松手恢复原速.
 /// - 单击切换控制条. 双击左右两侧快退快进 10 秒, 双击中间播放暂停.
 ///
@@ -31,9 +32,13 @@ class PlayerGestureDetector extends StatefulWidget {
     required this.onToggleControls,
     this.onSeekPreview,
     this.longPressSpeed = PlayerSpeeds.defaultLongPress,
+    this.brightness,
   });
 
   final PlayerPageController controller;
+
+  /// 右半侧竖滑调节的画面亮度, 为空时右半侧不响应竖滑.
+  final PlayerBrightness? brightness;
 
   /// 长按切到的倍速, 由设置决定.
   final double longPressSpeed;
@@ -77,6 +82,28 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
 
   /// 手势开始时的音量, 用作累加基准.
   double _startVolume = 100;
+
+  /// 最近一次读到或设置的亮度, 作为下一次竖滑的起点.
+  double _brightness = 0.5;
+
+  /// 手势开始时的亮度.
+  double _startBrightness = 0.5;
+
+  double? _brightnessTarget;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_syncBrightness());
+  }
+
+  /// 进入播放页时读一次当前亮度, 第一次竖滑就从真实亮度开始变化.
+  Future<void> _syncBrightness() async {
+    final value = await widget.brightness?.current();
+    if (value != null && mounted) {
+      _brightness = value;
+    }
+  }
 
   /// 是否处于长按加速中, 用来在结束时恢复.
   bool _longPressing = false;
@@ -188,6 +215,7 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
     _volumeTarget = null;
     _startPosition = widget.controller.player.position;
     _startVolume = widget.controller.player.volume;
+    _startBrightness = _brightness;
   }
 
   void _onHorizontalDragUpdate(DragUpdateDetails details) {
@@ -233,16 +261,26 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
 
   void _onVerticalDragUpdate(DragUpdateDetails details) {
     final dy = details.globalPosition.dy - _startY;
-    if (dy.abs() < _volumeThreshold && _volumeTarget == null) {
+    if (dy.abs() < _volumeThreshold &&
+        _volumeTarget == null &&
+        _brightnessTarget == null) {
       return;
     }
     final width = context.size?.width ?? 1;
-    // 竖向手势只作用于屏幕左半侧, 右半侧留给亮度等后续扩展.
-    if (_startLocalX > width / 2) {
-      return;
-    }
     final height = context.size?.height ?? 1;
     final ratio = -dy / (height * _volumeScreenRatio);
+    if (_startLocalX > width / 2) {
+      final brightness = widget.brightness;
+      if (brightness == null) {
+        return;
+      }
+      // 亮度跟手实时生效, 松手不再额外提交.
+      final value = (_startBrightness + ratio).clamp(0.0, 1.0);
+      _brightness = value;
+      unawaited(brightness.set(value));
+      setState(() => _brightnessTarget = value);
+      return;
+    }
     final value = (_startVolume + ratio * 100).clamp(0.0, 100.0);
     setState(() => _volumeTarget = value);
   }
@@ -263,6 +301,7 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
       _seekCancelling = false;
       _seekTarget = null;
       _volumeTarget = null;
+      _brightnessTarget = null;
       _startX = 0;
       _startY = 0;
       _startLocalX = 0;
@@ -313,6 +352,9 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
     }
     if (_volumeTarget != null) {
       return '音量 ${_volumeTarget!.round()}%';
+    }
+    if (_brightnessTarget != null) {
+      return '亮度 ${(_brightnessTarget! * 100).round()}%';
     }
     if (_longPressing) {
       return '${PlayerSpeeds.label(widget.longPressSpeed)} 播放中';

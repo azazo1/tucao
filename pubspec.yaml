@@ -37,6 +37,8 @@ dependencies:
   package_info_plus: ^10.2.2
   path: ^1.9.1
   path_provider: ^2.1.6
+  # 播放页右半侧竖滑调节画面亮度, 只改本应用窗口, 离开播放页恢复系统亮度.
+  screen_brightness: ^2.1.11
   url_launcher: ^6.3.3
   wakelock_plus: ^1.8.1
   webview_flutter: ^4.4.0

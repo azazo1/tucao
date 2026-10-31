@@ -12,6 +12,7 @@ import 'package:tucao/pages/video/widgets/part_picker_sheet.dart';
 import 'package:tucao/pages/video/widgets/player_gesture.dart';
 import 'package:tucao/pages/video/widgets/player_top_bar.dart';
 import 'package:tucao/utils/danmaku_preferences_store.dart';
+import 'package:tucao/plugin/player/player_brightness.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
 import 'package:tucao/plugin/player/player_speeds.dart';
 import 'package:tucao/services/cast/session.dart';
@@ -34,9 +35,13 @@ class VideoPlayerView extends StatefulWidget {
     this.onEnterPip,
     this.cast,
     this.onExitCast,
+    this.brightness,
   });
 
   final PlayerPageController controller;
+
+  /// 右半侧竖滑调节的画面亮度, 播放器销毁时交还系统亮度.
+  final PlayerBrightness? brightness;
 
   /// 是否处于全屏, 布局由外层决定.
   final bool fullscreen;
@@ -104,6 +109,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
   @override
   void dispose() {
     _hideTimer?.cancel();
+    unawaited(widget.brightness?.reset());
     super.dispose();
   }
 
@@ -183,6 +189,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
               onToggleControls: _toggleControls,
               onSeekPreview: _onSeekPreview,
               longPressSpeed: Pref.playerLongPressSpeed,
+              brightness: widget.brightness,
             ),
           ),
         // 锁定后手势只用来唤出锁按钮, 不响应拖动与双击.
