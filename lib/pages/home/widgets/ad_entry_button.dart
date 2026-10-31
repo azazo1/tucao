@@ -73,9 +73,9 @@ class _AdEntryButtonState extends State<AdEntryButton>
     final shift = progress * 360;
     return [
       for (final color in _colors)
-        HSVColor.fromColor(color)
-            .withHue((HSVColor.fromColor(color).hue + shift) % 360)
-            .toColor(),
+        HSVColor.fromColor(
+          color,
+        ).withHue((HSVColor.fromColor(color).hue + shift) % 360).toColor(),
     ];
   }
 
@@ -166,10 +166,7 @@ class _Dust {
     // 半径比 24px 图标略大一点, 不向外散开.
     final distance = 13 + random.nextDouble() * 4;
     return _Dust(
-      start: Offset(
-        math.cos(angle) * distance,
-        math.sin(angle) * distance,
-      ),
+      start: Offset(math.cos(angle) * distance, math.sin(angle) * distance),
       velocity: Offset(
         (random.nextDouble() - 0.5) * 3,
         (random.nextDouble() - 0.5) * 3,
@@ -207,6 +204,5 @@ class _DustPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DustPainter oldDelegate) =>
-      oldDelegate.progress != progress ||
-      oldDelegate.particles != particles;
+      oldDelegate.progress != progress || oldDelegate.particles != particles;
 }
