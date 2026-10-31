@@ -20,7 +20,25 @@ void main() {
       _item('half', 50, now.subtract(const Duration(days: 1))),
       _item('old', 50, now.subtract(const Duration(days: 8))),
     ];
-    expect(ContinueWatchingBanner.pick(history, now)?.video.hid, 'half');
-    expect(ContinueWatchingBanner.pick(history.sublist(3), now), isNull);
+    expect(
+      ContinueWatchingBanner.pickAll(history, now).map((e) => e.video.hid),
+      ['half'],
+    );
+    expect(ContinueWatchingBanner.pickAll(history.sublist(3), now), isEmpty);
+  });
+
+  test('继续观看多条时同一视频只留最新一条, 且不超过上限', () {
+    final now = DateTime(2026, 10, 31, 20);
+    final history = [
+      _item('a', 30, now),
+      _item('a', 60, now.subtract(const Duration(hours: 1))),
+      for (var i = 0; i < ContinueWatchingBanner.maxItems + 2; i++)
+        _item('v$i', 40, now.subtract(Duration(hours: 2 + i))),
+    ];
+    final picked = ContinueWatchingBanner.pickAll(history, now);
+    expect(picked.length, ContinueWatchingBanner.maxItems);
+    expect(picked.first.video.hid, 'a');
+    expect(picked.first.progress, 30);
+    expect(picked.where((e) => e.video.hid == 'a').length, 1);
   });
 }
