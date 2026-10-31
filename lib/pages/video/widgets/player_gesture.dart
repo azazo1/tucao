@@ -143,8 +143,8 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       dragStartBehavior: DragStartBehavior.down,
-      // 不用 onDoubleTap: 注册双击后单击要等双击超时 (约 300ms) 才触发,
-      // 控制条显隐会明显慢半拍. 这里单击抬手就响应, 双击自己判断.
+      // 不用 onDoubleTap: 注册双击后手势竞技场会让双击与拖动, 长按互相等待.
+      // 这里单击与双击自己判断, 单击等双击窗口结束才切换控制条.
       onTapUp: _onTapUp,
       onLongPressStart: _onLongPressStart,
       onLongPressEnd: _onLongPressEnd,
@@ -161,7 +161,8 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
     );
   }
 
-  /// 单击立刻切换控制条; 窗口内在附近再点一次时撤回这次切换, 按双击处理.
+  /// 单击等双击窗口 [kDoubleTapTimeout] 结束才切换控制条;
+  /// 窗口内在附近再点一次按双击处理, 不切换控制条.
   void _onTapUp(TapUpDetails details) {
     final at = details.localPosition;
     final last = _lastTapAt;
@@ -169,13 +170,20 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
     _tapWindow?.cancel();
     if (pending && last != null && (at - last).distance <= kDoubleTapSlop) {
       _lastTapAt = null;
-      widget.onToggleControls();
       _onDoubleTap(at.dx);
       return;
     }
+    // 上一下点在别处, 不组成双击, 先把它当单击补上.
+    if (pending) {
+      widget.onToggleControls();
+    }
     _lastTapAt = at;
-    _tapWindow = Timer(kDoubleTapTimeout, () => _lastTapAt = null);
-    widget.onToggleControls();
+    _tapWindow = Timer(kDoubleTapTimeout, () {
+      _lastTapAt = null;
+      if (mounted) {
+        widget.onToggleControls();
+      }
+    });
   }
 
   /// 双击位置: 开启快退快进时左右两侧各占 [_doubleTapSide] 宽度用来跳转,
