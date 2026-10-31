@@ -75,6 +75,10 @@ class _Controller implements PlayerPageController {
   final sourceError = RxnString();
   @override
   final part = 0.obs;
+  @override
+  final autoNextPart = RxnInt();
+  @override
+  final autoNextSeconds = 0.obs;
   // 控制条上的选集按钮要读分P列表, 这里让它没有分P可选.
   @override
   final video = Rxn<VideoModel>();

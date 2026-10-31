@@ -88,6 +88,10 @@ class _Controller implements PlayerPageController {
   @override
   final part = 0.obs;
   @override
+  final autoNextPart = RxnInt();
+  @override
+  final autoNextSeconds = 0.obs;
+  @override
   final video = Rxn<VideoModel>();
   @override
   String get hid => '1';
