@@ -5,10 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:tucao/models/danmaku.dart';
+import 'package:tucao/pages/video/widgets/danmaku_input_sheet.dart';
 import 'package:tucao/pages/video/widgets/danmaku_settings_sheet.dart';
 import 'package:tucao/pages/video/widgets/danmaku_trend_bar.dart';
 import 'package:tucao/pages/video/widgets/part_picker_sheet.dart';
 import 'package:tucao/pages/video/widgets/player_gesture.dart';
+import 'package:tucao/pages/video/widgets/player_top_bar.dart';
 import 'package:tucao/utils/danmaku_preferences_store.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
 import 'package:tucao/services/cast/session.dart';
@@ -182,12 +184,57 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
         if (!casting && !inPip) _buildAutoNext(),
         if (casting && !inPip) _buildCastControls(context, cast),
         // 返回按钮放在遥控面板之上, 全屏时也能退出全屏.
-        if (widget.fullscreen &&
-            !inPip &&
-            (casting || _showControls))
-          _buildFullscreenBack(),
+        if (widget.fullscreen && !inPip && casting) _buildFullscreenBack(),
+        if (widget.fullscreen && !inPip && !casting && _showControls)
+          _buildTopBar(),
       ],
     );
+  }
+
+  /// 全屏顶栏: 标题, 当前分P, 时间与发弹幕入口.
+  Widget _buildTopBar() {
+    return Positioned(
+      left: 0,
+      right: 0,
+      top: 0,
+      child: GestureDetector(
+        onTap: _keepControls,
+        child: Obx(() {
+          final video = _controller.video.value;
+          final parts = _controller.parts;
+          final index = _controller.part.value;
+          String? subtitle;
+          if (parts.length > 1 && index < parts.length) {
+            final name = parts[index].title;
+            subtitle = name.isEmpty ? 'P${index + 1}' : 'P${index + 1} $name';
+          }
+          return PlayerTopBar(
+            title: video?.title ?? '',
+            subtitle: subtitle,
+            onBack: widget.onToggleFullscreen,
+            actions: [
+              _iconButton(
+                Icons.chat_bubble_outline,
+                _openDanmakuInput,
+                tooltip: '发弹幕',
+              ),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+
+  /// 全屏发弹幕, 输入期间控制条不自动隐藏, 视频照常播放.
+  Future<void> _openDanmakuInput() async {
+    _hideTimer?.cancel();
+    try {
+      await showDanmakuInputSheet(context, onSend: _controller.sendDanmaku);
+    } finally {
+      if (mounted) {
+        _restartHideTimer();
+      }
+    }
   }
 
   /// 全屏返回按钮随控制条一起显隐, 点击画面可重新显示.
@@ -751,12 +798,18 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
     }
   }
 
-  Widget _iconButton(IconData icon, VoidCallback onTap, {double size = 20}) {
+  Widget _iconButton(
+    IconData icon,
+    VoidCallback onTap, {
+    double size = 20,
+    String? tooltip,
+  }) {
     return IconButton(
       onPressed: () {
         _keepControls();
         onTap();
       },
+      tooltip: tooltip,
       icon: Icon(icon, color: Colors.white, size: size),
       padding: const EdgeInsets.symmetric(horizontal: 6),
       constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
