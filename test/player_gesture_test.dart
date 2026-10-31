@@ -70,6 +70,7 @@ Future<Offset> _mount(
   VoidCallback? onToggleControls,
   SeekPreviewCallback? onSeekPreview,
   PlayerBrightness? brightness,
+  bool doubleTapSeek = false,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -86,6 +87,7 @@ Future<Offset> _mount(
                 onToggleControls: onToggleControls ?? () {},
                 onSeekPreview: onSeekPreview,
                 brightness: brightness,
+                doubleTapSeek: doubleTapSeek,
               ),
             ),
           ],
@@ -128,7 +130,7 @@ void main() {
 
   testWidgets('双击左右两侧快退快进 10 秒, 结果夹在片头片尾之间, 不切换播放', (tester) async {
     final controller = _Controller(duration: const Duration(seconds: 35));
-    final origin = await _mount(tester, controller);
+    final origin = await _mount(tester, controller, doubleTapSeek: true);
     Future<void> doubleTap(Offset at) async {
       await tester.tapAt(origin + at);
       await tester.pump(const Duration(milliseconds: 50));
@@ -147,13 +149,26 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   });
 
-  testWidgets('右半侧竖滑从当前亮度起调节亮度, 不改音量', (tester) async {
+  testWidgets('关闭双击快退快进时双击两侧只播放暂停', (tester) async {
+    final controller = _Controller();
+    final origin = await _mount(tester, controller);
+    for (final at in [const Offset(380, 130), const Offset(20, 130)]) {
+      await tester.tapAt(origin + at);
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tapAt(origin + at);
+      await tester.pump(const Duration(milliseconds: 350));
+    }
+    expect(controller.seeks, isEmpty);
+    expect(controller.toggles, 2);
+  });
+
+  testWidgets('左半侧竖滑从当前亮度起调节亮度, 不改音量', (tester) async {
     final controller = _Controller();
     final brightness = _Brightness();
     final origin = await _mount(tester, controller, brightness: brightness);
     await tester.pump();
     await tester.dragFrom(
-      origin + const Offset(300, 200),
+      origin + const Offset(100, 200),
       const Offset(0, -80),
     );
     await tester.pump();
@@ -299,12 +314,13 @@ void main() {
     expect(controls, 1);
     expect(controller.seeks, isEmpty);
 
-    await tester.dragFrom(origin + const Offset(20, 20), const Offset(0, 80));
+    await tester.dragFrom(origin + const Offset(380, 20), const Offset(0, 80));
     await tester.pump();
     expect(controller.volumes, hasLength(1));
     expect(controller.volumes.single, closeTo(50 - 80 / 240 * 100, 0.01));
+    // 没有亮度时左半侧竖滑不响应.
     await tester.dragFrom(
-      origin + const Offset(300, 130),
+      origin + const Offset(100, 130),
       const Offset(0, -80),
     );
     await tester.pump();

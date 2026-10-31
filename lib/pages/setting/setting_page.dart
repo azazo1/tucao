@@ -48,6 +48,7 @@ class _SettingPageState extends State<SettingPage> {
   late bool _continueLast;
   late bool _autoNext;
   late double _longPressSpeed;
+  late bool _doubleTapSeek;
   late bool _hardwareDecode;
   late bool _background;
   late bool _pipAuto;
@@ -78,6 +79,7 @@ class _SettingPageState extends State<SettingPage> {
     _longPressSpeed = PlayerSpeeds.longPressOptions.contains(longPress)
         ? longPress
         : PlayerSpeeds.defaultLongPress;
+    _doubleTapSeek = Pref.playerDoubleTapSeek;
     _hardwareDecode = Pref.hardwareDecode;
     _background = Pref.playerBackground;
     _pipAuto = Pref.playerPipAuto;
@@ -274,6 +276,15 @@ class _SettingPageState extends State<SettingPage> {
                 Pref.playerLongPressSpeed = value;
               },
             ),
+          ),
+          SwitchListTile(
+            title: const Text('双击两侧快退快进'),
+            subtitle: const Text('关闭时双击画面任意位置都是播放暂停'),
+            value: _doubleTapSeek,
+            onChanged: (value) {
+              setState(() => _doubleTapSeek = value);
+              Pref.playerDoubleTapSeek = value;
+            },
           ),
           _SeekStepTile(
             value: _seekStep,

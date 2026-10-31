@@ -17,6 +17,7 @@ abstract final class Pref {
   static const _kPlayerPipAuto = 'player_pip_auto';
   static const _kPlayerAutoNext = 'player_auto_next';
   static const _kPlayerLongPressSpeed = 'player_long_press_speed';
+  static const _kPlayerDoubleTapSeek = 'player_double_tap_seek';
   static const _kHardwareDecode = 'player_hardware_decode';
   static const _kSearchHistoryLimit = 'search_history_limit';
   static const _kShowAdEntry = 'show_ad_entry';
@@ -121,6 +122,12 @@ abstract final class Pref {
       GStorage.setting.get(_kPlayerLongPressSpeed, defaultValue: 3.0) as double;
   static set playerLongPressSpeed(double value) =>
       GStorage.setting.put(_kPlayerLongPressSpeed, value);
+
+  /// 双击画面左右两侧是否快退快进, 默认关闭, 关闭时双击只播放暂停.
+  static bool get playerDoubleTapSeek =>
+      GStorage.setting.get(_kPlayerDoubleTapSeek, defaultValue: false) as bool;
+  static set playerDoubleTapSeek(bool value) =>
+      GStorage.setting.put(_kPlayerDoubleTapSeek, value);
 
   /// 播放音量, 0-100, 跨视频沿用.
   static double get playerVolume =>

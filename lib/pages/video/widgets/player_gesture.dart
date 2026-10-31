@@ -21,9 +21,10 @@ typedef SeekPreviewCallback =
 /// 参照常见播放器的交互:
 /// - 横向拖动调整进度, 拖动中通过 [onSeekPreview] 上报预览位置, 松手生效,
 ///   拖动到顶部左右角可取消.
-/// - 左半侧竖向拖动调整音量, 右半侧调整画面亮度.
+/// - 左半侧竖向拖动调整画面亮度, 右半侧调整音量.
 /// - 长按临时切换到 [PlayerGestureDetector.longPressSpeed], 松手恢复原速.
-/// - 单击切换控制条. 双击左右两侧快退快进 10 秒, 双击中间播放暂停.
+/// - 单击切换控制条. 双击播放暂停; 开启 [PlayerGestureDetector.doubleTapSeek]
+///   后, 双击左右两侧改为快退快进 10 秒, 只有中间仍是播放暂停.
 ///
 /// 手势层本身不绘制画面, 只在自己上面覆盖提示信息.
 class PlayerGestureDetector extends StatefulWidget {
@@ -33,13 +34,17 @@ class PlayerGestureDetector extends StatefulWidget {
     required this.onToggleControls,
     this.onSeekPreview,
     this.longPressSpeed = PlayerSpeeds.defaultLongPress,
+    this.doubleTapSeek = false,
     this.brightness,
   });
 
   final PlayerPageController controller;
 
-  /// 右半侧竖滑调节的画面亮度, 为空时右半侧不响应竖滑.
+  /// 左半侧竖滑调节的画面亮度, 为空时左半侧不响应竖滑.
   final PlayerBrightness? brightness;
+
+  /// 双击左右两侧是否快退快进, 由设置决定, 关闭时整个画面双击都是播放暂停.
+  final bool doubleTapSeek;
 
   /// 长按切到的倍速, 由设置决定.
   final double longPressSpeed;
@@ -152,15 +157,17 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
     );
   }
 
-  /// 双击位置: 左右两侧各占 [_doubleTapSide] 宽度用来快退快进, 中间播放暂停.
+  /// 双击位置: 开启快退快进时左右两侧各占 [_doubleTapSide] 宽度用来跳转,
+  /// 其余位置以及关闭时都是播放暂停.
   void _onDoubleTap() {
     final width = context.size?.width ?? 1;
     final x = _doubleTapX;
     _doubleTapX = null;
     final player = widget.controller.player;
     final total = player.duration;
-    final forward = x != null && x >= width * (1 - _doubleTapSide);
-    final backward = x != null && x <= width * _doubleTapSide;
+    final seekable = widget.doubleTapSeek && x != null;
+    final forward = seekable && x >= width * (1 - _doubleTapSide);
+    final backward = seekable && x <= width * _doubleTapSide;
     if ((!forward && !backward) || total <= Duration.zero) {
       widget.controller.togglePlay();
       return;
@@ -277,7 +284,7 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
     final width = context.size?.width ?? 1;
     final height = context.size?.height ?? 1;
     final ratio = -dy / (height * _volumeScreenRatio);
-    if (_startLocalX > width / 2) {
+    if (_startLocalX < width / 2) {
       final brightness = widget.brightness;
       if (brightness == null) {
         return;

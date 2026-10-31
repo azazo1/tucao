@@ -266,6 +266,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
               onToggleControls: _toggleControls,
               onSeekPreview: _onSeekPreview,
               longPressSpeed: Pref.playerLongPressSpeed,
+              doubleTapSeek: Pref.playerDoubleTapSeek,
               brightness: widget.brightness,
             ),
           ),
