@@ -18,6 +18,7 @@ import 'package:tucao/pages/home/week_view.dart';
 import 'package:tucao/router/routes.dart';
 import 'package:tucao/services/ad_service.dart';
 import 'package:tucao/services/block_service.dart';
+import 'package:tucao/services/site_notice_service.dart';
 import 'package:tucao/services/update_service.dart';
 
 /// 首页.
@@ -60,8 +61,41 @@ class _HomePageState extends State<HomePage>
     super.dispose();
   }
 
+  /// 顶栏下半部分: 有没看过的站务文章时, 通知卡片在主标签栏上方.
+  ///
+  /// 顶栏的 bottom 要求固定高度, 卡片收起时整段高度跟着变,
+  /// 所以由 [build] 里的 Obx 在可见性变化时重建.
+  PreferredSizeWidget _buildBottom({required bool showNotice}) {
+    final tabBar = TabBar(
+      controller: _tabController,
+      isScrollable: true,
+      tabAlignment: TabAlignment.start,
+      tabs: [
+        const Tab(text: '时间表'),
+        for (final channel in ChannelData.list) Tab(text: channel.name),
+        const Tab(text: '档案'),
+      ],
+    );
+    if (!showNotice) {
+      return tabBar;
+    }
+    return PreferredSize(
+      preferredSize: Size.fromHeight(
+        SiteNoticeBar.height + tabBar.preferredSize.height,
+      ),
+      child: Column(children: [const SiteNoticeBar(), tabBar]),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (!Get.isRegistered<SiteNoticeService>()) {
+      return _buildScaffold(showNotice: false);
+    }
+    return Obx(() => _buildScaffold(showNotice: SiteNoticeBar.visible));
+  }
+
+  Widget _buildScaffold({required bool showNotice}) {
     return Scaffold(
       appBar: AppBar(
         title: const Row(
@@ -108,16 +142,7 @@ class _HomePageState extends State<HomePage>
             onPressed: () => Get.toNamed(Routes.search),
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          tabAlignment: TabAlignment.start,
-          tabs: [
-            const Tab(text: '时间表'),
-            for (final channel in ChannelData.list) Tab(text: channel.name),
-            const Tab(text: '档案'),
-          ],
-        ),
+        bottom: _buildBottom(showNotice: showNotice),
       ),
       body: TabBarView(
         controller: _tabController,

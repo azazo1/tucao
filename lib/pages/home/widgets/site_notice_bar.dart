@@ -14,13 +14,23 @@ void _openNotice(SiteNotice notice) {
   Get.toNamed(Routes.article, parameters: {'hid': notice.hid});
 }
 
-/// 时间表上方的单行通知条, 轮换没看过的站务文章.
+/// 首页主标签栏上方的通知卡片, 带封面缩略图, 轮换没看过的站务文章.
 ///
-/// 点标题打开文章, 关掉后当前文章都算看过, 有新文章才会再出现.
+/// 点卡片打开文章, 关掉后当前文章都算看过, 有新文章才会再出现.
+/// 卡片挂在顶栏的 bottom 里, 顶栏需要固定高度, 因此高度固定为 [height],
+/// 是否占位由 [visible] 决定.
 class SiteNoticeBar extends StatefulWidget {
   const SiteNoticeBar({super.key});
 
   static const interval = Duration(seconds: 5);
+
+  /// 含上下留白的总高度.
+  static const height = 72.0;
+
+  /// 是否有没看过的文章需要显示, 在 Obx 里调用才会跟着变化.
+  static bool get visible =>
+      Get.isRegistered<SiteNoticeService>() &&
+      SiteNoticeService.instance.unread.isNotEmpty;
 
   @override
   State<SiteNoticeBar> createState() => _SiteNoticeBarState();
@@ -59,13 +69,10 @@ class _SiteNoticeBarState extends State<SiteNoticeBar> {
     final service = SiteNoticeService.instance;
     return Obx(() {
       final unread = service.unread;
-      return AnimatedSize(
-        duration: const Duration(milliseconds: 200),
-        alignment: Alignment.topCenter,
-        child: unread.isEmpty
-            ? const SizedBox(width: double.infinity)
-            : _build(unread, _index % unread.length),
-      );
+      if (unread.isEmpty) {
+        return const SizedBox.shrink();
+      }
+      return _build(unread, _index % unread.length);
     });
   }
 
@@ -74,57 +81,126 @@ class _SiteNoticeBarState extends State<SiteNoticeBar> {
     final scheme = theme.colorScheme;
     final notice = unread[index];
     final reduced = MediaQuery.disableAnimationsOf(context);
-    final textStyle = theme.textTheme.bodySmall?.copyWith(
-      color: scheme.onSurface,
-    );
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 6, 4, 0),
-      child: SizedBox(
-        height: 36,
-        child: Row(
-          children: [
-            Icon(Icons.campaign_outlined, size: 18, color: scheme.primary),
-            const SizedBox(width: 8),
-            Expanded(
-              child: InkWell(
-                onTap: () => _openNotice(notice),
-                borderRadius: BorderRadius.circular(6),
-                child: AnimatedSwitcher(
-                  duration: reduced
-                      ? Duration.zero
-                      : const Duration(milliseconds: 300),
-                  layoutBuilder: (current, previous) => Stack(
-                    alignment: Alignment.centerLeft,
-                    children: [...previous, ?current],
-                  ),
-                  child: Text(
-                    notice.title,
-                    key: ValueKey(notice.hid),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: textStyle,
+    return SizedBox(
+      height: SiteNoticeBar.height,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+        child: Material(
+          color: scheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(10),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => _openNotice(notice),
+            child: Row(
+              children: [
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: reduced
+                        ? Duration.zero
+                        : const Duration(milliseconds: 300),
+                    child: _NoticeContent(
+                      key: ValueKey(notice.hid),
+                      notice: notice,
+                    ),
                   ),
                 ),
-              ),
-            ),
-            if (unread.length > 1)
-              Padding(
-                padding: const EdgeInsets.only(left: 6),
-                child: Text(
-                  '${index + 1}/${unread.length}',
-                  style: theme.textTheme.labelSmall?.copyWith(
+                if (unread.length > 1)
+                  Text(
+                    '${index + 1}/${unread.length}',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                IconButton(
+                  onPressed: _dismiss,
+                  tooltip: '关闭通知',
+                  visualDensity: VisualDensity.compact,
+                  icon: Icon(
+                    Icons.close,
+                    size: 16,
                     color: scheme.onSurfaceVariant,
                   ),
                 ),
-              ),
-            IconButton(
-              onPressed: _dismiss,
-              tooltip: '关闭通知',
-              visualDensity: VisualDensity.compact,
-              icon: Icon(Icons.close, size: 16, color: scheme.onSurfaceVariant),
+              ],
             ),
-          ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+/// 通知卡片里轮换的那一块: 竖版封面缩略图, 标题与一行摘要.
+class _NoticeContent extends StatelessWidget {
+  const _NoticeContent({super.key, required this.notice});
+
+  final SiteNotice notice;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Row(
+      children: [
+        _NoticeCover(url: notice.cover, width: 46, radius: 0),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                notice.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (notice.summary.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  notice.summary,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 站务文章的竖版封面, 没图或加载失败时显示底色.
+class _NoticeCover extends StatelessWidget {
+  const _NoticeCover({required this.url, required this.width, this.radius = 6});
+
+  final String url;
+  final double width;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    final placeholder = ColoredBox(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+    );
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: SizedBox(
+        width: width,
+        height: double.infinity,
+        child: url.isEmpty
+            ? placeholder
+            : CachedNetworkImage(
+                imageUrl: url,
+                fit: BoxFit.cover,
+                errorWidget: (context, url, error) => placeholder,
+              ),
       ),
     );
   }
@@ -218,20 +294,9 @@ class _NoticeTile extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: SizedBox(
-                width: 56,
-                height: 72,
-                child: notice.cover.isEmpty
-                    ? ColoredBox(color: scheme.surfaceContainerHighest)
-                    : CachedNetworkImage(
-                        imageUrl: notice.cover,
-                        fit: BoxFit.cover,
-                        errorWidget: (context, url, error) =>
-                            ColoredBox(color: scheme.surfaceContainerHighest),
-                      ),
-              ),
+            SizedBox(
+              height: 72,
+              child: _NoticeCover(url: notice.cover, width: 56),
             ),
             const SizedBox(width: 12),
             Expanded(

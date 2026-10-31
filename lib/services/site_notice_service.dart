@@ -7,7 +7,7 @@ import 'package:tucao/utils/storage_pref.dart';
 
 /// 首页站务文章与已读状态.
 ///
-/// 时间表上方的通知条只轮换没看过的文章, 关掉通知条或点开铃铛就算看过,
+/// 首页主标签栏上方的通知卡片只轮换没看过的文章, 关掉卡片或点开铃铛就算看过,
 /// 站点发了新文章才会再出现. 已读编号写进配置, 只保留最近 [maxSeen] 条,
 /// 轮转区一般只有几篇, 早已下架的编号不必一直留着.
 class SiteNoticeService extends GetxController {

@@ -11,7 +11,6 @@ import 'package:tucao/models/site_favorite.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/pages/home/week_controller.dart';
 import 'package:tucao/pages/home/widgets/continue_watching_banner.dart';
-import 'package:tucao/pages/home/widgets/site_notice_bar.dart';
 import 'package:tucao/services/account_service.dart';
 import 'package:tucao/services/block_service.dart';
 import 'package:tucao/services/site_favorite_service.dart';
@@ -90,7 +89,6 @@ class _WeekViewState extends State<WeekView>
       return Column(
         children: [
           const ContinueWatchingBanner(),
-          const SiteNoticeBar(),
           _WeekTabBar(
             groups: groups,
             index: index,
