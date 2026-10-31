@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/common/style.dart';
+import 'package:tucao/common/widgets/cover_hero.dart';
 import 'package:tucao/services/history_service.dart';
 import 'package:tucao/common/widgets/video_block_sheet.dart';
 import 'package:tucao/pages/video/video_page.dart';
@@ -92,7 +93,11 @@ class VideoCover extends StatelessWidget {
     this.overlay,
     this.bottom,
     this.fit = BoxFit.cover,
+    this.heroTag,
   });
+
+  /// 点进播放页时封面飞过去用的 tag, 只包住图片, 角标不跟着飞.
+  final String? heroTag;
 
   final String url;
   final double aspectRatio;
@@ -119,17 +124,20 @@ class VideoCover extends StatelessWidget {
             if (url.isEmpty)
               ColoredBox(color: scheme.surfaceContainerHighest)
             else
-              CachedNetworkImage(
-                imageUrl: url,
-                fit: fit,
-                fadeInDuration: const Duration(milliseconds: 150),
-                placeholder: (context, url) =>
-                    ColoredBox(color: scheme.surfaceContainerHighest),
-                errorWidget: (context, url, error) => ColoredBox(
-                  color: scheme.surfaceContainerHighest,
-                  child: Icon(
-                    Icons.broken_image_outlined,
-                    color: scheme.onSurfaceVariant,
+              CoverHero.wrap(
+                tag: heroTag,
+                child: CachedNetworkImage(
+                  imageUrl: url,
+                  fit: fit,
+                  fadeInDuration: const Duration(milliseconds: 150),
+                  placeholder: (context, url) =>
+                      ColoredBox(color: scheme.surfaceContainerHighest),
+                  errorWidget: (context, url, error) => ColoredBox(
+                    color: scheme.surfaceContainerHighest,
+                    child: Icon(
+                      Icons.broken_image_outlined,
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
               ),
@@ -242,6 +250,17 @@ class VideoCardVertical extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return HeroLaunch(
+      hid: video.hid,
+      builder: (context, heroTag, launch) => _build(context, heroTag, launch),
+    );
+  }
+
+  Widget _build(
+    BuildContext context,
+    String? heroTag,
+    String Function() launch,
+  ) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     return Card(
@@ -249,7 +268,7 @@ class VideoCardVertical extends StatelessWidget {
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: onTap ?? () => VideoPage.open(video),
+        onTap: onTap ?? () => VideoPage.open(video, heroTag: launch()),
         onLongPress: onLongPress ?? () => showVideoCardMenu(context, video),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -265,6 +284,7 @@ class VideoCardVertical extends StatelessWidget {
                     icon: Icons.subtitles_outlined,
                   ),
                   bottom: WatchProgressBar(hid: video.hid),
+                  heroTag: heroTag,
                 ),
                 if (badge != null && badge!.isNotEmpty)
                   Positioned(left: 6, top: 6, child: CoverBadge(text: badge!)),
@@ -391,10 +411,21 @@ class VideoCardHorizontal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return HeroLaunch(
+      hid: video.hid,
+      builder: (context, heroTag, launch) => _build(context, heroTag, launch),
+    );
+  }
+
+  Widget _build(
+    BuildContext context,
+    String? heroTag,
+    String Function() launch,
+  ) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     return InkWell(
-      onTap: onTap ?? () => VideoPage.open(video),
+      onTap: onTap ?? () => VideoPage.open(video, heroTag: launch()),
       onLongPress: onLongPress ?? () => showVideoCardMenu(context, video),
       borderRadius: BorderRadius.circular(Style.cardRadius),
       child: Padding(
@@ -411,6 +442,7 @@ class VideoCardHorizontal extends StatelessWidget {
                   icon: Icons.subtitles_outlined,
                 ),
                 bottom: WatchProgressBar(hid: video.hid),
+                heroTag: heroTag,
               ),
             ),
             const SizedBox(width: 10),

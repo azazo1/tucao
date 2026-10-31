@@ -38,9 +38,13 @@ class VideoPlayerView extends StatefulWidget {
     this.cast,
     this.onExitCast,
     this.brightness,
+    this.coverHeroTag,
   });
 
   final PlayerPageController controller;
+
+  /// 从列表封面飞进来时的 hero tag, 落在首帧前的封面上.
+  final String? coverHeroTag;
 
   /// 右半侧竖滑调节的画面亮度, 播放器销毁时交还系统亮度.
   final PlayerBrightness? brightness;
@@ -411,7 +415,11 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
         final url = _controller.video.value?.cover ?? '';
         final failed =
             _controller.sourceError.value != null || player.error != null;
-        return PlayerCover(url: url, visible: !player.hasFrame && !failed);
+        return PlayerCover(
+          url: url,
+          visible: !player.hasFrame && !failed,
+          heroTag: widget.coverHeroTag,
+        );
       }),
     );
   }

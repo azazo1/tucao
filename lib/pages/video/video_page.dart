@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:tucao/common/adaptive.dart';
+import 'package:tucao/common/widgets/cover_hero.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/pages/video/widgets/cast_sheet.dart';
@@ -33,10 +34,16 @@ class VideoPage extends StatefulWidget {
   const VideoPage({super.key});
 
   /// 从列表页进入, 带上已有的视频信息可以少一次白屏.
-  static void open(VideoModel video, {int part = 0}) {
+  ///
+  /// [heroTag] 是被点卡片封面的一次性 tag, 带上时封面会飞进播放器.
+  static void open(VideoModel video, {int part = 0, String? heroTag}) {
     Get.toNamed(
       Routes.video,
-      parameters: {'hid': video.hid, 'part': part.toString()},
+      parameters: {
+        'hid': video.hid,
+        'part': part.toString(),
+        CoverHero.parameter: ?heroTag,
+      },
       arguments: video,
     );
   }
@@ -61,6 +68,9 @@ class _VideoPageState extends State<VideoPage>
   late final String _tag = 'video_${identityHashCode(this)}';
 
   late final PlayerPageController _controller;
+
+  /// 列表封面飞进来时用的 tag, 直接打开播放页时为空.
+  String? _coverHeroTag;
 
   /// 是否处于横屏全屏.
   bool _fullscreen = false;
@@ -104,6 +114,7 @@ class _VideoPageState extends State<VideoPage>
     final parameters = Get.parameters;
     final hid = parameters['hid'] ?? '';
     final part = int.tryParse(parameters['part'] ?? '') ?? 0;
+    _coverHeroTag = parameters[CoverHero.parameter];
     final argument = Get.arguments;
     _controller = Get.put(
       PlayerPageController(
@@ -396,9 +407,7 @@ class _VideoPageState extends State<VideoPage>
         );
       } else {
         await service.block(video);
-        messenger?.showSnackBar(
-          SnackBar(content: Text('已屏蔽 ${video.title}')),
-        );
+        messenger?.showSnackBar(SnackBar(content: Text('已屏蔽 ${video.title}')));
       }
     } catch (error, stackTrace) {
       Log.e('更新本地屏蔽失败', error: error, stackTrace: stackTrace);
@@ -419,6 +428,7 @@ class _VideoPageState extends State<VideoPage>
       onToggleFullscreen: _fullscreen ? _exitFullscreen : _enterFullscreen,
       onOpenWebsite: _openWebsite,
       brightness: const ScreenPlayerBrightness(),
+      coverHeroTag: _coverHeroTag,
     );
   }
 
@@ -583,9 +593,7 @@ class _VideoPageState extends State<VideoPage>
     }
     switch (session.state) {
       case CastState.failed:
-        unawaited(
-          _finishCast(restore: true, message: session.error ?? '投屏失败'),
-        );
+        unawaited(_finishCast(restore: true, message: session.error ?? '投屏失败'));
       case CastState.finished:
         unawaited(_finishCast(restore: true));
       default:
@@ -646,6 +654,8 @@ class _VideoPageState extends State<VideoPage>
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
