@@ -262,12 +262,13 @@ class UpdateDownloadService extends GetxController
     // 目录里只保留本次要用的包, 旧版本与上次的半成品都没有别的用途.
     await _deletePackageFiles(keep: asset.name);
     // 下载源可能给出多个候选地址: 镜像与官方源之间一个失败就换下一个,
-    // 全部失败才算这次下载失败.
+    // 全部失败才算这次下载失败. 只走官方源时不去读镜像配置,
+    // 免得多做一次存储访问, 也让不初始化存储的测试不受影响.
     final source = _source();
     final candidates = UpdateSources.candidates(
       downloadUrl: asset.downloadUrl,
       source: source,
-      mirrorPrefixes: _mirrors(),
+      mirrorPrefixes: source == UpdateSource.github ? const [] : _mirrors(),
     );
     if (candidates.isEmpty) {
       state.value = UpdateDownloadState(
