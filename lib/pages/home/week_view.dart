@@ -9,12 +9,15 @@ import 'package:tucao/common/widgets/video_card.dart';
 import 'package:tucao/http/week_http.dart';
 import 'package:tucao/models/site_favorite.dart';
 import 'package:tucao/models/video.dart';
+import 'package:tucao/models/week_update_time.dart';
 import 'package:tucao/pages/home/week_controller.dart';
 import 'package:tucao/pages/home/widgets/continue_watching_banner.dart';
 import 'package:tucao/services/account_service.dart';
 import 'package:tucao/services/block_service.dart';
+import 'package:tucao/services/home_display_service.dart';
 import 'package:tucao/services/site_favorite_service.dart';
 import 'package:tucao/services/site_notice_service.dart';
+import 'package:tucao/services/week_update_time_service.dart';
 
 /// 新番时间表.
 ///
@@ -32,6 +35,11 @@ class _WeekViewState extends State<WeekView>
   late final String _tag = 'week_${identityHashCode(this)}';
 
   late final WeekController _controller = Get.put(WeekController(), tag: _tag);
+
+  /// 上一次请求更新时刻的列表签名.
+  ///
+  /// 时刻要逐部请求播放页, 只在分组或列表内容变化时才重新发, 重建不算.
+  String? _timesSignature;
 
   @override
   bool get wantKeepAlive => true;
@@ -65,7 +73,15 @@ class _WeekViewState extends State<WeekView>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final display = Get.isRegistered<HomeDisplayService>()
+        ? HomeDisplayService.instance
+        : null;
+    final schedule = Get.isRegistered<WeekUpdateTimeService>()
+        ? WeekUpdateTimeService.instance
+        : null;
     return Obx(() {
+      // 排序开关变化时重排; 时刻数据由 `times` 这个 RxMap 自己触发订阅.
+      final sortByTime = display?.weekSortByUpdateTime.value ?? true;
       if (_controller.firstLoading.value) {
         return const LoadingWidget();
       }
@@ -84,7 +100,22 @@ class _WeekViewState extends State<WeekView>
         for (final item in _favorites?.list ?? const <SiteFavoriteItem>[])
           item.hid,
       };
-      final items = followedFirst(current.list.withoutBlocked(), followed);
+      final items = arrangeWeekItems(
+        current.list.withoutBlocked(),
+        followed: followed,
+        times: schedule?.times ?? const <String, WeekUpdateTime>{},
+        sortByTime: sortByTime,
+      );
+      // 逐条读一次时刻: 既订阅 `times` 的后续变化, 也把本轮要显示的内容
+      // 定下来. 关掉排序时 arrangeWeekItems 不会碰时刻, 这里仍然要读.
+      final times = <String, WeekUpdateTime>{};
+      for (final item in items) {
+        final time = schedule?.times[item.hid];
+        if (time != null) {
+          times[item.hid] = time;
+        }
+      }
+      _requestTimes(schedule, current.title, items);
 
       return Column(
         children: [
@@ -124,6 +155,7 @@ class _WeekViewState extends State<WeekView>
                           itemBuilder: (context, i) => _WeekCard(
                             video: items[i],
                             followed: followed.contains(items[i].hid),
+                            updateTime: times[items[i].hid],
                           ),
                         ),
                 ),
@@ -132,6 +164,30 @@ class _WeekViewState extends State<WeekView>
           ),
         ],
       );
+    });
+  }
+
+  /// 为当前分组里的番剧取更新时刻.
+  ///
+  /// 列表签名没变时不再重复排队, 播放页请求一次就够.
+  void _requestTimes(
+    WeekUpdateTimeService? schedule,
+    String groupTitle,
+    List<VideoModel> items,
+  ) {
+    if (schedule == null) {
+      return;
+    }
+    final signature = '$groupTitle|${items.map((e) => e.hid).join(',')}';
+    if (_timesSignature == signature) {
+      return;
+    }
+    _timesSignature = signature;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      schedule.ensure(items.map((e) => e.hid));
     });
   }
 }
@@ -194,12 +250,17 @@ class _WeekTabBar extends StatelessWidget {
 
 /// 时间表卡片.
 ///
-/// 直接用共享的竖版卡片, 集数状态作为封面角标展示.
+/// 直接用共享的竖版卡片, 集数状态作为封面角标展示, 右下角显示更新时刻.
 class _WeekCard extends StatelessWidget {
-  const _WeekCard({required this.video, this.followed = false});
+  const _WeekCard({
+    required this.video,
+    this.followed = false,
+    this.updateTime,
+  });
 
   final VideoModel video;
   final bool followed;
+  final WeekUpdateTime? updateTime;
 
   @override
   Widget build(BuildContext context) {
@@ -207,15 +268,63 @@ class _WeekCard extends StatelessWidget {
       video: video,
       badge: video.description.isEmpty ? null : video.description,
       followed: followed,
+      // 时间表的列表接口没有弹幕数, 右下角让给更新时刻.
+      showDanmakuCount: false,
+      cornerBadge: updateTime == null
+          ? null
+          : CoverBadge(text: updateTime!.label, icon: Icons.schedule),
     );
   }
 }
 
-/// 已追的番排到前面, 两部分内部保持站点原来的顺序.
-List<VideoModel> followedFirst(List<VideoModel> list, Set<String> followed) {
-  if (followed.isEmpty) return list;
+/// 已追的番排在前面, 排序开启时两部分内部再按更新时刻升序.
+///
+/// 时刻要等播放页请求回来才有, 列表会随数据到达整体重排; 没有时刻的
+/// 番剧排在所在部分的最后, 彼此之间保持站点原来的顺序.
+List<VideoModel> arrangeWeekItems(
+  List<VideoModel> list, {
+  required Set<String> followed,
+  required Map<String, WeekUpdateTime> times,
+  required bool sortByTime,
+}) {
+  final followedList = <VideoModel>[];
+  final rest = <VideoModel>[];
+  for (final video in list) {
+    (followed.contains(video.hid) ? followedList : rest).add(video);
+  }
+  if (!sortByTime) {
+    return [...followedList, ...rest];
+  }
   return [
-    ...list.where((v) => followed.contains(v.hid)),
-    ...list.where((v) => !followed.contains(v.hid)),
+    ...sortByUpdateTime(followedList, times),
+    ...sortByUpdateTime(rest, times),
   ];
+}
+
+/// 按更新时刻升序, 没有时刻的排在后面, 时刻相同时保持站点顺序.
+///
+/// `List.sort` 不保证稳定, 因此用原下标兜底.
+List<VideoModel> sortByUpdateTime(
+  List<VideoModel> list,
+  Map<String, WeekUpdateTime> times,
+) {
+  final indexed = list.indexed.toList();
+  indexed.sort((a, b) {
+    final left = times[a.$2.hid]?.minutesOfDay;
+    final right = times[b.$2.hid]?.minutesOfDay;
+    if (left == null && right == null) {
+      return a.$1 - b.$1;
+    }
+    if (left == null) {
+      return 1;
+    }
+    if (right == null) {
+      return -1;
+    }
+    if (left != right) {
+      return left - right;
+    }
+    return a.$1 - b.$1;
+  });
+  return [for (final (_, video) in indexed) video];
 }

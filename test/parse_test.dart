@@ -9,6 +9,7 @@ import 'package:tucao/http/user_rank_http.dart';
 import 'package:tucao/http/video_http.dart';
 import 'package:tucao/http/video_stats_http.dart';
 import 'package:tucao/http/week_http.dart';
+import 'package:tucao/models/week_update_time.dart';
 
 void main() {
   group('新番时间表解析', () {
@@ -324,6 +325,19 @@ void main() {
 
     test('没有信息区块时返回空', () {
       expect(VideoHttp.parseSubjectInfoHtml('<html></html>').isEmpty, isTrue);
+    });
+
+    test('更新字段原样保留, 能从中取出时分', () {
+      // 站点原文用全角逗号分隔星期与时刻, 时刻是 24 小时制.
+      const raw = '''
+      <div class="vdata_info"><div class="b">
+        <span class="n">首播：</span>2026-10-04<br />
+        <span class="n">更新：</span>星期天，20:02<br />
+      </div></div>
+      ''';
+      final info = VideoHttp.parseSubjectInfoHtml(raw);
+      expect(info.valueOf('更新'), '星期天，20:02');
+      expect(WeekUpdateTime.parse(info.valueOf('更新'))?.label, '20:02');
     });
 
     test('解析番组封面并补全相对地址', () {

@@ -23,6 +23,7 @@ abstract final class Pref {
   static const _kShowAdEntry = 'show_ad_entry';
   static const _kShowHomeNotice = 'show_home_notice';
   static const _kShowContinueWatching = 'show_continue_watching';
+  static const _kWeekSortByUpdateTime = 'week_sort_by_update_time';
   static const _kPlayerSeekStep = 'player_seek_step';
   static const _kDanmakuTrend = 'danmaku_trend';
   static const _kSkippedUpdateVersion = 'skipped_update_version';
@@ -196,6 +197,12 @@ abstract final class Pref {
       GStorage.setting.get(_kShowContinueWatching, defaultValue: true) as bool;
   static set showContinueWatching(bool value) =>
       GStorage.setting.put(_kShowContinueWatching, value);
+
+  /// 首页时间表是否按每周更新时刻排序.
+  static bool get weekSortByUpdateTime =>
+      GStorage.setting.get(_kWeekSortByUpdateTime, defaultValue: true) as bool;
+  static set weekSortByUpdateTime(bool value) =>
+      GStorage.setting.put(_kWeekSortByUpdateTime, value);
 
   /// 播放器跳转按钮一次前进的秒数.
   ///

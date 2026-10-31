@@ -15,6 +15,9 @@ class HomeDisplayService extends GetxController {
   /// 是否显示继续观看卡片.
   final showContinueWatching = Pref.showContinueWatching.obs;
 
+  /// 时间表是否按每周更新时刻排序.
+  final weekSortByUpdateTime = Pref.weekSortByUpdateTime.obs;
+
   void setShowNotice(bool value) {
     if (showNotice.value == value) {
       return;
@@ -29,5 +32,13 @@ class HomeDisplayService extends GetxController {
     }
     showContinueWatching.value = value;
     Pref.showContinueWatching = value;
+  }
+
+  void setWeekSortByUpdateTime(bool value) {
+    if (weekSortByUpdateTime.value == value) {
+      return;
+    }
+    weekSortByUpdateTime.value = value;
+    Pref.weekSortByUpdateTime = value;
   }
 }

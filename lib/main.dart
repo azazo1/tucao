@@ -21,6 +21,7 @@ import 'package:tucao/services/theme_service.dart';
 import 'package:tucao/services/update/update_download_service.dart';
 import 'package:tucao/services/update/update_transport.dart';
 import 'package:tucao/services/vip_service.dart';
+import 'package:tucao/services/week_update_time_service.dart';
 import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/http_util.dart';
 import 'package:tucao/utils/storage.dart';
@@ -55,6 +56,8 @@ Future<void> main() async {
   Get.put(SiteFavoriteService(), permanent: true);
   // 未读私信与评论数挂在「我的」入口上, 需要登录态, 取数时机由主框架决定.
   Get.put(MessageCountService(), permanent: true);
+  // 时间表的番剧更新时刻, 只在内存里攒, 不落盘.
+  Get.put(WeekUpdateTimeService(), permanent: true);
   // 首页轮转区里的站务文章, 通知条与顶栏铃铛共用.
   Get.put(SiteNoticeService(), permanent: true);
   final downloads = Get.put(

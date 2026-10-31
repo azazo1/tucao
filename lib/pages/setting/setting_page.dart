@@ -285,6 +285,14 @@ class _SettingPageState extends State<SettingPage> {
           ),
           Obx(
             () => SwitchListTile(
+              title: const Text('时间表按更新时刻排序'),
+              subtitle: const Text('已追的番仍排在前面, 组内按播出时间排序'),
+              value: HomeDisplayService.instance.weekSortByUpdateTime.value,
+              onChanged: HomeDisplayService.instance.setWeekSortByUpdateTime,
+            ),
+          ),
+          Obx(
+            () => SwitchListTile(
               title: const Text('显示广告入口'),
               subtitle: const Text('关闭后首页标题栏不再显示广告按钮'),
               value: AdService.instance.enabled.value,

@@ -216,6 +216,8 @@ class VideoCardVertical extends StatelessWidget {
     this.onLongPress,
     this.badge,
     this.followed = false,
+    this.cornerBadge,
+    this.showDanmakuCount = true,
   });
 
   final VideoModel video;
@@ -229,6 +231,16 @@ class VideoCardVertical extends StatelessWidget {
 
   /// 站点账号已追番, 封面右上角标出.
   final bool followed;
+
+  /// 封面右下角的内容, 传入时替换默认的弹幕数角标.
+  ///
+  /// 时间表用它在封面右下角显示更新时刻.
+  final Widget? cornerBadge;
+
+  /// 是否在封面右下角显示弹幕数.
+  ///
+  /// 时间表的列表接口不给弹幕数, 恒为 0, 这类页面关掉, 免得占着角标.
+  final bool showDanmakuCount;
 
   @override
   Widget build(BuildContext context) {
@@ -261,10 +273,14 @@ class VideoCardVertical extends StatelessWidget {
                 VideoCover(
                   url: video.cover,
                   radius: 0,
-                  overlay: CoverBadge(
-                    text: Utils.formatCount(video.danmakuCount),
-                    icon: Icons.subtitles_outlined,
-                  ),
+                  overlay:
+                      cornerBadge ??
+                      (showDanmakuCount
+                          ? CoverBadge(
+                              text: Utils.formatCount(video.danmakuCount),
+                              icon: Icons.subtitles_outlined,
+                            )
+                          : null),
                   heroTag: heroTag,
                 ),
                 if (badge != null && badge!.isNotEmpty)

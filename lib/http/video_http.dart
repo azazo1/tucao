@@ -55,25 +55,49 @@ abstract final class VideoHttp {
     );
   }
 
+  /// 播放页详情的内存缓存上限.
+  ///
+  /// 时间表为了取番剧的更新时刻会顺带请求播放页, 用户再点进视频页时
+  /// 直接命中, 不再请求同一个页面. 只放在内存里, 重启即失效.
+  static const playPageCacheLimit = 128;
+
+  /// 最近使用的播放页详情排在末尾, 超出上限时从头部淘汰.
+  static final _playPageCache = <String, VideoPlayPageDetail>{};
+
   /// 拉取站点播放页, 同时解析完整简介与番组信息.
   ///
   /// 详情接口的 description 只返回截断的一段, 播放页的 `.show_content`
   /// 才是完整正文, 同一页面的 `.vdata_info .b` 里还有类型, 别名, 首播,
   /// 原作, 导演, 角色配音等番组信息, 因此一次请求拿回两样.
+  /// 同一 hid 的结果会被缓存, 见 [playPageCacheLimit].
   static Future<VideoPlayPageDetail> fetchPlayPage({
     required String hid,
     CancelToken? cancelToken,
   }) async {
+    final cached = _playPageCache.remove(hid);
+    if (cached != null) {
+      _playPageCache[hid] = cached;
+      return cached;
+    }
     final response = await HttpUtil.dio.get(
       ApiPath.playUrl(hid),
       cancelToken: cancelToken,
       options: Options(headers: {'user-agent': Constants.desktopUserAgent}),
     );
     final raw = response.data.toString();
-    return VideoPlayPageDetail(
+    final detail = VideoPlayPageDetail(
       description: parseDescriptionHtml(raw),
       subject: parseSubjectInfoHtml(raw),
     );
+    // 两者都空多半是临时错误或页面结构变化, 不缓存, 下次调用重新请求.
+    if (detail.description.isEmpty && detail.subject.isEmpty) {
+      return detail;
+    }
+    _playPageCache[hid] = detail;
+    while (_playPageCache.length > playPageCacheLimit) {
+      _playPageCache.remove(_playPageCache.keys.first);
+    }
+    return detail;
   }
 
   /// 解析播放页里的简介正文, 去掉页面自带的 "简介：" 标签.
