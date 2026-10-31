@@ -290,7 +290,10 @@ void main() {
   testWidgets('时长不足 90 秒时跨度收缩为整段时长', (tester) async {
     final controller = _Controller(duration: const Duration(seconds: 60));
     final origin = await _mount(tester, controller);
-    await tester.dragFrom(origin + const Offset(150, 130), const Offset(100, 0));
+    await tester.dragFrom(
+      origin + const Offset(150, 130),
+      const Offset(100, 0),
+    );
     await tester.pump();
     // 跨度 60 秒: 30 + 60 * 100/400.
     expect(controller.seeks, [const Duration(milliseconds: 45000)]);
