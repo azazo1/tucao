@@ -140,6 +140,13 @@ abstract final class Style {
           side: BorderSide(color: scheme.outlineVariant),
         ),
       ),
+      // 提示统一浮在底部导航之上, 圆角与卡片一致, 见 Toast.
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(cardRadius),
+        ),
+      ),
       listTileTheme: const ListTileThemeData(
         minVerticalPadding: 10,
         visualDensity: VisualDensity.compact,

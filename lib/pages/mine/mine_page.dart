@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/utils/toast.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:tucao/build_config.dart';
 import 'package:tucao/common/adaptive.dart';
@@ -107,7 +108,7 @@ class _MinePageState extends State<MinePage> {
   Future<void> _openFeedback() async {
     final sent = await Get.to<bool>(() => const FeedbackPage());
     if (sent == true && mounted) {
-      Get.snackbar('反馈已发送', '已通过私信发给开发者, 可在「我的 - 私信」里查看');
+      Toast.show('反馈已发送', detail: '已通过私信发给开发者, 可在「我的 - 私信」里查看');
     }
   }
 

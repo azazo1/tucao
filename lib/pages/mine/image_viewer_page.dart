@@ -2,7 +2,7 @@ import 'dart:ui' show lerpDouble;
 
 import 'package:extended_image/extended_image.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:tucao/utils/toast.dart';
 import 'package:tucao/services/image_save_service.dart';
 import 'package:tucao/utils/error_text.dart';
 import 'package:tucao/utils/logger.dart';
@@ -179,10 +179,10 @@ class _ImageViewerPageState extends State<ImageViewerPage>
         widget.url,
         prefix: widget.prefix ?? 'tucao',
       );
-      Get.snackbar('已保存', location, duration: const Duration(seconds: 3));
+      Toast.show('已保存', detail: location);
     } catch (e, stackTrace) {
       Log.e('保存图片失败', error: e, stackTrace: stackTrace);
-      Get.snackbar('保存失败', errorText(e));
+      Toast.show('保存失败', detail: errorText(e));
     } finally {
       if (mounted) {
         setState(() => _saving = false);

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:tucao/utils/toast.dart';
 import 'package:tucao/services/ad_service.dart';
 
 /// 二次确认后关闭广告入口, 并退回主页面.
@@ -26,5 +26,5 @@ Future<void> confirmDisableAd(BuildContext context) async {
   }
   AdService.instance.setEnabled(false);
   Navigator.of(context).popUntil((route) => route.isFirst);
-  Get.snackbar('已关闭广告入口', '可在设置中重新开启');
+  Toast.show('已关闭广告入口', detail: '可在设置中重新开启');
 }

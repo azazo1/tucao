@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/utils/toast.dart';
 import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/http/user_http.dart';
 
@@ -64,7 +65,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         return;
       }
       setState(() => _loadingCode = false);
-      Get.snackbar('验证码加载失败', _errorText(e));
+      Toast.show('验证码加载失败', detail: _errorText(e));
     }
   }
 
@@ -88,18 +89,18 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       }
       if (!result.isSuccess) {
         setState(() => _submitting = false);
-        Get.snackbar('提交未成功', result.message);
+        Toast.show('提交未成功', detail: result.message);
         await _refreshCode();
         return;
       }
       Get.back();
-      Get.snackbar('提交成功', result.message);
+      Toast.show('提交成功', detail: result.message);
     } catch (e) {
       if (!mounted) {
         return;
       }
       setState(() => _submitting = false);
-      Get.snackbar('提交失败', _errorText(e));
+      Toast.show('提交失败', detail: _errorText(e));
       await _refreshCode();
     }
   }

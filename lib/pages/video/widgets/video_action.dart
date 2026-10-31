@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/utils/toast.dart';
 import 'package:tucao/pages/reply/reply_page.dart';
 import 'package:tucao/pages/favorite/widgets/favorite_button.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
@@ -35,12 +36,7 @@ class _VideoActionBarState extends State<VideoActionBar> {
       return;
     }
     if (error != null) {
-      Get.snackbar(
-        '弹幕发送失败',
-        error,
-        snackPosition: SnackPosition.BOTTOM,
-        duration: const Duration(seconds: 2),
-      );
+      Toast.show('弹幕发送失败', detail: error, duration: const Duration(seconds: 2));
       return;
     }
     // 发出的弹幕在画面上带边框飘过, 不再弹提示条挡住画面.
@@ -48,10 +44,9 @@ class _VideoActionBarState extends State<VideoActionBar> {
     _textController.clear();
     FocusScope.of(context).unfocus();
     if (!widget.controller.danmakuEnabled.value) {
-      Get.snackbar(
+      Toast.show(
         '弹幕已发送',
-        '弹幕显示已关闭, 打开后可以看到',
-        snackPosition: SnackPosition.BOTTOM,
+        detail: '弹幕显示已关闭, 打开后可以看到',
         duration: const Duration(seconds: 2),
       );
     }

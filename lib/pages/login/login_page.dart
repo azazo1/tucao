@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/utils/toast.dart';
 import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/router/routes.dart';
 import 'package:tucao/services/account_service.dart';
@@ -47,15 +48,16 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
       Get.back();
-      Get.snackbar(
+      Toast.show(
         '登录成功',
-        '欢迎回来, ${AccountService.instance.user.value?.displayName ?? ''}',
+        detail:
+            '欢迎回来, ${AccountService.instance.user.value?.displayName ?? ''}',
       );
     } catch (e) {
       if (!_finishSubmission()) {
         return;
       }
-      Get.snackbar('登录失败', _errorText(e));
+      Toast.show('登录失败', detail: _errorText(e));
     }
   }
 

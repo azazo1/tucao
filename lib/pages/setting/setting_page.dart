@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/utils/toast.dart';
 import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/common/style.dart';
 import 'package:tucao/pages/setting/widgets/site_host_tile.dart';
@@ -146,11 +147,22 @@ class _SettingPageState extends State<SettingPage> {
     if (!ok || !mounted) {
       return;
     }
-    await HistoryService.instance.clear();
+    final history = HistoryService.instance;
+    final snapshot = await history.clear();
     if (!mounted) {
       return;
     }
-    Get.snackbar('已清除', '本地播放历史已清空');
+    Toast.show(
+      '已清空 ${snapshot.length} 条播放记录',
+      duration: const Duration(seconds: 4),
+      action: SnackBarAction(
+        label: '撤销',
+        onPressed: () {
+          Log.i('撤销清空播放历史, 恢复 ${snapshot.length} 条');
+          history.restoreAll(snapshot);
+        },
+      ),
+    );
   }
 
   Future<void> _logout() async {
@@ -167,13 +179,13 @@ class _SettingPageState extends State<SettingPage> {
       if (!mounted) {
         return;
       }
-      Get.snackbar('已退出登录', '本地登录信息与 cookie 已清除');
+      Toast.show('已退出登录', detail: '本地登录信息与 cookie 已清除');
     } catch (e, stackTrace) {
       Log.e('退出登录失败', error: e, stackTrace: stackTrace);
       if (!mounted) {
         return;
       }
-      Get.snackbar('退出登录失败', '$e');
+      Toast.show('退出登录失败', detail: '$e');
     }
   }
 

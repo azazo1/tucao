@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/utils/toast.dart';
 import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/services/account_service.dart';
 
@@ -53,12 +54,12 @@ class _RegisterPageState extends State<RegisterPage> {
         return;
       }
       Get.back();
-      Get.snackbar('注册成功', '已自动登录');
+      Toast.show('注册成功', detail: '已自动登录');
     } catch (e) {
       if (!_finishSubmission()) {
         return;
       }
-      Get.snackbar('注册失败', _errorText(e));
+      Toast.show('注册失败', detail: _errorText(e));
     }
   }
 

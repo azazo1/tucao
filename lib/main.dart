@@ -23,6 +23,7 @@ import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/http_util.dart';
 import 'package:tucao/utils/storage.dart';
 import 'package:tucao/utils/storage_pref.dart';
+import 'package:tucao/utils/toast.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:media_kit/media_kit.dart';
 
@@ -87,6 +88,7 @@ class TucaoApp extends StatelessWidget {
           return GetMaterialApp(
             title: '吐槽',
             debugShowCheckedModeBanner: false,
+            scaffoldMessengerKey: Toast.messengerKey,
             themeMode: switch (themeService.themeMode.value) {
               1 => ThemeMode.light,
               2 => ThemeMode.dark,

@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/utils/toast.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/common/widgets/user_banner.dart';
 import 'package:tucao/common/widgets/video_card.dart';
@@ -80,11 +81,11 @@ class _SpacePageState extends State<SpacePage> {
         return;
       }
       Get.back();
-      Get.snackbar('已退出登录', '本地登录信息与 cookie 已清除');
+      Toast.show('已退出登录', detail: '本地登录信息与 cookie 已清除');
     } catch (e, stackTrace) {
       Log.e('退出登录失败', error: e, stackTrace: stackTrace);
       if (mounted) {
-        Get.snackbar('退出登录失败', '$e');
+        Toast.show('退出登录失败', detail: '$e');
       }
     } finally {
       if (mounted) {
@@ -240,13 +241,13 @@ class _SpacePageState extends State<SpacePage> {
   /// messageid, 无法直接跳进会话页.
   Future<void> _openPrivateMessage(BuildContext context) async {
     if (!AccountService.instance.isLogin) {
-      Get.snackbar('请先登录', '登录后才能给其他用户发私信');
+      Toast.show('请先登录', detail: '登录后才能给其他用户发私信');
       return;
     }
     final info = _controller.info.value;
     final loginName = info?.loginName.trim() ?? '';
     if (loginName.isEmpty) {
-      Get.snackbar('找不到对方账号', '空间页里没有私信入口');
+      Toast.show('找不到对方账号', detail: '空间页里没有私信入口');
       return;
     }
     final sent = await showModalBottomSheet<bool>(
@@ -259,7 +260,7 @@ class _SpacePageState extends State<SpacePage> {
       ),
     );
     if (sent == true && mounted) {
-      Get.snackbar('私信已发送', '可以在「我的 - 私信」里查看');
+      Toast.show('私信已发送', detail: '可以在「我的 - 私信」里查看');
     }
   }
 

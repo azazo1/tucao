@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/utils/toast.dart';
 import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/router/routes.dart';
 import 'package:tucao/services/account_service.dart';
@@ -48,12 +49,12 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         return;
       }
       Get.offNamed(Routes.login);
-      Get.snackbar('修改成功', '请使用新密码重新登录');
+      Toast.show('修改成功', detail: '请使用新密码重新登录');
     } catch (e) {
       if (!_finishSubmission()) {
         return;
       }
-      Get.snackbar('修改失败', _errorText(e));
+      Toast.show('修改失败', detail: _errorText(e));
     }
   }
 
