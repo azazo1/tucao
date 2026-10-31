@@ -68,6 +68,9 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
   bool _showControls = true;
   bool _settingsOpen = false;
 
+  /// 全屏锁定: 只保留锁按钮, 手势与控制条都不响应. 退出全屏即解除.
+  bool _locked = false;
+
   /// 选集弹层是否打开, 打开期间控制条不自动隐藏.
   bool _partPickerOpen = false;
 
@@ -92,6 +95,9 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.fullscreen != widget.fullscreen ||
         oldWidget.pipMode != widget.pipMode) {
+      if (!widget.fullscreen) {
+        _locked = false;
+      }
       _restartHideTimer();
     }
   }
@@ -156,6 +162,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
     final inPip = widget.pipMode;
     final cast = widget.cast;
     final casting = cast != null;
+    final locked = _locked && widget.fullscreen && !casting;
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -170,7 +177,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
             option: _controller.danmakuOption,
           ),
         ),
-        if (!casting)
+        if (!casting && !locked)
           Positioned.fill(
             child: PlayerGestureDetector(
               controller: _controller,
@@ -178,16 +185,57 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
               onSeekPreview: _onSeekPreview,
             ),
           ),
-        if (!casting && _showControls && !inPip) _buildControls(context),
+        // 锁定后手势只用来唤出锁按钮, 不响应拖动与双击.
+        if (!casting && locked)
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _toggleControls,
+            ),
+          ),
+        if (!casting && _showControls && !inPip && !locked)
+          _buildControls(context),
         if (!casting) _buildBuffering(),
         if (!casting) _buildSourceTip(),
         if (!casting && !inPip) _buildAutoNext(),
         if (casting && !inPip) _buildCastControls(context, cast),
         // 返回按钮放在遥控面板之上, 全屏时也能退出全屏.
         if (widget.fullscreen && !inPip && casting) _buildFullscreenBack(),
-        if (widget.fullscreen && !inPip && !casting && _showControls)
+        if (widget.fullscreen && !inPip && !casting && _showControls && !locked)
           _buildTopBar(),
+        if (widget.fullscreen && !inPip && !casting && _showControls)
+          _buildLockButton(locked),
       ],
+    );
+  }
+
+  /// 全屏左侧的锁屏按钮, 躺着看时防止误触改了进度.
+  Widget _buildLockButton(bool locked) {
+    return Positioned(
+      left: 0,
+      top: 0,
+      bottom: 0,
+      child: SafeArea(
+        right: false,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.only(left: 12),
+            child: IconButton(
+              key: const ValueKey('player-lock'),
+              onPressed: () {
+                setState(() => _locked = !_locked);
+                _restartHideTimer();
+              },
+              style: IconButton.styleFrom(backgroundColor: Colors.black38),
+              icon: Icon(
+                locked ? Icons.lock : Icons.lock_open,
+                color: Colors.white,
+              ),
+              tooltip: locked ? '解锁' : '锁定屏幕',
+            ),
+          ),
+        ),
+      ),
     );
   }
 
