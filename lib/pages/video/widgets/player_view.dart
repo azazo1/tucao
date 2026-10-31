@@ -10,6 +10,7 @@ import 'package:tucao/pages/video/widgets/danmaku_settings_sheet.dart';
 import 'package:tucao/pages/video/widgets/danmaku_trend_bar.dart';
 import 'package:tucao/pages/video/widgets/part_picker_sheet.dart';
 import 'package:tucao/pages/video/widgets/player_controls_fade.dart';
+import 'package:tucao/pages/video/widgets/player_cover.dart';
 import 'package:tucao/pages/video/widgets/player_gesture.dart';
 import 'package:tucao/pages/video/widgets/player_top_bar.dart';
 import 'package:tucao/utils/danmaku_preferences_store.dart';
@@ -177,6 +178,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
       children: [
         const ColoredBox(color: Colors.black),
         _buildVideo(),
+        if (!casting) _buildCover(),
         // 小窗里只留画面, 投屏时画面在电视上, 弹幕也没有意义.
         Offstage(
           offstage: inPip || casting,
@@ -331,6 +333,20 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
         pauseUponEnteringBackgroundMode: false,
       );
     });
+  }
+
+  /// 首帧前的模糊封面, 出错时撤掉, 让错误提示落在纯黑背景上.
+  Widget _buildCover() {
+    final player = _controller.player;
+    return ListenableBuilder(
+      listenable: player,
+      builder: (context, child) => Obx(() {
+        final url = _controller.video.value?.cover ?? '';
+        final failed =
+            _controller.sourceError.value != null || player.error != null;
+        return PlayerCover(url: url, visible: !player.hasFrame && !failed);
+      }),
+    );
   }
 
   /// 源失效和真实播放错误复用覆盖层与浏览器备用按钮.

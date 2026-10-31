@@ -64,6 +64,8 @@ class _Player extends ChangeNotifier implements TucaoPlayer {
 
   @override
   bool get buffering => isBuffering;
+  @override
+  bool get hasFrame => false;
 
   @override
   Duration get buffered => Duration.zero;

@@ -68,6 +68,7 @@ class TucaoPlayer extends ChangeNotifier {
   bool _playing = false;
   bool _completed = false;
   bool _buffering = false;
+  bool _hasFrame = false;
   Duration _position = Duration.zero;
   Duration _notifiedPosition = Duration.zero;
   Duration _duration = Duration.zero;
@@ -88,6 +89,11 @@ class TucaoPlayer extends ChangeNotifier {
   bool get completed => _completed;
 
   bool get buffering => _buffering;
+
+  /// 当前地址是否已经开始出画面, 以首次上报非零进度为准, 换地址时重置.
+  ///
+  /// 播放页据此决定何时撤掉封面占位.
+  bool get hasFrame => _hasFrame;
 
   Duration get position => _position;
 
@@ -177,6 +183,7 @@ class TucaoPlayer extends ChangeNotifier {
       _error = null;
       _playing = false;
       _buffering = false;
+      _hasFrame = false;
       _position = Duration.zero;
       _notifiedPosition = Duration.zero;
       _duration = Duration.zero;
@@ -252,6 +259,7 @@ class TucaoPlayer extends ChangeNotifier {
       }
       _playing = false;
       _buffering = false;
+      _hasFrame = false;
       _error = null;
       _position = Duration.zero;
       _notifiedPosition = Duration.zero;
@@ -315,6 +323,12 @@ class TucaoPlayer extends ChangeNotifier {
           return;
         }
         _position = value;
+        if (!_hasFrame && value > Duration.zero) {
+          _hasFrame = true;
+          _notifiedPosition = value;
+          _notify();
+          return;
+        }
         // 跳转时位置变化很大, 需要立即上报.
         if ((value - _notifiedPosition).abs() >= _positionStep) {
           _notifiedPosition = value;
