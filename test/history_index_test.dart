@@ -54,4 +54,44 @@ void main() {
     expect(service.latestOf('b'), isNull);
     expect(service.partsOf('a'), isEmpty);
   });
+
+  test('撤销删除回到原位, 撤销清空不覆盖之后新播的记录', () async {
+    GStorage.history = _Box();
+    final service = HistoryService()..onInit();
+    for (final hid in ['c', 'b', 'a']) {
+      await service.record(
+        video: _video(hid),
+        part: 0,
+        progress: 10,
+        duration: 100,
+      );
+    }
+    final b = service.list[1];
+    final index = await service.remove(b);
+    await service.restore(b, index);
+    expect(service.list.map((e) => e.video.hid), ['a', 'b', 'c']);
+
+    // 删除后又播放了同一分P, 撤销不能把旧进度放回去.
+    final index2 = await service.remove(b);
+    await service.record(
+      video: _video('b'),
+      part: 0,
+      progress: 60,
+      duration: 100,
+    );
+    await service.restore(b, index2);
+    expect(service.list.where((e) => e.video.hid == 'b').single.progress, 60);
+
+    final snapshot = await service.clear();
+    await service.record(
+      video: _video('c'),
+      part: 0,
+      progress: 80,
+      duration: 100,
+    );
+    await service.restoreAll(snapshot);
+    expect(service.list.map((e) => e.video.hid), ['c', 'b', 'a']);
+    expect(service.list.first.progress, 80);
+    expect(service.latestOf('a'), isNotNull);
+  });
 }

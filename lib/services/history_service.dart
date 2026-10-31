@@ -170,14 +170,45 @@ class HistoryService extends GetxController {
     return null;
   }
 
-  Future<void> remove(HistoryItem item) async {
+  /// 删除一条记录, 返回它原来的位置, 撤销时交给 [restore].
+  Future<int> remove(HistoryItem item) async {
+    final index = list.indexOf(item);
     list.remove(item);
+    _invalidate();
+    await _save();
+    return index;
+  }
+
+  /// 清空记录, 返回清空前的快照, 撤销时交给 [restoreAll].
+  Future<List<HistoryItem>> clear() async {
+    final snapshot = List.of(list);
+    list.clear();
+    _invalidate();
+    await _save();
+    return snapshot;
+  }
+
+  /// 撤销删除: 放回原来的位置.
+  ///
+  /// 撤销前同一分P又被播放过时, 新记录更准, 旧的不再放回.
+  Future<void> restore(HistoryItem item, int index) async {
+    if (find(item.video.hid, item.part) != null) return;
+    list.insert(index.clamp(0, list.length), item);
     _invalidate();
     await _save();
   }
 
-  Future<void> clear() async {
-    list.clear();
+  /// 撤销清空: 快照接在撤销前新产生的记录后面, 重复的分P以新记录为准.
+  Future<void> restoreAll(List<HistoryItem> snapshot) async {
+    final kept = {for (final item in list) '${item.video.hid}#${item.part}'};
+    list.addAll(
+      snapshot.where(
+        (item) => !kept.contains('${item.video.hid}#${item.part}'),
+      ),
+    );
+    if (list.length > _maxCount) {
+      list.removeRange(_maxCount, list.length);
+    }
     _invalidate();
     await _save();
   }

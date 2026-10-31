@@ -30,29 +30,58 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
+  /// 带撤销按钮的提示, 新提示会顶掉旧的, 只能撤销最近一次.
+  void _showUndo(String message, Future<void> Function() undo) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message, maxLines: 2, overflow: TextOverflow.ellipsis),
+          duration: const Duration(seconds: 4),
+          action: SnackBarAction(
+            label: '撤销',
+            onPressed: () async {
+              try {
+                await undo();
+              } catch (error, stackTrace) {
+                Log.e('撤销失败', error: error, stackTrace: stackTrace);
+                messenger.showSnackBar(SnackBar(content: Text('撤销失败: $error')));
+              }
+            },
+          ),
+        ),
+      );
+  }
+
   Future<void> _remove(HistoryItem item) async {
-    await _service.remove(item);
+    final index = await _service.remove(item);
     if (!mounted) {
       return;
     }
-    Get.snackbar('已删除', item.video.title, duration: const Duration(seconds: 2));
+    _showUndo('已删除 ${item.video.title}', () async {
+      Log.i('撤销删除播放记录 ${item.video.title}');
+      await _service.restore(item, index);
+    });
   }
 
   Future<void> _block(HistoryItem item) async {
+    final service = BlockService.instance;
     try {
-      await BlockService.instance.block(item.video);
+      await service.block(item.video);
       if (!mounted) {
         return;
       }
-      Get.snackbar(
-        '已屏蔽',
-        item.video.title,
-        duration: const Duration(seconds: 2),
-      );
+      _showUndo('已屏蔽 ${item.video.title}', () async {
+        Log.i('撤销屏蔽 ${item.video.title}');
+        await service.unblock(item.video.hid);
+      });
     } catch (error, stackTrace) {
       Log.e('屏蔽播放历史条目失败', error: error, stackTrace: stackTrace);
       if (mounted) {
-        Get.snackbar('屏蔽失败', '$error');
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('屏蔽失败: $error')));
       }
     }
   }
@@ -125,11 +154,14 @@ class _HistoryPageState extends State<HistoryPage> {
     if (confirmed != true) {
       return;
     }
-    await _service.clear();
+    final snapshot = await _service.clear();
     if (!mounted) {
       return;
     }
-    Get.snackbar('已清空', '本地播放历史已删除');
+    _showUndo('已清空 ${snapshot.length} 条播放记录', () async {
+      Log.i('撤销清空播放历史, 恢复 ${snapshot.length} 条');
+      await _service.restoreAll(snapshot);
+    });
   }
 
   @override
@@ -150,18 +182,13 @@ class _HistoryPageState extends State<HistoryPage> {
       body: Obx(() {
         final all = _service.list;
         final list = all
-            .where(
-              (item) => !BlockService.instance.isBlocked(item.video.hid),
-            )
+            .where((item) => !BlockService.instance.isBlocked(item.video.hid))
             .toList();
         if (all.isEmpty) {
           return const EmptyWidget(message: '还没有播放记录', icon: Icons.history);
         }
         if (list.isEmpty) {
-          return const EmptyWidget(
-            message: '播放记录都已被屏蔽',
-            icon: Icons.block,
-          );
+          return const EmptyWidget(message: '播放记录都已被屏蔽', icon: Icons.block);
         }
         return ListView.separated(
           padding: EdgeInsets.symmetric(

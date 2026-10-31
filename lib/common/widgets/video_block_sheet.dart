@@ -51,9 +51,28 @@ Future<void> showVideoBlockSheet(BuildContext context, VideoModel video) async {
       messenger?.showSnackBar(SnackBar(content: Text('已取消屏蔽 ${video.title}')));
     } else {
       await service.block(video);
-      messenger?.showSnackBar(
-        SnackBar(content: Text('已屏蔽 ${video.title}, 可在设置 - 屏蔽管理里恢复')),
-      );
+      messenger
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('已屏蔽 ${video.title}, 也可在设置 - 屏蔽管理里恢复'),
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: '撤销',
+              onPressed: () async {
+                Log.i('撤销屏蔽 ${video.title}');
+                try {
+                  await service.unblock(video.hid);
+                } catch (error, stackTrace) {
+                  Log.e('撤销屏蔽失败', error: error, stackTrace: stackTrace);
+                  messenger.showSnackBar(
+                    SnackBar(content: Text('撤销失败: $error')),
+                  );
+                }
+              },
+            ),
+          ),
+        );
     }
   } catch (error, stackTrace) {
     Log.e('更新本地屏蔽失败', error: error, stackTrace: stackTrace);
