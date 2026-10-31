@@ -4,11 +4,13 @@ import 'package:tucao/common/rich_html/rich_content.dart';
 import 'package:tucao/common/rich_html/rich_content_view.dart';
 import 'package:tucao/common/widgets/copy_selection_area.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
+import 'package:tucao/common/widgets/page_more_menu.dart';
 import 'package:tucao/http/article_detail_http.dart';
 import 'package:tucao/pages/article/widgets/article_stats_bar.dart';
 import 'package:tucao/pages/reply/reply_page.dart';
 import 'package:tucao/utils/clipboard.dart';
 import 'package:tucao/utils/logger.dart';
+import 'package:tucao/utils/site_links.dart';
 
 /// 档案详情控制器.
 class ArticleDetailController extends GetxController {
@@ -93,6 +95,7 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
     return Scaffold(
       appBar: AppBar(
         title: const Text('档案'),
+        actions: [PageMoreMenu(uri: SiteLinks.article(widget.hid))],
         bottom: TabBar(
           controller: _tabs,
           tabs: const [Tab(text: '正文'), Tab(text: '评论')],

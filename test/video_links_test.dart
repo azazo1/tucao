@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tucao/common/constants.dart';
-import 'package:tucao/pages/video/widgets/video_link_menu.dart';
+import 'package:tucao/pages/video/widgets/video_more_menu.dart';
 import 'package:tucao/utils/site_links.dart';
 
 void main() {
@@ -34,6 +34,16 @@ void main() {
     expect(SiteLinks.video('123', part: -1), isNull);
   });
 
+  test('档案与空间链接只接受站内编号', () {
+    expect(SiteLinks.article('12345')?.path, '/play/d12345/');
+    expect(SiteLinks.space(678)?.path, '/play/u678/');
+    for (final hid in ['', '0', '../1', 'https://example.com', '1/2']) {
+      expect(SiteLinks.article(hid), isNull);
+    }
+    expect(SiteLinks.space(0), isNull);
+    expect(SiteLinks.space(-1), isNull);
+  });
+
   testWidgets('复制当前分P链接, 不触发浏览器操作', (tester) async {
     String? copied;
     var opens = 0;
@@ -53,7 +63,7 @@ void main() {
         home: Scaffold(
           appBar: AppBar(
             actions: [
-              VideoLinkMenu(
+              VideoMoreMenu(
                 hid: '4107869',
                 part: 1,
                 onOpenWebsite: () => opens++,
@@ -95,7 +105,7 @@ void main() {
         home: Scaffold(
           appBar: AppBar(
             actions: [
-              VideoLinkMenu(
+              VideoMoreMenu(
                 hid: '4107869',
                 part: 0,
                 onOpenWebsite: () => opens++,
@@ -122,7 +132,7 @@ void main() {
         home: Scaffold(
           appBar: AppBar(
             actions: [
-              VideoLinkMenu(
+              VideoMoreMenu(
                 hid: '123',
                 part: 0,
                 onOpenWebsite: () => fail('不应打开浏览器'),
@@ -148,7 +158,7 @@ void main() {
         home: Scaffold(
           appBar: AppBar(
             actions: [
-              VideoLinkMenu(
+              VideoMoreMenu(
                 hid: '',
                 part: 0,
                 onOpenWebsite: () => fail('不应打开浏览器'),

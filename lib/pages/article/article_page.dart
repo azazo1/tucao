@@ -4,10 +4,12 @@ import 'package:get/get.dart';
 import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/common/widgets/channel_bar.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
+import 'package:tucao/common/widgets/page_more_menu.dart';
 import 'package:tucao/common/widgets/video_card.dart';
 import 'package:tucao/http/article_http.dart';
 import 'package:tucao/pages/article/article_controller.dart';
 import 'package:tucao/router/routes.dart';
+import 'package:tucao/utils/site_links.dart';
 
 /// 档案页.
 ///
@@ -53,6 +55,13 @@ class _ArticlePageState extends State<ArticlePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('档案'),
+        actions: [
+          Obx(
+            () => PageMoreMenu(
+              uri: SiteLinks.articleList(keyword: _controller.keyword.value),
+            ),
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(42),
           child: _buildCategoryBar(),

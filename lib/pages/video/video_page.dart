@@ -12,7 +12,7 @@ import 'package:tucao/pages/video/widgets/video_content_tabs.dart';
 import 'package:tucao/pages/video/widgets/player_view.dart';
 import 'package:tucao/pages/video/widgets/video_action.dart';
 import 'package:tucao/pages/video/widgets/video_info.dart';
-import 'package:tucao/pages/video/widgets/video_link_menu.dart';
+import 'package:tucao/pages/video/widgets/video_more_menu.dart';
 import 'package:tucao/pages/video/widgets/download_sheet.dart';
 import 'package:tucao/plugin/player/player_brightness.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
@@ -369,7 +369,7 @@ class _VideoPageState extends State<VideoPage>
           ),
         Obx(() {
           final video = _controller.video.value;
-          return VideoLinkMenu(
+          return VideoMoreMenu(
             hid: _controller.hid,
             part: _controller.part.value,
             onOpenWebsite: _openWebsite,

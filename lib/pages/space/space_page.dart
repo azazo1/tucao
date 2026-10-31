@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/utils/toast.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
+import 'package:tucao/common/widgets/page_more_menu.dart';
 import 'package:tucao/common/widgets/user_banner.dart';
 import 'package:tucao/common/widgets/video_card.dart';
 import 'package:tucao/common/widgets/vip_gold.dart';
@@ -15,6 +16,7 @@ import 'package:tucao/services/account_service.dart';
 import 'package:tucao/services/block_service.dart';
 import 'package:tucao/utils/clipboard.dart';
 import 'package:tucao/utils/logger.dart';
+import 'package:tucao/utils/site_links.dart';
 import 'package:tucao/utils/utils.dart';
 
 /// 用户空间页, 即投稿人主页.
@@ -100,14 +102,14 @@ class _SpacePageState extends State<SpacePage> {
       body: Obx(() {
         if (_controller.firstLoading.value) {
           return Scaffold(
-            appBar: AppBar(title: const Text('用户')),
+            appBar: AppBar(title: const Text('用户'), actions: [_moreMenu()]),
             body: const LoadingWidget(),
           );
         }
         final error = _controller.error.value;
         if (error != null && _controller.list.isEmpty) {
           return Scaffold(
-            appBar: AppBar(title: const Text('用户')),
+            appBar: AppBar(title: const Text('用户'), actions: [_moreMenu()]),
             body: ErrorWidgetView(
               message: error,
               onRetry: _controller.loadFirst,
@@ -125,6 +127,7 @@ class _SpacePageState extends State<SpacePage> {
               SliverAppBar(
                 pinned: true,
                 expandedHeight: 180,
+                actions: [_moreMenu()],
                 flexibleSpace: FlexibleSpaceBar(
                   background: _buildHeader(context, info),
                 ),
@@ -163,6 +166,8 @@ class _SpacePageState extends State<SpacePage> {
       }),
     );
   }
+
+  Widget _moreMenu() => PageMoreMenu(uri: SiteLinks.space(widget.userId));
 
   /// 顶部背景图与头像.
   ///
