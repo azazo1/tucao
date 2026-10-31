@@ -48,7 +48,7 @@ class WeekController extends GetxController {
           index.value = index.value.clamp(0, result.length - 1);
         } else {
           // 首次加载才跟随设备当前星期.
-          index.value = _todayIndex(result.length);
+          index.value = todayIndex(result.length);
         }
       }
     } catch (e, stackTrace) {
@@ -61,7 +61,9 @@ class WeekController extends GetxController {
   }
 
   /// 站点分组顺序是周日到周六, 把当前星期映射到对应下标.
-  int _todayIndex(int length) {
+  ///
+  /// 时间表的分组切换条也用这个下标标出当天.
+  static int todayIndex(int length) {
     // DateTime.weekday 里周一是 1, 周日是 7; 分组里周日是 0.
     final weekday = DateTime.now().weekday;
     final target = weekday == 7 ? 0 : weekday;

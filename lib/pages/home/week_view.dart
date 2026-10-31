@@ -123,6 +123,7 @@ class _WeekViewState extends State<WeekView>
           _WeekTabBar(
             groups: groups,
             index: index,
+            todayIndex: WeekController.todayIndex(groups.length),
             onChanged: _controller.changeIndex,
           ),
           Expanded(
@@ -184,16 +185,21 @@ class _WeekViewState extends State<WeekView>
   }
 }
 
-/// 分组切换条, 当天用主色标出.
+/// 分组切换条: 选中的用边框与主色标出, 当天另加一个小圆点.
 class _WeekTabBar extends StatelessWidget {
   const _WeekTabBar({
     required this.groups,
     required this.index,
+    required this.todayIndex,
     required this.onChanged,
   });
 
   final List<WeekGroup> groups;
   final int index;
+
+  /// 当天对应的分组下标, 与是否存在对应分组无关, 由调用方算出.
+  final int todayIndex;
+
   final ValueChanged<int> onChanged;
 
   @override
@@ -208,6 +214,7 @@ class _WeekTabBar extends StatelessWidget {
         separatorBuilder: (context, i) => const SizedBox(width: 6),
         itemBuilder: (context, i) {
           final selected = i == index;
+          final today = i == todayIndex;
           return Center(
             child: InkWell(
               onTap: () => onChanged(i),
@@ -223,13 +230,31 @@ class _WeekTabBar extends StatelessWidget {
                     color: selected ? scheme.primary : scheme.outlineVariant,
                   ),
                 ),
-                child: Text(
-                  groups[i].title,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.normal,
-                    color: selected ? scheme.primary : null,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      groups[i].title,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.normal,
+                        color: selected ? scheme.primary : null,
+                      ),
+                    ),
+                    if (today) ...[
+                      const SizedBox(width: 4),
+                      Container(
+                        width: 4,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: scheme.primary,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),
