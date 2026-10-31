@@ -16,6 +16,7 @@ abstract final class Pref {
   static const _kPlayerBackground = 'player_background';
   static const _kPlayerPipAuto = 'player_pip_auto';
   static const _kPlayerAutoNext = 'player_auto_next';
+  static const _kPlayerLongPressSpeed = 'player_long_press_speed';
   static const _kHardwareDecode = 'player_hardware_decode';
   static const _kSearchHistoryLimit = 'search_history_limit';
   static const _kShowAdEntry = 'show_ad_entry';
@@ -114,6 +115,12 @@ abstract final class Pref {
       GStorage.setting.get(_kPlayerSpeed, defaultValue: 1.0) as double;
   static set playerSpeed(double value) =>
       GStorage.setting.put(_kPlayerSpeed, value);
+
+  /// 长按画面临时切到的倍速.
+  static double get playerLongPressSpeed =>
+      GStorage.setting.get(_kPlayerLongPressSpeed, defaultValue: 3.0) as double;
+  static set playerLongPressSpeed(double value) =>
+      GStorage.setting.put(_kPlayerLongPressSpeed, value);
 
   /// 播放音量, 0-100, 跨视频沿用.
   static double get playerVolume =>

@@ -7,6 +7,7 @@ import 'package:tucao/common/style.dart';
 import 'package:tucao/pages/setting/widgets/site_host_tile.dart';
 import 'package:tucao/pages/video/widgets/danmaku_settings_sheet.dart';
 import 'package:tucao/router/routes.dart';
+import 'package:tucao/plugin/player/player_speeds.dart';
 import 'package:tucao/services/account_service.dart';
 import 'package:tucao/services/ad_service.dart';
 import 'package:tucao/services/block_service.dart';
@@ -29,8 +30,7 @@ class SettingPage extends StatefulWidget {
 }
 
 class _SettingPageState extends State<SettingPage> {
-  /// 可选播放倍速.
-  static const _speeds = <double>[0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+  static const _speeds = PlayerSpeeds.options;
 
   /// 搜索历史条数上限.
   static const _historyLimits = <int>[10, 20, 50];
@@ -46,6 +46,7 @@ class _SettingPageState extends State<SettingPage> {
   late bool _autoPlay;
   late bool _continueLast;
   late bool _autoNext;
+  late double _longPressSpeed;
   late bool _hardwareDecode;
   late bool _background;
   late bool _pipAuto;
@@ -72,6 +73,10 @@ class _SettingPageState extends State<SettingPage> {
     _autoPlay = Pref.playerAutoPlay;
     _continueLast = Pref.playerContinueLast;
     _autoNext = Pref.playerAutoNext;
+    final longPress = Pref.playerLongPressSpeed;
+    _longPressSpeed = PlayerSpeeds.longPressOptions.contains(longPress)
+        ? longPress
+        : PlayerSpeeds.defaultLongPress;
     _hardwareDecode = Pref.hardwareDecode;
     _background = Pref.playerBackground;
     _pipAuto = Pref.playerPipAuto;
@@ -236,6 +241,25 @@ class _SettingPageState extends State<SettingPage> {
                 }
                 setState(() => _playerSpeed = value);
                 Pref.playerSpeed = value;
+              },
+            ),
+          ),
+          ListTile(
+            title: const Text('长按倍速'),
+            trailing: SegmentedButton<double>(
+              segments: [
+                for (final speed in PlayerSpeeds.longPressOptions)
+                  ButtonSegment(
+                    value: speed,
+                    label: Text(PlayerSpeeds.label(speed)),
+                  ),
+              ],
+              selected: {_longPressSpeed},
+              showSelectedIcon: false,
+              onSelectionChanged: (selection) {
+                final value = selection.first;
+                setState(() => _longPressSpeed = value);
+                Pref.playerLongPressSpeed = value;
               },
             ),
           ),

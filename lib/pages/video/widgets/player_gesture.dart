@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
+import 'package:tucao/plugin/player/player_speeds.dart';
 
 /// 横向拖动的预览回调.
 ///
@@ -19,7 +20,7 @@ typedef SeekPreviewCallback =
 /// - 横向拖动调整进度, 拖动中通过 [onSeekPreview] 上报预览位置, 松手生效,
 ///   拖动到顶部左右角可取消.
 /// - 竖向拖动调整音量, 只作用于屏幕左半侧.
-/// - 长按临时切换到 3 倍速, 松手恢复原速.
+/// - 长按临时切换到 [PlayerGestureDetector.longPressSpeed], 松手恢复原速.
 /// - 单击切换控制条. 双击左右两侧快退快进 10 秒, 双击中间播放暂停.
 ///
 /// 手势层本身不绘制画面, 只在自己上面覆盖提示信息.
@@ -29,9 +30,13 @@ class PlayerGestureDetector extends StatefulWidget {
     required this.controller,
     required this.onToggleControls,
     this.onSeekPreview,
+    this.longPressSpeed = PlayerSpeeds.defaultLongPress,
   });
 
   final PlayerPageController controller;
+
+  /// 长按切到的倍速, 由设置决定.
+  final double longPressSpeed;
 
   /// 单击时通知外层切换控制条.
   final VoidCallback onToggleControls;
@@ -51,9 +56,6 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
 
   /// 竖向拖动超过这个距离才认为是在调整音量.
   static const _volumeThreshold = 12.0;
-
-  /// 长按切到的倍速.
-  static const _longPressSpeed = 3.0;
 
   /// 拖满屏幕宽度对应的进度变化量上限.
   static const _seekSpan = Duration(seconds: 90);
@@ -164,7 +166,7 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
     final player = widget.controller.player;
     _speedBeforeLongPress = player.speed;
     _longPressing = true;
-    widget.controller.setSpeed(_longPressSpeed);
+    widget.controller.setSpeed(widget.longPressSpeed);
     setState(() {});
   }
 
@@ -313,7 +315,7 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
       return '音量 ${_volumeTarget!.round()}%';
     }
     if (_longPressing) {
-      return '${_longPressSpeed.toStringAsFixed(0)}x 播放中';
+      return '${PlayerSpeeds.label(widget.longPressSpeed)} 播放中';
     }
     if (_doubleTapTotal != Duration.zero) {
       final seconds = _doubleTapTotal.inSeconds;

@@ -13,6 +13,7 @@ import 'package:tucao/pages/video/widgets/player_gesture.dart';
 import 'package:tucao/pages/video/widgets/player_top_bar.dart';
 import 'package:tucao/utils/danmaku_preferences_store.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
+import 'package:tucao/plugin/player/player_speeds.dart';
 import 'package:tucao/services/cast/session.dart';
 import 'package:tucao/utils/site_links.dart';
 import 'package:tucao/utils/storage_pref.dart';
@@ -62,8 +63,6 @@ class VideoPlayerView extends StatefulWidget {
 class _VideoPlayerViewState extends State<VideoPlayerView> {
   /// 全屏时控制条会自动隐藏, 竖屏下常驻.
   static const _hideDelay = Duration(seconds: 4);
-
-  static const _speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 
   bool _showControls = true;
   bool _settingsOpen = false;
@@ -183,6 +182,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
               controller: _controller,
               onToggleControls: _toggleControls,
               onSeekPreview: _onSeekPreview,
+              longPressSpeed: Pref.playerLongPressSpeed,
             ),
           ),
         // 锁定后手势只用来唤出锁按钮, 不响应拖动与双击.
@@ -881,7 +881,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
             _controller.setSpeed(value);
           },
           itemBuilder: (context) => [
-            for (final speed in _speeds)
+            for (final speed in PlayerSpeeds.options)
               PopupMenuItem(value: speed, child: Text('${speed}x')),
           ],
           child: Padding(
