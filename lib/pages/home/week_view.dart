@@ -11,9 +11,11 @@ import 'package:tucao/models/site_favorite.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/pages/home/week_controller.dart';
 import 'package:tucao/pages/home/widgets/continue_watching_banner.dart';
+import 'package:tucao/pages/home/widgets/site_notice_bar.dart';
 import 'package:tucao/services/account_service.dart';
 import 'package:tucao/services/block_service.dart';
 import 'package:tucao/services/site_favorite_service.dart';
+import 'package:tucao/services/site_notice_service.dart';
 
 /// 新番时间表.
 ///
@@ -88,6 +90,7 @@ class _WeekViewState extends State<WeekView>
       return Column(
         children: [
           const ContinueWatchingBanner(),
+          const SiteNoticeBar(),
           _WeekTabBar(
             groups: groups,
             index: index,
@@ -98,7 +101,12 @@ class _WeekViewState extends State<WeekView>
               maxWidth: Adaptive.gridMaxWidth,
               child: LayoutBuilder(
                 builder: (context, constraints) => RefreshIndicator(
-                  onRefresh: _controller.refreshList,
+                  onRefresh: () {
+                    if (Get.isRegistered<SiteNoticeService>()) {
+                      unawaited(SiteNoticeService.instance.load());
+                    }
+                    return _controller.refreshList();
+                  },
                   child: items.isEmpty
                       ? ListView(
                           physics: const AlwaysScrollableScrollPhysics(),
