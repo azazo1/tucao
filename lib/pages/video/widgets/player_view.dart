@@ -205,6 +205,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
         if (!casting) _buildBuffering(),
         if (!casting) _buildSourceTip(),
         if (!casting && !inPip) _buildAutoNext(),
+        if (!casting && !inPip && !locked) _buildResumeHint(),
         if (casting && !inPip) _buildCastControls(context, cast),
         // 返回按钮放在遥控面板之上, 全屏时也能退出全屏.
         if (widget.fullscreen && !inPip && casting) _buildFullscreenBack(),
@@ -374,6 +375,55 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
         );
       }),
     );
+  }
+
+  /// 续播提示, 告诉用户从哪里接着播, 并给出从头播放的入口.
+  Widget _buildResumeHint() {
+    return Obx(() {
+      final from = _controller.resumedFrom.value;
+      if (from == null) {
+        return const SizedBox.shrink();
+      }
+      return Positioned(
+        left: 12,
+        bottom: 64,
+        child: SafeArea(
+          top: false,
+          right: false,
+          child: Container(
+            key: const ValueKey('player-resume-hint'),
+            padding: const EdgeInsets.only(left: 12),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '已从 ${Utils.formatDuration(from)} 继续',
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
+                TextButton(
+                  onPressed: () => unawaited(_controller.playFromStart()),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Theme.of(context).colorScheme.primary,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  child: const Text('从头播放'),
+                ),
+                IconButton(
+                  onPressed: _controller.dismissResumeHint,
+                  icon: const Icon(Icons.close, size: 16, color: Colors.white70),
+                  visualDensity: VisualDensity.compact,
+                  tooltip: '关闭',
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    });
   }
 
   /// 连播倒计时卡片, 可以取消或立即播放.

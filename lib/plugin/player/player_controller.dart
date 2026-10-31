@@ -118,6 +118,14 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
 
   Timer? _autoNextTimer;
 
+  /// 本次按历史续播的起点, 非空时播放器提示可以从头播放.
+  final resumedFrom = Rxn<Duration>();
+
+  /// 续播提示停留的时长.
+  static const resumeHintDuration = Duration(seconds: 6);
+
+  Timer? _resumeHintTimer;
+
   /// 记录进度的间隔.
   static const _historyInterval = Duration(seconds: 5);
 
@@ -207,6 +215,8 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     _historyTimer = null;
     _autoNextTimer?.cancel();
     _autoNextTimer = null;
+    _resumeHintTimer?.cancel();
+    _resumeHintTimer = null;
     // 退出前再记一次, 不等待写入完成.
     unawaited(recordHistory());
     player.removeListener(_onPlayerChanged);
@@ -271,6 +281,28 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
       }
       unawaited(playAutoNextNow());
     });
+  }
+
+  void _showResumeHint(Duration from) {
+    _resumeHintTimer?.cancel();
+    resumedFrom.value = from;
+    _resumeHintTimer = Timer(resumeHintDuration, dismissResumeHint);
+  }
+
+  /// 收起续播提示.
+  void dismissResumeHint() {
+    _resumeHintTimer?.cancel();
+    _resumeHintTimer = null;
+    if (!_closed && resumedFrom.value != null) {
+      resumedFrom.value = null;
+    }
+  }
+
+  /// 放弃续播, 回到开头.
+  Future<void> playFromStart() async {
+    Log.i('用户放弃续播, 从头播放');
+    dismissResumeHint();
+    await seek(Duration.zero);
   }
 
   /// 当前分P之后第一个有播放地址的分P, 第三方失效源直接跳过.
@@ -355,6 +387,8 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     if (_closed) {
       return;
     }
+    // 重载回到的就是刚才的位置, 不算续播, 不打扰.
+    dismissResumeHint();
     // 历史里没有可用进度时, 用重启前的位置兜底.
     if (resumeAt > const Duration(seconds: 2) &&
         player.position == Duration.zero) {
@@ -414,6 +448,7 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     sourceError.value = null;
     playUrl.value = '';
     playerReady.value = false;
+    dismissResumeHint();
     _resetDanmaku();
 
     final list = parts;
@@ -457,6 +492,7 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
         _playingPart = index;
         if (startAt != null) {
           Log.i('续播上次进度 ${startAt.inSeconds}s');
+          _showResumeHint(startAt);
         }
       });
     } catch (e, stackTrace) {

@@ -92,6 +92,8 @@ class _Controller implements PlayerPageController {
   @override
   final autoNextSeconds = 0.obs;
   @override
+  final resumedFrom = Rxn<Duration>();
+  @override
   final video = Rxn<VideoModel>();
   @override
   String get hid => '1';
