@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:tucao/models/update_mirror.dart';
+import 'package:tucao/utils/logger.dart';
 
 /// 单个镜像源的测速结果.
 ///
@@ -13,6 +14,7 @@ class MirrorSpeedResult {
     this.elapsed = Duration.zero,
     this.firstByte,
     this.error,
+    this.timedOut = false,
   });
 
   /// 实际读到的字节数.
@@ -26,6 +28,11 @@ class MirrorSpeedResult {
 
   /// 失败原因, 为空表示测速成功.
   final String? error;
+
+  /// 是否在读完探测字节前就到了时限.
+  ///
+  /// 这时速度按已经读到的那部分估算, 比直接报失败更有参考价值.
+  final bool timedOut;
 
   bool get ok => error == null && bytes > 0;
 
@@ -57,7 +64,8 @@ class MirrorSpeedResult {
       return error ?? '测速失败';
     }
     final kilobytes = bytesPerSecond / 1024;
-    return '${kilobytes.toStringAsFixed(kilobytes >= 100 ? 0 : 1)} KB/s';
+    final speed = '${kilobytes.toStringAsFixed(kilobytes >= 100 ? 0 : 1)} KB/s';
+    return timedOut ? '$speed (未测完)' : speed;
   }
 }
 
@@ -67,13 +75,18 @@ class MirrorSpeedResult {
 /// 失败的镜像只影响自己的测速结果, 不影响其他源.
 abstract final class UpdateSpeedTest {
   /// 每次测速读取的字节数.
-  static const probeBytes = 1024 * 1024;
+  ///
+  /// 只取半个兆, 慢站在时限内也能读到一部分, 不至于一个字节都报不出来.
+  static const probeBytes = 512 * 1024;
 
   /// 单次测速的超时时间.
-  static const timeout = Duration(seconds: 8);
+  static const timeout = Duration(seconds: 12);
 
   static final Dio _dio = Dio(
-    BaseOptions(connectTimeout: timeout, receiveTimeout: timeout),
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 8),
+      receiveTimeout: timeout,
+    ),
   );
 
   /// 探测 [mirror] 对 [targetUrl] 的下载速度.
@@ -83,18 +96,29 @@ abstract final class UpdateSpeedTest {
     Dio? dio,
   }) async {
     final token = CancelToken();
+    Log.i('镜像测速开始 ${mirror.prefix}');
     try {
-      return await _measure(
+      // 流内部的时限负责保留已读数据, 这里只是连接阶段卡死时的兜底.
+      final result = await _measure(
         mirror,
         targetUrl,
         dio ?? _dio,
         token,
-      ).timeout(timeout);
+      ).timeout(timeout + const Duration(seconds: 4));
+      Log.i(
+        '镜像测速结果 ${mirror.prefix}: ${result.text}, '
+        '${result.bytes} 字节, 耗时 ${result.elapsed.inMilliseconds}ms, '
+        '首字节 ${result.firstByte?.inMilliseconds ?? -1}ms',
+      );
+      return result;
     } on TimeoutException {
       token.cancel('测速超时');
+      Log.w('镜像测速超时 ${mirror.prefix}');
       return const MirrorSpeedResult(error: '测速超时');
     } catch (error) {
-      return MirrorSpeedResult(error: _errorText(error));
+      final message = _errorText(error);
+      Log.w('镜像测速失败 ${mirror.prefix}: $message ($error)');
+      return MirrorSpeedResult(error: message);
     } finally {
       if (!token.isCancelled) {
         token.cancel('测速结束');
@@ -127,6 +151,7 @@ abstract final class UpdateSpeedTest {
       return const MirrorSpeedResult(error: '响应为空');
     }
     var bytes = 0;
+    var timedOut = false;
     Duration? firstByte;
     await for (final chunk in body.stream) {
       if (chunk.isEmpty) {
@@ -138,6 +163,11 @@ abstract final class UpdateSpeedTest {
       if (bytes >= probeBytes) {
         break;
       }
+      if (watch.elapsed >= timeout) {
+        // 到时限还没读够, 保留已读部分, 速度按这段估算.
+        timedOut = true;
+        break;
+      }
     }
     if (bytes == 0) {
       return const MirrorSpeedResult(error: '没有收到数据');
@@ -146,6 +176,7 @@ abstract final class UpdateSpeedTest {
       bytes: bytes,
       elapsed: watch.elapsed,
       firstByte: firstByte,
+      timedOut: timedOut && bytes < probeBytes,
     );
   }
 

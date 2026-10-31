@@ -34,4 +34,16 @@ void main() {
     const result = MirrorSpeedResult(bytes: 100, elapsed: Duration.zero);
     expect(result.bytesPerSecond, 0);
   });
+
+  test('到时限没读够时按已读部分估算并标注未测完', () {
+    const result = MirrorSpeedResult(
+      bytes: 512 * 1024,
+      elapsed: Duration(seconds: 12),
+      firstByte: Duration(milliseconds: 500),
+      timedOut: true,
+    );
+    expect(result.ok, isTrue);
+    expect(result.text, endsWith('(未测完)'));
+    expect(result.bytesPerSecond, greaterThan(0));
+  });
 }
