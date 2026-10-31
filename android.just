@@ -84,10 +84,11 @@ install *args:
 logs:
     adb logcat -s flutter
 
-# 生成应用图标资源.
+# 需要 PATH 上有 resvg. 图形与配色定义在 scripts/gen-icons.py 开头.
+# 生成应用图标资源 (adaptive icon, 各密度 PNG 与 logo).
 [group('生成')]
 icons:
-    dart run flutter_launcher_icons
+    uv run --no-project python scripts/gen-icons.py
 
 # 生成启动画面资源.
 [group('生成')]
