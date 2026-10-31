@@ -88,8 +88,19 @@ class _Player extends ChangeNotifier implements TucaoPlayer {
   @override
   Duration get duration => currentDuration;
 
+  Duration currentPosition = Duration.zero;
+
+  /// 每次 setUrl 收到的起播位置.
+  final startAts = <Duration?>[];
+
+  /// 加载完成后额外发出的跳转.
+  final seeks = <Duration>[];
+
   @override
-  Duration get position => Duration.zero;
+  Duration get position => currentPosition;
+
+  @override
+  Future<void> seek(Duration position) async => seeks.add(position);
 
   @override
   Future<void> init() async => initialize?.future;
@@ -102,6 +113,7 @@ class _Player extends ChangeNotifier implements TucaoPlayer {
   }) async {
     opens.add(url);
     autoPlays.add(autoPlay);
+    startAts.add(startAt);
     active++;
     if (active > maximumActive) {
       maximumActive = active;
@@ -504,6 +516,24 @@ void main() {
     history.writing!.complete();
     await Future.wait([second, latest]);
     expect(player.opens.last, 'https://example.invalid/c');
+  });
+
+  test('重新加载把重启前的进度随加载交给播放器, 关闭续播也不从 0 开始', () async {
+    final player = _Player();
+    final controller = PlayerPageController(
+      hid: '123',
+      player: player,
+      loadVideo: (_) async => _response(_video),
+      loadDanmaku: (_, _, _) async => [],
+    );
+    addTearDown(controller.onClose);
+    await controller.load();
+    player.currentPosition = const Duration(seconds: 42);
+    await controller.restart();
+    // 加载完再 seek 会被还没就绪的流丢掉, 位置必须跟着这次加载一起给.
+    expect(player.startAts, [null, const Duration(seconds: 42)]);
+    expect(player.seeks, isEmpty);
+    expect(controller.resumedFrom.value, isNull);
   });
 
   test('缺失直链的最后选择等待旧 open 后 stop, 不留下旧播放地址', () async {

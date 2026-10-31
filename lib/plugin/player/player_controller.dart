@@ -354,7 +354,9 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
   }
 
   /// 拉取视频详情并加载当前分P.
-  Future<void> load() async {
+  ///
+  /// [startAt] 不为空时从该位置起播, 优先于历史进度, 也不显示续播提示.
+  Future<void> load({Duration? startAt}) async {
     if (_closed) {
       return;
     }
@@ -375,7 +377,7 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
       video.value = response.result;
       unawaited(_loadPlayPage(hid));
       final index = part.value.clamp(0, partCount - 1);
-      await _loadPart(index, resume: true, request: request);
+      await _loadPart(index, resume: true, request: request, startAt: startAt);
     } catch (e, stackTrace) {
       if (_requests.isCurrent(request)) {
         Log.e('加载视频详情失败', error: e, stackTrace: stackTrace);
@@ -397,22 +399,19 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
       return;
     }
     cancelAutoNext();
-    final resumeAt = player.position;
+    final position = player.position;
     final wasPlaying = player.playing;
-    // 先把进度写进历史, 重新加载时会按它续播.
+    // 起播位置随加载一起交给播放器. 加载完再 seek 会被还没就绪的流丢掉,
+    // 关闭续播时也不能指望历史, 所以直接带上重启前的位置.
+    final startAt = position > const Duration(seconds: 2) ? position : null;
     await recordHistory();
     await player.stop();
-    await load();
+    await load(startAt: startAt);
     if (_closed) {
       return;
     }
-    // 重载回到的就是刚才的位置, 不算续播, 不打扰.
+    // 重启前停在开头时会按历史续播, 回到的仍是刚才的进度, 不算续播, 不打扰.
     dismissResumeHint();
-    // 历史里没有可用进度时, 用重启前的位置兜底.
-    if (resumeAt > const Duration(seconds: 2) &&
-        player.position == Duration.zero) {
-      await player.seek(resumeAt);
-    }
     if (wasPlaying) {
       await player.play();
     }
@@ -459,6 +458,7 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     int index, {
     required bool resume,
     required int request,
+    Duration? startAt,
   }) async {
     if (!_requests.isCurrent(request)) {
       return;
@@ -484,7 +484,9 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     }
 
     final danmakuFuture = _loadDanmaku(index, request);
-    final startAt = resume ? _resumePosition(index) : null;
+    // 指定起播位置时直接用它, 不再查历史, 也不显示续播提示.
+    final explicit = startAt != null;
+    final from = startAt ?? (resume ? _resumePosition(index) : null);
     try {
       // 整段原生加载串行执行, 排队中的过期请求直接跳过.
       await _requests.run(request, () async {
@@ -498,7 +500,7 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
         await player.setUrl(
           url,
           autoPlay: Pref.playerAutoPlay && _playbackAllowed,
-          startAt: startAt,
+          startAt: from,
         );
         // open 期间也可能退到后台. 此时串行区内仍是本次实际媒体,
         // 即使选择已换代也先暂停, 不把暂停排到新媒体打开之后.
@@ -509,9 +511,14 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
           return;
         }
         _playingPart = index;
-        if (startAt != null) {
-          Log.i('续播上次进度 ${startAt.inSeconds}s');
-          _showResumeHint(startAt);
+        if (from == null) {
+          return;
+        }
+        if (explicit) {
+          Log.i('从 ${from.inSeconds}s 起播');
+        } else {
+          Log.i('续播上次进度 ${from.inSeconds}s');
+          _showResumeHint(from);
         }
       });
     } catch (e, stackTrace) {
