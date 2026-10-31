@@ -346,78 +346,70 @@ class _ChannelTabViewState extends State<_ChannelTabView>
 
   Widget _buildGrid() {
     return LayoutBuilder(
-      builder: (context, constraints) {
-        // 横屏矮屏下把可用高度交给网格: 一张卡片都放不下时多排几列,
-        // 免得首屏只能看到卡片的一截.
-        final delegate = Style.videoGrid(
-          context,
-          constraints.maxWidth,
-          availableHeight: Adaptive.useSideTabs(context)
-              ? constraints.maxHeight
-              : null,
-        );
-        return Obx(() {
-          final raw = _controller.list;
-          final items = raw.withoutBlocked();
-          final error = _controller.error.value;
-          if (_controller.firstLoading.value) {
-            // 用和真实卡片同样排布的骨架占位, 数据到了不会整屏跳一下.
-            return VideoGridSkeleton(
-              gridDelegate: delegate,
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-            );
-          }
-          if (error != null && raw.isEmpty) {
-            return ErrorWidgetView(
-              message: error,
-              onRetry: _controller.loadFirst,
-            );
-          }
-          return RefreshIndicator(
-            onRefresh: _controller.refresh,
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (notification) {
-                if (notification.metrics.pixels >=
-                    notification.metrics.maxScrollExtent - 300) {
-                  if (_controller.hasMore && !_controller.loading.value) {
-                    _controller.loadMore();
-                  }
+      builder: (context, constraints) => Obx(() {
+        final raw = _controller.list;
+        final items = raw.withoutBlocked();
+        final error = _controller.error.value;
+        if (_controller.firstLoading.value) {
+          // 用和真实卡片同样排布的骨架占位, 数据到了不会整屏跳一下.
+          return VideoGridSkeleton(
+            gridDelegate: Style.videoGrid(context, constraints.maxWidth),
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+          );
+        }
+        if (error != null && raw.isEmpty) {
+          return ErrorWidgetView(
+            message: error,
+            onRetry: _controller.loadFirst,
+          );
+        }
+        return RefreshIndicator(
+          onRefresh: _controller.refresh,
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (notification) {
+              if (notification.metrics.pixels >=
+                  notification.metrics.maxScrollExtent - 300) {
+                if (_controller.hasMore && !_controller.loading.value) {
+                  _controller.loadMore();
                 }
-                return false;
-              },
-              child: CustomScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                slivers: [
-                  if (items.isEmpty)
-                    const SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: EmptyWidget(message: '这个分区还没有视频'),
-                    )
-                  else
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                      sliver: SliverGrid(
-                        gridDelegate: delegate,
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) =>
-                              VideoCardVertical(video: items[index]),
-                          childCount: items.length,
-                        ),
+              }
+              return false;
+            },
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                if (items.isEmpty)
+                  const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: EmptyWidget(message: '这个分区还没有视频'),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                    sliver: SliverGrid(
+                      gridDelegate: Style.videoGrid(
+                        context,
+                        constraints.maxWidth,
+                      ),
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) =>
+                            VideoCardVertical(video: items[index]),
+                        childCount: items.length,
                       ),
                     ),
-                  SliverToBoxAdapter(
-                    child: LoadMoreFooter(
-                      loading: _controller.loading.value,
-                      hasMore: _controller.hasMore,
-                      onRetry: _controller.loadMore,
-                    ),
                   ),
-                ],
-              ),
+                SliverToBoxAdapter(
+                  child: LoadMoreFooter(
+                    loading: _controller.loading.value,
+                    hasMore: _controller.hasMore,
+                    onRetry: _controller.loadMore,
+                  ),
+                ),
+              ],
             ),
-          );
-        });
-      },
+          ),
+        );
+      }),
     );
   }
 }

@@ -64,52 +64,16 @@ abstract final class Style {
     return columns.clamp(2, maxGridColumns).toInt();
   }
 
-  /// 给定列数时竖版卡片的宽度.
-  static double cardWidth(double availableWidth, int columns) {
-    final usable = availableWidth - horizontalPadding * 2;
-    return (usable - gridSpacing * (columns - 1)) / columns;
-  }
-
-  /// 竖版卡片网格的列数, 内容区够矮时追加列数.
-  ///
-  /// 卡片高度与宽度成正比, 手机横屏按宽度算出的列数往往让一张卡片比
-  /// 整个内容区还高, 一屏只能看到卡片的一截. 这里往上加列, 直到整张
-  /// 卡片放得下, 加到上限为止; 高度不限(竖屏, 平板)时不动列数.
-  static int gridColumnsForHeight(
-    BuildContext context,
-    double availableWidth, {
-    double? availableHeight,
-  }) {
-    final columns = gridColumns(availableWidth);
-    if (availableHeight == null ||
-        !availableHeight.isFinite ||
-        availableHeight <= 0) {
-      return columns;
-    }
-    var raised = columns;
-    while (raised < maxGridColumns &&
-        verticalCardExtent(context, cardWidth(availableWidth, raised)) >
-            availableHeight) {
-      raised++;
-    }
-    return raised;
-  }
-
   /// 竖版卡片的网格代理, 列数与卡片高度都跟随可用宽度.
   ///
   /// [availableWidth] 是网格容器自身的宽度, 水平内边距从这里扣除.
-  /// 传入 [availableHeight] 时, 内容区放不下一整张卡片就追加列数.
   static SliverGridDelegate videoGrid(
     BuildContext context,
-    double availableWidth, {
-    double? availableHeight,
-  }) {
-    final columns = gridColumnsForHeight(
-      context,
-      availableWidth,
-      availableHeight: availableHeight,
-    );
-    final itemWidth = cardWidth(availableWidth, columns);
+    double availableWidth,
+  ) {
+    final columns = gridColumns(availableWidth);
+    final usable = availableWidth - horizontalPadding * 2;
+    final itemWidth = (usable - gridSpacing * (columns - 1)) / columns;
     return SliverGridDelegateWithFixedCrossAxisCount(
       crossAxisCount: columns,
       crossAxisSpacing: gridSpacing,

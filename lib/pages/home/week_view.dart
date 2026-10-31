@@ -152,7 +152,6 @@ class _WeekViewState extends State<WeekView>
                           followed: followed,
                           times: times,
                           width: constraints.maxWidth,
-                          availableHeight: constraints.maxHeight,
                           isToday: index == todayIndex,
                         ),
                 ),
@@ -280,7 +279,6 @@ class _WeekGrid extends StatelessWidget {
     required this.followed,
     required this.times,
     required this.width,
-    required this.availableHeight,
     required this.isToday,
   });
 
@@ -290,9 +288,6 @@ class _WeekGrid extends StatelessWidget {
 
   /// 网格容器的宽度, 含水平内边距.
   final double width;
-
-  /// 网格容器的高度, 横屏矮屏下据此追加列数.
-  final double availableHeight;
 
   /// 当前分组是否就是当天, 只有当天才判断更新时刻到没到.
   final bool isToday;
@@ -305,14 +300,9 @@ class _WeekGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final columns = Style.gridColumnsForHeight(
-      context,
-      width,
-      availableHeight: Adaptive.useSideTabs(context)
-          ? availableHeight - topPadding - bottomPadding
-          : null,
-    );
-    final itemWidth = Style.cardWidth(width, columns);
+    final columns = Style.gridColumns(width);
+    final usable = width - Style.horizontalPadding * 2;
+    final itemWidth = (usable - Style.gridSpacing * (columns - 1)) / columns;
     final itemHeight = Style.verticalCardExtent(context, itemWidth);
     final rows = (items.length / columns).ceil();
     final height =
