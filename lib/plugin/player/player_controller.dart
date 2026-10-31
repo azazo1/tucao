@@ -732,7 +732,7 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
       if (result != null || !_requests.isCurrent(request)) {
         return result;
       }
-      // 站点不返回弹幕内容, 本地先按默认样式显示一条.
+      // 站点不返回弹幕内容, 本地先按默认样式显示一条, 带边框作为发送成功的反馈.
       final item = DanmakuModel(
         time: time,
         mode: 1,
@@ -741,7 +741,7 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
         timestamp: DateUtil.nowSeconds(),
         text: content,
       );
-      _danmakuController?.addDanmaku(_toContentItem(item));
+      _danmakuController?.addDanmaku(_toContentItem(item, selfSend: true));
       Log.i('弹幕发送成功: $content');
       return null;
     } catch (e, stackTrace) {
@@ -919,11 +919,16 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     return low;
   }
 
-  DanmakuContentItem<DanmakuModel> _toContentItem(DanmakuModel model) {
+  /// [selfSend] 为 true 时渲染器给弹幕加边框, 用来标出自己刚发的那条.
+  DanmakuContentItem<DanmakuModel> _toContentItem(
+    DanmakuModel model, {
+    bool selfSend = false,
+  }) {
     return DanmakuContentItem<DanmakuModel>(
       model.text,
       color: Color(model.color | 0xFF000000),
       type: _typeOf(model.mode),
+      selfSend: selfSend,
       extra: model,
     );
   }

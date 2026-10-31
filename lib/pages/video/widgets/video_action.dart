@@ -43,14 +43,18 @@ class _VideoActionBarState extends State<VideoActionBar> {
       );
       return;
     }
+    // 发出的弹幕在画面上带边框飘过, 不再弹提示条挡住画面.
+    // 弹幕关着时画面上看不到, 才补一句提示.
     _textController.clear();
     FocusScope.of(context).unfocus();
-    Get.snackbar(
-      '提示',
-      '弹幕已发送',
-      snackPosition: SnackPosition.BOTTOM,
-      duration: const Duration(seconds: 1),
-    );
+    if (!widget.controller.danmakuEnabled.value) {
+      Get.snackbar(
+        '弹幕已发送',
+        '弹幕显示已关闭, 打开后可以看到',
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 2),
+      );
+    }
   }
 
   void _openReply() {
