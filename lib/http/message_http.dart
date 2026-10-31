@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:html/dom.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:tucao/common/constants.dart';
+import 'package:tucao/common/rich_html/rich_content.dart';
+import 'package:tucao/common/rich_html/rich_html_parser.dart';
 import 'package:tucao/http/api_path.dart';
 import 'package:tucao/models/message.dart';
 import 'package:tucao/utils/http_util.dart';
@@ -342,19 +344,19 @@ abstract final class MessageHttp {
 
   /// 解析系统公告详情.
   ///
-  /// 公告正文是站点富文本, 这里按页面顺序拆成段落与图片, 交给界面用原生组件
-  /// 渲染, 不把整页 html 塞进 WebView. 时间写在 "发表意见，2026-06-29 14:25:04"
-  /// 这样一句话里, 从中取出日期部分.
+  /// 公告正文是站点富文本, 交给 [parseRichHtml] 按页面顺序拆成段落与图片,
+  /// 界面用原生组件渲染, 不把整页 html 塞进 WebView. 时间写在
+  /// "发表意见，2026-06-29 14:25:04" 这样一句话里, 从中取出日期部分.
   static SystemMessageDetail parseGroupDetailHtml(String raw) {
     final document = html_parser.parse(raw);
-    final blocks = <SystemContentBlock>[];
+    var blocks = const <RichBlock>[];
     final body = document.querySelector('div.group_show');
     if (body != null) {
       // 站点在正文末尾放了一个清除浮动用的空块, 不属于正文.
       for (final clear in body.querySelectorAll('div.clear')) {
         clear.remove();
       }
-      _collectBlocks(body, blocks);
+      blocks = parseRichHtml(body);
     }
     final info = document.querySelector('div.group_info')?.text ?? '';
     final time = RegExp(
@@ -480,126 +482,9 @@ abstract final class MessageHttp {
     return false;
   }
 
-  /// 正文里会断开段落的块级标签, 其余标签只当作行内元素继续往下走.
-  static const _blockTags = {
-    'p', 'div', 'li', 'ul', 'ol', 'dl', 'dd', 'dt', 'table', 'tr', 'td',
-    'blockquote', 'pre', 'section', 'article', 'figure', 'figcaption',
-    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-  };
-
-  /// 把富文本正文按页面顺序拆成段落与图片.
-  ///
-  /// 站点给的正文只用到 p, a, img, br 这几种标签: 段落里的换行由 br 决定,
-  /// 源码里的缩进与换行在浏览器里会被折成空格, 这里同样先折掉, 免得界面里
-  /// 冒出一堆来历不明的换行.
-  static void _collectBlocks(Element root, List<SystemContentBlock> out) {
-    final parts = <SystemTextPart>[];
-    final buffer = StringBuffer();
-
-    void flushText() {
-      final text = _blockText(buffer.toString());
-      buffer.clear();
-      if (text.isNotEmpty) {
-        parts.add(SystemTextPart(text));
-      }
-    }
-
-    void flushParagraph() {
-      flushText();
-      _trimEdges(parts);
-      if (parts.isNotEmpty) {
-        out.add(SystemParagraph(List<SystemTextPart>.unmodifiable(parts)));
-        parts.clear();
-      }
-    }
-
-    void addImage(Element image) {
-      final url = absoluteSiteUrl(image.attributes['src'] ?? '');
-      if (url.isEmpty) {
-        return;
-      }
-      flushParagraph();
-      out.add(SystemImage(url));
-    }
-
-    void walk(Node node) {
-      for (final child in node.nodes) {
-        if (child is Text) {
-          buffer.write(child.text.replaceAll(RegExp(r'\s+'), ' '));
-          continue;
-        }
-        if (child is! Element) {
-          continue;
-        }
-        final tag = child.localName;
-        if (tag == 'script' || tag == 'style') {
-          continue;
-        }
-        if (tag == 'img') {
-          addImage(child);
-          continue;
-        }
-        if (tag == 'br') {
-          buffer.write('\n');
-          continue;
-        }
-        if (tag == 'a') {
-          final text = _blockText(child.text);
-          final images = child.querySelectorAll('img');
-          // 站点会把宣传图整张贴成一个链接, 只有图片的链接按图片显示.
-          if (text.trim().isNotEmpty) {
-            flushText();
-            final href = absoluteSiteUrl(child.attributes['href'] ?? '');
-            parts.add(SystemTextPart(text, url: href.isEmpty ? null : href));
-          }
-          // 链接里同时有文字与图片时, 图片另起一块, 顺序与页面一致.
-          for (final image in images) {
-            addImage(image);
-          }
-          continue;
-        }
-        walk(child);
-        if (_blockTags.contains(tag)) {
-          flushParagraph();
-        }
-      }
-    }
-
-    walk(root);
-    flushParagraph();
-  }
-
-  /// 去掉段落整体首尾的空白, 段落中间的空白保持原样.
-  static void _trimEdges(List<SystemTextPart> parts) {
-    if (parts.isNotEmpty) {
-      final first = parts.first;
-      final text = first.text.replaceFirst(RegExp(r'^\s+'), '');
-      if (text.isEmpty) {
-        parts.removeAt(0);
-      } else {
-        parts[0] = SystemTextPart(text, url: first.url);
-      }
-    }
-    if (parts.isNotEmpty) {
-      final last = parts.last;
-      final text = last.text.replaceFirst(RegExp(r'\s+$'), '');
-      if (text.isEmpty) {
-        parts.removeLast();
-      } else {
-        parts[parts.length - 1] = SystemTextPart(text, url: last.url);
-      }
-    }
-  }
-
   /// 单行文本: 空白折成一个空格并去掉首尾.
   static String _inlineText(String raw) =>
       raw.replaceAll(RegExp(r'\s+'), ' ').trim();
-
-  /// 段落文本: 行内空白折成一个空格, 保留 br 换出来的换行.
-  static String _blockText(String raw) => raw
-      .replaceAll(RegExp(r'[ \t]+'), ' ')
-      .replaceAll(RegExp(r' *\n *'), '\n')
-      .replaceAll(RegExp(r'\n{2,}'), '\n');
 
   /// 把站点的多行文本拆成非空行.
   static List<String> _splitLines(String raw) => raw

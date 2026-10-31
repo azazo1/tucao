@@ -1,6 +1,7 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tucao/common/rich_html/rich_content.dart';
+import 'package:tucao/common/rich_html/rich_content_view.dart';
 import 'package:tucao/common/widgets/copy_selection_area.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/http/article_detail_http.dart';
@@ -172,7 +173,11 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
             ),
           ],
           const SizedBox(height: 14),
-          for (final block in detail.paragraphs) _buildBlock(context, block),
+          RichContentView(
+            blocks: detail.blocks,
+            imageTitle: '档案图片',
+            imagePrefix: 'tucao-article',
+          ),
         ],
       ),
     );
@@ -181,16 +186,7 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
   /// 档案正文的纯文本, 用于选择菜单里的复制全文.
   ///
   /// 标题与图片不进入剪贴板, 只保留正文段落.
-  String _articleText(ArticleDetail detail) {
-    final paragraphs = <String>[];
-    for (final block in detail.paragraphs) {
-      final text = block.text?.trim() ?? '';
-      if (text.isNotEmpty) {
-        paragraphs.add(text);
-      }
-    }
-    return paragraphs.join('\n');
-  }
+  String _articleText(ArticleDetail detail) => richPlainText(detail.blocks);
 
   Widget _buildComments(ArticleDetail detail) {
     if (detail.commentTypeId <= 0) {
@@ -200,40 +196,5 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
       return const SizedBox.shrink();
     }
     return ReplyPanel(typeId: detail.commentTypeId, hid: detail.hid);
-  }
-
-  Widget _buildBlock(BuildContext context, ArticleBlock block) {
-    final scheme = Theme.of(context).colorScheme;
-    final image = block.image;
-    if (image != null) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: CachedNetworkImage(
-            imageUrl: image,
-            fit: BoxFit.contain,
-            placeholder: (context, url) => const SizedBox(height: 120),
-            errorWidget: (context, url, error) => ColoredBox(
-              color: scheme.surfaceContainerHighest,
-              child: SizedBox(
-                height: 120,
-                child: Icon(
-                  Icons.broken_image_outlined,
-                  color: scheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Text(
-        block.text ?? '',
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.7),
-      ),
-    );
   }
 }
