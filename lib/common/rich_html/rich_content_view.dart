@@ -13,7 +13,8 @@ import 'package:tucao/utils/site_url.dart';
 /// 按块渲染站点富文本.
 ///
 /// 段落用 [Text.rich] 还原加粗, 颜色, 字号与链接, 图片按内容宽度或站点给的
-/// 宽度铺开, 点开进入全屏查看. 组件本身不滚动, 由外层列表负责.
+/// 宽度铺开, 点开进入全屏查看, 表格按站点的列宽比例排开, 放不下时整表横向
+/// 滚动. 组件本身不滚动, 由外层列表负责.
 class RichContentView extends StatelessWidget {
   const RichContentView({
     super.key,
@@ -49,7 +50,19 @@ class RichContentView extends StatelessWidget {
                 prefix: imagePrefix,
               ),
             ),
+            final RichTable table => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: _RichTableView(
+                table: table,
+                title: imageTitle,
+                prefix: imagePrefix,
+              ),
+            ),
             RichSpacer() => const SizedBox(height: 12),
+            RichRule() => const Padding(
+              padding: EdgeInsets.symmetric(vertical: 10),
+              child: Divider(height: 1),
+            ),
           },
       ],
     );
@@ -58,9 +71,19 @@ class RichContentView extends StatelessWidget {
 
 /// 一个段落, 链接单独上色并可点击.
 class _RichParagraphText extends StatefulWidget {
-  const _RichParagraphText({required this.paragraph});
+  const _RichParagraphText({
+    required this.paragraph,
+    this.fallbackAlign,
+    this.forceBold = false,
+  });
 
   final RichParagraph paragraph;
+
+  /// 段落自己没写对齐时的兜底, 表格格子用它带上格子的对齐.
+  final TextAlign? fallbackAlign;
+
+  /// 整段强制加粗, 表格里的 `<th>` 表头用.
+  final bool forceBold;
 
   @override
   State<_RichParagraphText> createState() => _RichParagraphTextState();
@@ -133,7 +156,8 @@ class _RichParagraphTextState extends State<_RichParagraphText> {
         ],
       ),
       style: base,
-      textAlign: widget.paragraph.align ?? TextAlign.start,
+      textAlign:
+          widget.paragraph.align ?? widget.fallbackAlign ?? TextAlign.start,
     );
   }
 
@@ -142,7 +166,7 @@ class _RichParagraphTextState extends State<_RichParagraphText> {
     final color = _readableColor(style.color, scheme.surface);
     final linkColor = color ?? scheme.primary;
     return TextStyle(
-      fontWeight: style.bold ? FontWeight.bold : null,
+      fontWeight: widget.forceBold || style.bold ? FontWeight.bold : null,
       fontStyle: style.italic ? FontStyle.italic : null,
       fontSize: _displaySize(style.fontSize, baseSize),
       color: isLink ? linkColor : color,
@@ -241,6 +265,142 @@ class _RichImageRowView extends StatelessWidget {
   }
 }
 
+/// 一张表格.
+///
+/// 站点按桌面网页的宽度排版, 新番时间表是七列, 年度数据快照是八列, 手机上
+/// 整表横向滚动, 保持列与列的对应关系. 列宽取格子上写的百分比, 没写的列按
+/// 已写列的均值补, 全部没写时均分.
+class _RichTableView extends StatelessWidget {
+  const _RichTableView({required this.table, this.title, this.prefix});
+
+  final RichTable table;
+  final String? title;
+  final String? prefix;
+
+  /// 一列在手机上还看得清的下限, 低于它就把整表撑宽, 交给横向滚动.
+  static const _minColumnWidth = 96.0;
+
+  /// 格子内边距, 站点写的是 10px, 手机上收一点.
+  static const _cellPadding = EdgeInsets.symmetric(horizontal: 6, vertical: 8);
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = table.columnCount;
+        if (columns == 0) {
+          return const SizedBox.shrink();
+        }
+        final available = constraints.hasBoundedWidth
+            ? constraints.maxWidth
+            : _minColumnWidth * columns;
+        final widths = _columnWidths(table, available);
+        final total = widths.fold(0.0, (sum, width) => sum + width);
+        final content = Table(
+          columnWidths: {
+            for (var index = 0; index < widths.length; index++)
+              index: FixedColumnWidth(widths[index]),
+          },
+          border: TableBorder.all(color: scheme.outlineVariant),
+          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+          children: [
+            for (final row in table.rows)
+              TableRow(
+                children: [
+                  for (var index = 0; index < widths.length; index++)
+                    _buildCell(
+                      context,
+                      index < row.cells.length ? row.cells[index] : null,
+                    ),
+                ],
+              ),
+          ],
+        );
+        if (total <= available + 0.5) {
+          return content;
+        }
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(width: total, child: content),
+        );
+      },
+    );
+  }
+
+  /// 一格的内容按块渲染, 对齐以格子为准, 段落自己写了对齐时以段落为准.
+  Widget _buildCell(BuildContext context, RichTableCell? cell) {
+    if (cell == null) {
+      return const SizedBox.shrink();
+    }
+    final align = cell.align ?? (cell.header ? TextAlign.center : null);
+    return Container(
+      color: cell.background,
+      padding: _cellPadding,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: switch (align) {
+          TextAlign.center => CrossAxisAlignment.center,
+          TextAlign.right || TextAlign.end => CrossAxisAlignment.end,
+          _ => CrossAxisAlignment.stretch,
+        },
+        children: [
+          for (final block in cell.blocks)
+            switch (block) {
+              final RichParagraph paragraph => _RichParagraphText(
+                paragraph: paragraph,
+                fallbackAlign: align,
+                forceBold: cell.header,
+              ),
+              final RichImageRow row => _RichImageRowView(
+                row: row,
+                title: title,
+                prefix: prefix,
+              ),
+              final RichTable table => _RichTableView(
+                table: table,
+                title: title,
+                prefix: prefix,
+              ),
+              RichSpacer() => const SizedBox(height: 6),
+              RichRule() => const Divider(height: 1),
+            },
+        ],
+      ),
+    );
+  }
+
+  /// 计算各列宽度.
+  ///
+  /// 先按站点写的百分比得到每列的占比, 没写宽度的列按已写列的均值补. 再检查
+  /// 最窄的一列是否够宽: 不够就把整表按比例撑宽, 让每一列都达到下限, 超出的
+  /// 部分由外层的横向滚动消化.
+  static List<double> _columnWidths(RichTable table, double available) {
+    final columns = table.columnCount;
+    final weights = List<double?>.filled(columns, null);
+    for (final row in table.rows) {
+      final count = math.min(row.cells.length, columns);
+      for (var index = 0; index < count; index++) {
+        final factor = row.cells[index].widthFactor;
+        if (factor == null) {
+          continue;
+        }
+        final current = weights[index];
+        weights[index] = current == null ? factor : math.max(current, factor);
+      }
+    }
+    final written = weights.whereType<double>().toList();
+    final fallback = written.isEmpty
+        ? 1 / columns
+        : written.reduce((a, b) => a + b) / written.length;
+    final ratios = [for (final weight in weights) weight ?? fallback];
+    final sum = ratios.reduce((a, b) => a + b);
+    final narrowest = ratios.reduce(math.min) / sum;
+    final total = math.max(available, _minColumnWidth / narrowest);
+    return [for (final ratio in ratios) total * ratio / sum];
+  }
+}
+
 /// 正文里的图片, 宽度由外层的图片行决定.
 ///
 /// 站外图片不自动联网, 与评论里的图片同一套规则, 免得正文里塞的外部地址
@@ -300,23 +460,29 @@ class _RichImageViewState extends State<_RichImageView> {
   }
 
   Widget _buildImage(BuildContext context, ColorScheme scheme) {
+    final image = widget.image;
+    final height = image.maxHeight;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    // 时间表的缩略图只有几十像素宽, 按实际显示尺寸解码, 不必按整屏宽缓存.
     final cacheWidth =
-        (MediaQuery.sizeOf(context).width *
-                MediaQuery.devicePixelRatioOf(context))
-            .round();
+        ((image.maxWidth ?? MediaQuery.sizeOf(context).width) * dpr).round();
     return GestureDetector(
       onTap: _open,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: CachedNetworkImage(
-          imageUrl: widget.image.url,
+          imageUrl: image.url,
           width: double.infinity,
-          fit: BoxFit.fitWidth,
+          height: height,
+          // 站点同时给了宽高时按原图比例摆在框里, 不拉伸; 否则铺满宽度.
+          fit: height == null ? BoxFit.fitWidth : BoxFit.contain,
           memCacheWidth: cacheWidth,
-          placeholder: (context, url) =>
-              Container(height: 120, color: scheme.surfaceContainerHighest),
+          placeholder: (context, url) => Container(
+            height: height ?? 120,
+            color: scheme.surfaceContainerHighest,
+          ),
           errorWidget: (context, url, error) => Container(
-            height: 120,
+            height: height ?? 120,
             alignment: Alignment.center,
             color: scheme.surfaceContainerHighest,
             child: Icon(

@@ -18,11 +18,17 @@ const richBaseFontSize = 14.0;
 List<RichBlock> parseRichHtml(Node root) => _RichHtmlParser().parse(root);
 
 /// 会断开段落的块级标签, 其余标签当作行内元素.
+///
+/// 表格的 `table` 与格子的 `td` 不在此列, 它们由 [_RichHtmlParser] 单独
+/// 收集成 [RichTable], 见 [_RichHtmlParser._parseTable].
 const _blockTags = {
-  'p', 'div', 'li', 'ul', 'ol', 'dl', 'dd', 'dt', 'table', 'tr', 'td', 'th',
-  'blockquote', 'pre', 'section', 'article', 'figure', 'figcaption', 'center',
-  'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr',
+  'p', 'div', 'li', 'ul', 'ol', 'dl', 'dd', 'dt', 'blockquote', 'pre',
+  'section', 'article', 'figure', 'figcaption', 'center',
+  'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
 };
+
+/// 表格里承载行的标签, 表格可能是 `table > tr` 也可能是 `table > tbody > tr`.
+const _tableSections = {'thead', 'tbody', 'tfoot'};
 
 /// 不属于正文的标签, 连同子节点一起跳过.
 const _ignoredTags = {
@@ -109,6 +115,19 @@ class _RichHtmlParser {
     }
     if (tag == 'img') {
       _addImage(element);
+      return;
+    }
+    if (tag == 'hr') {
+      _flush();
+      _out.add(const RichRule());
+      return;
+    }
+    if (tag == 'table') {
+      final table = _parseTable(element);
+      if (table != null) {
+        _flush();
+        _out.add(table);
+      }
       return;
     }
 
@@ -286,6 +305,66 @@ class _RichHtmlParser {
     return spans;
   }
 
+  /// 把一张表格收成 [RichTable].
+  ///
+  /// 站点用表格排新番时间表与年度数据快照, 列宽写在格子的 `width` 上,
+  /// 表头用 `<th>`, 格子里的内容可能是图片加标题. 行可能包在 `tbody` 里,
+  /// 也可能直接挂在 `table` 下, 两种都认. 嵌套表格不再展开, 免得表格套表格.
+  RichTable? _parseTable(Element table) {
+    final rows = <RichTableRow>[];
+
+    void collect(Element node) {
+      for (final child in node.children) {
+        final name = child.localName ?? '';
+        if (name == 'tr') {
+          final row = _parseRow(child);
+          if (row != null) {
+            rows.add(row);
+          }
+        } else if (_tableSections.contains(name)) {
+          collect(child);
+        }
+      }
+    }
+
+    collect(table);
+    return rows.isEmpty
+        ? null
+        : RichTable(List<RichTableRow>.unmodifiable(rows));
+  }
+
+  RichTableRow? _parseRow(Element tr) {
+    final cells = <RichTableCell>[];
+    for (final child in tr.children) {
+      final name = child.localName ?? '';
+      if (name == 'td' || name == 'th') {
+        cells.add(_parseCell(child));
+      }
+    }
+    return cells.isEmpty
+        ? null
+        : RichTableRow(List<RichTableCell>.unmodifiable(cells));
+  }
+
+  /// 一格的内容用独立的解析器收成块.
+  ///
+  /// 时间表的格子里是 "封面图 + 换行 + 标题", 数据快照的格子里是几行居中
+  /// 的数字, 都按段落与图片处理. 格子本身的对齐与底色记在单元格上, 段落
+  /// 自己写了对齐时以段落为准.
+  RichTableCell _parseCell(Element cell) {
+    final css = _CssDeclarations.parse(cell.attributes['style'] ?? '');
+    return RichTableCell(
+      blocks: _RichHtmlParser().parse(cell),
+      widthFactor: _percentFactor(
+        css.width ?? cell.attributes['width']?.trim() ?? '',
+      ),
+      background:
+          css.background ?? parseCssColor(cell.attributes['bgcolor'] ?? ''),
+      align: css.align ?? _parseAlign(cell.attributes['align'] ?? ''),
+      header: cell.localName == 'th',
+    );
+  }
+
   /// 图片前后的文字分属两个段落, 中间没有文字的相邻图片排在同一行.
   ///
   /// 包在链接里的图片也按图片处理, 点开进入图片查看, 不跟随链接.
@@ -306,16 +385,13 @@ class _RichHtmlParser {
     }
     final css = _CssDeclarations.parse(image.attributes['style'] ?? '');
     final width = css.width ?? image.attributes['width']?.trim() ?? '';
-    final percent = RegExp(r'^([\d.]+)\s*%$').firstMatch(width);
-    final pixels = RegExp(r'^([\d.]+)\s*(?:px)?$').firstMatch(width);
-    final factor = percent == null
-        ? null
-        : (double.tryParse(percent.group(1)!) ?? 100) / 100;
+    final height = css.height ?? image.attributes['height']?.trim() ?? '';
     _row.add(
       RichImage(
         _absoluteUrl(src),
-        widthFactor: factor?.clamp(0.05, 1.0),
-        maxWidth: pixels == null ? null : double.tryParse(pixels.group(1)!),
+        widthFactor: _percentFactor(width)?.clamp(0.05, 1.0),
+        maxWidth: _pixelValue(width),
+        maxHeight: _pixelValue(height),
       ),
     );
   }
@@ -325,6 +401,7 @@ class _RichHtmlParser {
 class _CssDeclarations {
   const _CssDeclarations({
     this.color,
+    this.background,
     this.fontSize,
     this.bold,
     this.italic,
@@ -332,9 +409,13 @@ class _CssDeclarations {
     this.lineThrough,
     this.align,
     this.width,
+    this.height,
   });
 
   final Color? color;
+
+  /// 底色, 站点用它给表格的表头铺灰底.
+  final Color? background;
 
   /// 字号原文, 相对单位要等到知道父元素字号时才能换算.
   final String? fontSize;
@@ -345,14 +426,18 @@ class _CssDeclarations {
   final bool? lineThrough;
   final TextAlign? align;
 
-  /// 宽度原文, 只给图片用.
+  /// 宽度原文, 只给图片与表格格子用.
   final String? width;
+
+  /// 高度原文, 只给图片用.
+  final String? height;
 
   static _CssDeclarations parse(String raw) {
     if (raw.trim().isEmpty) {
       return const _CssDeclarations();
     }
     Color? color;
+    Color? background;
     String? fontSize;
     bool? bold;
     bool? italic;
@@ -360,6 +445,7 @@ class _CssDeclarations {
     bool? lineThrough;
     TextAlign? align;
     String? width;
+    String? height;
     for (final declaration in raw.split(';')) {
       final colon = declaration.indexOf(':');
       if (colon <= 0) {
@@ -374,6 +460,11 @@ class _CssDeclarations {
       switch (name) {
         case 'color':
           color = parseCssColor(value);
+        case 'background-color':
+          background = parseCssColor(value);
+        case 'background':
+          // 站点的简写里只有颜色, 带图片或渐变的取不出颜色, 忽略即可.
+          background = parseCssColor(value) ?? background;
         case 'font-size':
           fontSize = value;
         case 'font-weight':
@@ -407,10 +498,13 @@ class _CssDeclarations {
           align = _parseAlign(value);
         case 'width':
           width = value;
+        case 'height':
+          height = value;
       }
     }
     return _CssDeclarations(
       color: color,
+      background: background,
       fontSize: fontSize,
       bold: bold,
       italic: italic,
@@ -418,6 +512,7 @@ class _CssDeclarations {
       lineThrough: lineThrough,
       align: align,
       width: width,
+      height: height,
     );
   }
 
@@ -432,6 +527,20 @@ class _CssDeclarations {
       lineThrough: lineThrough,
     );
   }
+}
+
+/// 解析站点写的百分比尺寸, 换算成 0 到 1 之间的比例.
+double? _percentFactor(String raw) {
+  final match = RegExp(r'^([\d.]+)\s*%$').firstMatch(raw.trim());
+  final number = match == null ? null : double.tryParse(match.group(1)!);
+  return number == null || number <= 0 ? null : number / 100;
+}
+
+/// 解析站点写的像素尺寸, 不带单位时按像素算.
+double? _pixelValue(String raw) {
+  final match = RegExp(r'^([\d.]+)\s*(?:px)?$').firstMatch(raw.trim());
+  final number = match == null ? null : double.tryParse(match.group(1)!);
+  return number == null || number <= 0 ? null : number;
 }
 
 /// 解析 CSS 颜色, 支持十六进制, rgb(), rgba() 与常见颜色名.

@@ -101,5 +101,54 @@ void main() {
       );
       expect((blocks.single as RichParagraph).spans.single.style.fontSize, 30);
     });
+
+    test('表格按行与列收成 RichTable, 保留列宽, 表头底色与格子对齐', () {
+      // 结构取自档案 d7262 的时间表与 d7120 的数据快照.
+      final blocks = _parse(
+        '<table style="width:100%;"><tbody>'
+        '<tr>'
+        '<td style="width: 14%; background-color: rgb(238, 238, 238);">'
+        '<span style="font-size:18px;"><strong>周日</strong></span></td>'
+        '<td style="width: 14%;">周一</td>'
+        '</tr>'
+        '<tr>'
+        '<td><a href="/play/h4107857/"><img src="/a.png" '
+        'width="70" height="45"><br>魔法姐妹露露与莉莉 Part.2</a></td>'
+        '<td><p style="text-align: center;">5,015,107</p></td>'
+        '</tr>'
+        '</tbody></table>',
+      );
+      final table = blocks.single as RichTable;
+      expect(table.rows, hasLength(2));
+      expect(table.columnCount, 2);
+
+      final header = table.rows.first.cells.first;
+      expect(header.widthFactor, 0.14);
+      expect(header.background, const Color(0xFFEEEEEE));
+      expect(header.text, '周日');
+      final headerParagraph = header.blocks.single as RichParagraph;
+      expect(headerParagraph.spans.single.style.bold, isTrue);
+      expect(headerParagraph.spans.single.style.fontSize, 18);
+
+      // 格子里的封面与标题各成一格内容, 图片宽度和高度都取到了.
+      final cover = table.rows.last.cells.first;
+      final image = cover.blocks.whereType<RichImageRow>().single.images.single;
+      expect(image.url, '${Constants.baseUrl}a.png');
+      expect(image.maxWidth, 70);
+      expect(image.maxHeight, 45);
+      expect(cover.text, '魔法姐妹露露与莉莉 Part.2');
+
+      final value = table.rows.last.cells.last;
+      expect((value.blocks.single as RichParagraph).align, TextAlign.center);
+    });
+
+    test('hr 收成分隔线, 更新日志里的两段不再粘在一起', () {
+      final blocks = _parse('<p>上</p><hr /><p>下</p>');
+      expect(blocks.map((e) => e.runtimeType).toList(), [
+        RichParagraph,
+        RichRule,
+        RichParagraph,
+      ]);
+    });
   });
 }
