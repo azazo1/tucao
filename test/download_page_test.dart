@@ -302,6 +302,21 @@ void main() {
     );
     final available = tester.widget<CheckboxListTile>(_key('download-part-5'));
     expect(available.onChanged, isNotNull);
+    // 全选只勾可选的分 P, 再点一次全部取消.
+    await tester.tap(_key('download-toggle-all'));
+    await tester.pump();
+    for (var part = 0; part < 6; part++) {
+      expect(
+        tester.widget<CheckboxListTile>(_key('download-part-$part')).value,
+        part == 5,
+      );
+    }
+    await tester.tap(_key('download-toggle-all'));
+    await tester.pump();
+    expect(
+      tester.widget<CheckboxListTile>(_key('download-part-5')).value,
+      isFalse,
+    );
     await tester.tap(_key('download-part-5'));
     await tester.pump();
     await tester.tap(_key('download-submit'));

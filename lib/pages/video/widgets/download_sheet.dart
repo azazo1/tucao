@@ -182,9 +182,13 @@ class _VideoDownloadSheetState extends State<_VideoDownloadSheet> {
         child: Obx(() {
           final ready = _service.ready.value;
           final tasks = _service.items.toList();
-          final selected = _selected
-              .where((part) => _reason(part, tasks, ready: ready) == null)
-              .toSet();
+          final available = [
+            for (var part = 0; part < widget.video.parts.length; part++)
+              if (_reason(part, tasks, ready: ready) == null) part,
+          ];
+          final selected = _selected.where(available.contains).toSet();
+          final allSelected =
+              available.isNotEmpty && selected.length == available.length;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -271,18 +275,43 @@ class _VideoDownloadSheetState extends State<_VideoDownloadSheet> {
               ),
               Padding(
                 padding: const EdgeInsets.all(16),
-                child: FilledButton(
-                  key: const ValueKey('download-submit'),
-                  onPressed: _submitting || selected.isEmpty || !ready
-                      ? null
-                      : _submit,
-                  child: _submitting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text('开始缓存 (${selected.length})'),
+                child: Row(
+                  children: [
+                    // 只切换可选的分 P, 已缓存或排队中的保持禁选.
+                    TextButton.icon(
+                      key: const ValueKey('download-toggle-all'),
+                      onPressed: _submitting || available.isEmpty
+                          ? null
+                          : () => setState(() {
+                              if (allSelected) {
+                                _selected.removeAll(available);
+                              } else {
+                                _selected.addAll(available);
+                              }
+                            }),
+                      icon: Icon(
+                        allSelected ? Icons.deselect : Icons.select_all,
+                        size: 18,
+                      ),
+                      label: Text(allSelected ? '全不选' : '全选'),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton(
+                        key: const ValueKey('download-submit'),
+                        onPressed: _submitting || selected.isEmpty || !ready
+                            ? null
+                            : _submit,
+                        child: _submitting
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : Text('开始缓存 (${selected.length})'),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
