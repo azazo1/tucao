@@ -136,5 +136,28 @@ void main() {
       expect(empty.list, isEmpty);
       expect(empty.info.userName, isEmpty);
     });
+
+    test('标签是空模板文案且资料全空时视为用户不存在', () {
+      // 站点对不存在或已注销的 uid 返回的就是这张模板.
+      const raw =
+          '<html><body><div class="sheader"><h1></h1>'
+          '<p>正义, 1元-1次, 守护0天, 居住56年</p></div></body></html>';
+      final missing = SpaceHttp.parseSpaceHtml(raw, 12345678, 1);
+      expect(missing.info.exists, isFalse);
+
+      // 昵称被清空但还有头像的账号仍然存在, 不能当作不存在的用户.
+      const withAvatar =
+          '<html><body><div class="sheader">'
+          '<p>正义, 1元-1次, 守护0天, 居住56年</p>'
+          '<img class="avatar" src="/avatar/180x180.jpg"><h1></h1>'
+          '</div></body></html>';
+      final quiet = SpaceHttp.parseSpaceHtml(withAvatar, 12345678, 1);
+      expect(quiet.info.exists, isTrue);
+
+      // uid 0 是游客弹幕的聚合账号, 仍然算存在, 页面另行说明.
+      final guest = SpaceHttp.parseSpaceHtml(raw, 0, 1);
+      expect(guest.info.exists, isTrue);
+      expect(guest.info.userName, SpaceHttp.guestUserName);
+    });
   });
 }

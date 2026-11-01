@@ -123,6 +123,17 @@ class _SpacePageState extends State<SpacePage> {
           );
         }
         final info = _controller.info.value;
+        // 站点对不存在或已注销的 uid 也返回 200, 页面只剩默认背景与空投稿,
+        // 不提示的话看起来像加载失败.
+        if (info != null && !info.exists) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('用户'), actions: [_moreMenu()]),
+            body: const EmptyWidget(
+              message: '用户不存在, 可能链接有误或账号已注销',
+              icon: Icons.person_off_outlined,
+            ),
+          );
+        }
         final raw = _controller.list;
         final items = raw.withoutBlocked();
         return RefreshIndicator(

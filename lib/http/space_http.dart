@@ -20,10 +20,19 @@ class SpaceInfo {
     this.meta = '',
     this.total = 0,
     this.isVip = false,
+    this.exists = true,
   });
 
   final int userId;
   final String userName;
+
+  /// 站点是否有这个用户.
+  ///
+  /// 不存在或已注销的 uid 也会返回 200, 页面是一张只剩默认背景的空模板,
+  /// 标签固定是 `正义, 1元-1次, 守护0天, 居住56年`, 而真实用户的次数不会是
+  /// 负数, 用这段文案判定, 不看会被站点清空的昵称.
+  /// uid 0 是游客弹幕的聚合账号, 不能当作不存在的用户.
+  final bool exists;
 
   /// 空间主人在站点的登录用户名, 私信接口按它查收件人.
   ///
@@ -77,6 +86,13 @@ abstract final class SpaceHttp {
   /// 站点把未登录用户发的弹幕都统计在 uid 0 名下, u 榜里给它的名字是
   /// 网友, 但空间页的 `h1` 是空的, 这里沿用榜单的叫法.
   static const guestUserName = '网友';
+
+  /// 空模板上的用户标签.
+  ///
+  /// 不存在或已注销的 uid 也会返回 200 的页面, 标签固定是
+  /// `正义, 1元-1次, 守护0天, 居住56年`; 真实用户的次数不会是负数,
+  /// 这段文案只会出现在空模板上, 比昵称可靠得多.
+  static const placeholderMeta = '1元-1次';
 
   /// 站点用户空间每页固定返回的条数.
   static const pageSize = 50;
@@ -174,12 +190,24 @@ abstract final class SpaceHttp {
     final hasMore = list.length >= pageSize;
 
     final userName = nameNode?.text.trim() ?? '';
+    // 空模板的标签写着 1元-1次, 真实用户的次数不会是负数, 用它判断用户是否存在.
+    // 仍保留其余资料作为兜底: 只有标签是占位文案且其它字段也全空时才认定不存在,
+    // 这样站点以后改了文案也不会把所有用户都判成不存在.
+    final exists =
+        userId == 0 ||
+        !meta.contains(placeholderMeta) ||
+        userName.isNotEmpty ||
+        avatar.isNotEmpty ||
+        loginName.isNotEmpty ||
+        total > 0 ||
+        list.isNotEmpty;
     Log.i('用户空间解析完成, uid=$userId 第 $page 页, ${list.length} 条');
     return SpacePage(
       info: SpaceInfo(
         userId: userId,
         // uid 0 是游客弹幕的聚合账号, 站点没有给它昵称, 这里补一个显示名.
         userName: userName.isEmpty && userId == 0 ? guestUserName : userName,
+        exists: exists,
         loginName: loginName,
         avatar: avatarUrl(avatar, revision: avatarRevision?.toString()),
         banner: _absolute(banner),
