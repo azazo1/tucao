@@ -7,6 +7,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:tucao/common/constants.dart';
+import 'package:tucao/services/download/download_segments.dart';
 import 'package:tucao/services/download/download_transport.dart';
 
 /// 全部响应由内存构造, 测试不会访问真实站点.
@@ -320,6 +321,139 @@ void main() {
     adapter.respond = (_) => throw error;
     await expectLater(fetch(), throwsA(same(error)));
     expect(target.existsSync(), isFalse);
+  });
+
+  group('分段下载', () {
+    final data = List.generate(12, (index) => index + 10);
+
+    String? rangeOf(RequestOptions options) {
+      for (final entry in options.headers.entries) {
+        if (entry.key.toLowerCase() == 'range') {
+          return entry.value as String;
+        }
+      }
+      return null;
+    }
+
+    /// 按请求头的区间返回 [content], 没有区间时返回整包.
+    ResponseBody serve(List<int> content, RequestOptions options) {
+      final match = RegExp(
+        r'^bytes=(\d+)-(\d*)$',
+      ).firstMatch(rangeOf(options) ?? '');
+      if (match == null) {
+        return bytes(content, length: content.length);
+      }
+      final start = int.parse(match.group(1)!);
+      final end = match.group(2)!.isEmpty
+          ? content.length - 1
+          : int.parse(match.group(2)!);
+      final slice = content.sublist(start, end + 1);
+      return bytes(
+        slice,
+        status: 206,
+        length: slice.length,
+        range: 'bytes $start-$end/${content.length}',
+      );
+    }
+
+    List<String> files() =>
+        directory.listSync().map((entry) => p.basename(entry.path)).toList();
+
+    setUp(() => transport = DioDownloadTransport(dio, minSegmentSize: 4));
+
+    test('探测支持区间后并发下载各段, 按顺序合并并清掉计划与各段', () async {
+      adapter.respond = (options) => serve(data, options);
+      final progress = <List<int>>[];
+      final received = await transport.fetch(
+        uri: uri,
+        target: target,
+        cancelToken: CancelToken(),
+        connections: 3,
+        onProgress: (r, t) => progress.add([r, t]),
+      );
+      expect(received, 12);
+      expect(await target.readAsBytes(), data);
+      final ranges = adapter.requests.map(rangeOf).toList();
+      expect(ranges.first, 'bytes=0-0');
+      expect(ranges.skip(1), unorderedEquals(['bytes=0-3', 'bytes=4-7', 'bytes=8-11']));
+      expect(progress.last, [12, 12]);
+      expect(files(), ['movie.mp4.part']);
+    });
+
+    test('某段中断后保留计划, 再次下载只补各段缺的部分', () async {
+      adapter.respond = (options) {
+        if (rangeOf(options) == 'bytes=4-7') {
+          // 声明整段, 只给出两个字节就断开.
+          return bytes(data.sublist(4, 6), status: 206, range: 'bytes 4-7/12');
+        }
+        return serve(data, options);
+      };
+      await expectLater(
+        transport.fetch(
+          uri: uri,
+          target: target,
+          cancelToken: CancelToken(),
+          connections: 3,
+          onProgress: (_, _) {},
+        ),
+        throwsA(isA<DownloadInterruptedException>()),
+      );
+      expect(files(), contains('movie.mp4.part.plan'));
+      adapter.requests.clear();
+      adapter.respond = (options) => serve(data, options);
+      // 计划优先, 不看本次的连接数.
+      final received = await transport.fetch(
+        uri: uri,
+        target: target,
+        cancelToken: CancelToken(),
+        onProgress: (_, _) {},
+      );
+      expect(received, 12);
+      expect(await target.readAsBytes(), data);
+      final ranges = adapter.requests.map(rangeOf).toList();
+      expect(ranges, contains('bytes=6-7'));
+      expect(ranges, isNot(contains('bytes=0-0')));
+      expect(ranges, isNot(contains(null)));
+      expect(files(), ['movie.mp4.part']);
+    });
+
+    test('服务端忽略区间时退回单连接, 不留下计划', () async {
+      adapter.respond = (_) => bytes(data, length: data.length);
+      final received = await transport.fetch(
+        uri: uri,
+        target: target,
+        cancelToken: CancelToken(),
+        connections: 3,
+        onProgress: (_, _) {},
+      );
+      expect(received, 12);
+      expect(await target.readAsBytes(), data);
+      expect(adapter.requests.map(rangeOf), ['bytes=0-0', null]);
+      expect(files(), ['movie.mp4.part']);
+    });
+
+    test('服务端文件大小与计划不符时丢掉各段, 从头下载', () async {
+      await DownloadSegments.save(
+        target,
+        const SegmentPlan(
+          total: 12,
+          ranges: [(start: 0, end: 5), (start: 6, end: 11)],
+        ),
+      );
+      await DownloadSegments.segment(target, 0).writeAsBytes([9, 9, 9]);
+      await DownloadSegments.segment(target, 1).writeAsBytes([8]);
+      final changed = List.generate(16, (index) => index);
+      adapter.respond = (options) => serve(changed, options);
+      final received = await transport.fetch(
+        uri: uri,
+        target: target,
+        cancelToken: CancelToken(),
+        onProgress: (_, _) {},
+      );
+      expect(received, 16);
+      expect(await target.readAsBytes(), changed);
+      expect(files(), ['movie.mp4.part']);
+    });
   });
 
   test('父服务未准备目录时不自动创建目录', () async {

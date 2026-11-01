@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as path;
 import 'package:tucao/models/download_task.dart';
+import 'package:tucao/services/download/download_segments.dart';
 import 'package:tucao/utils/logger.dart';
 
 /// 缓存清单单独带结构版本, 旧版本任务不自动发起网络请求.
@@ -100,10 +101,25 @@ class DownloadStore {
     await temporary.rename(manifest.path);
   }
 
+  /// 丢弃分片时连同分段计划与各段一起删, 它们都属于同一份未完成的下载.
   Future<void> discard(DownloadTask task, {bool partial = false}) async {
     final target = media(task, partial: partial);
+    if (partial) {
+      await DownloadSegments.clear(File(target.path));
+    }
     if (await target.exists()) {
       await target.delete();
     }
+  }
+
+  /// 未完成下载已写下的字节与记下的总长, 分段下载按各段合计.
+  Future<({int received, int total})> partialProgress(DownloadTask task) async {
+    final target = media(task, partial: true);
+    final segmented = await DownloadSegments.progress(File(target.path));
+    if (segmented != null) {
+      return segmented;
+    }
+    final kept = await target.exists() ? await target.length() : 0;
+    return (received: kept, total: kept > 0 ? task.total : -1);
   }
 }

@@ -13,6 +13,7 @@ import 'package:tucao/services/account_service.dart';
 import 'package:tucao/services/ad_service.dart';
 import 'package:tucao/services/block_service.dart';
 import 'package:tucao/services/danmaku_trend_service.dart';
+import 'package:tucao/services/download/download_service.dart';
 import 'package:tucao/services/history_service.dart';
 import 'package:tucao/services/home_display_service.dart';
 import 'package:tucao/services/pip_service.dart';
@@ -67,6 +68,12 @@ class _SettingPageState extends State<SettingPage> {
   /// 更新包下载的并发连接数, 1 为单连接.
   late int _updateConnections;
 
+  /// 离线缓存同时下载的任务数.
+  late int _downloadConcurrency;
+
+  /// 单个缓存任务的分段连接数, 1 为单连接.
+  late int _downloadConnections;
+
   @override
   void initState() {
     super.initState();
@@ -101,6 +108,8 @@ class _SettingPageState extends State<SettingPage> {
 
     _updateSource = UpdateSource.saved;
     _updateConnections = Pref.updateConnections;
+    _downloadConcurrency = Pref.downloadConcurrency;
+    _downloadConnections = Pref.downloadConnections;
 
     unawaited(_loadPipSupport());
   }
@@ -158,16 +167,76 @@ class _SettingPageState extends State<SettingPage> {
     Pref.updateSource = value.name;
   }
 
-  Future<void> _editConnections() async {
+  Future<int?> _editNumber({
+    required String title,
+    required String label,
+    required int initial,
+    required int min,
+    required int max,
+    required String helper,
+  }) async {
     final input = await showDialog<int>(
       context: context,
-      builder: (_) => _ConnectionsDialog(initial: _updateConnections),
+      builder: (_) => _NumberDialog(
+        title: title,
+        label: label,
+        initial: initial,
+        min: min,
+        max: max,
+        helper: helper,
+      ),
     );
-    if (input == null || !mounted) {
+    return mounted ? input : null;
+  }
+
+  Future<void> _editConnections() async {
+    final input = await _editNumber(
+      title: '下载并发连接数',
+      label: '连接数',
+      initial: _updateConnections,
+      min: Pref.updateConnectionsMin,
+      max: Pref.updateConnectionsMax,
+      helper: '1 为单连接, 上限 ${Pref.updateConnectionsMax}',
+    );
+    if (input == null) {
       return;
     }
     setState(() => _updateConnections = input);
     Pref.updateConnections = input;
+  }
+
+  Future<void> _editDownloadConcurrency() async {
+    final input = await _editNumber(
+      title: '同时缓存数',
+      label: '任务数',
+      initial: _downloadConcurrency,
+      min: Pref.downloadConcurrencyMin,
+      max: Pref.downloadConcurrencyMax,
+      helper: '调小时正在下载的任务会下完, 上限 ${Pref.downloadConcurrencyMax}',
+    );
+    if (input == null) {
+      return;
+    }
+    setState(() => _downloadConcurrency = input);
+    Pref.downloadConcurrency = input;
+    // 调大后立即补上排队中的任务.
+    DownloadService.instance.reschedule();
+  }
+
+  Future<void> _editDownloadConnections() async {
+    final input = await _editNumber(
+      title: '单任务连接数',
+      label: '连接数',
+      initial: _downloadConnections,
+      min: Pref.downloadConnectionsMin,
+      max: Pref.downloadConnectionsMax,
+      helper: '1 为单连接, 上限 ${Pref.downloadConnectionsMax}',
+    );
+    if (input == null) {
+      return;
+    }
+    setState(() => _downloadConnections = input);
+    Pref.downloadConnections = input;
   }
 
   Future<void> _clearHistory() async {
@@ -438,6 +507,32 @@ class _SettingPageState extends State<SettingPage> {
             ),
           ),
 
+          const _SectionTitle('离线缓存'),
+          ListTile(
+            title: const Text('同时缓存数'),
+            subtitle: const Text('按加入顺序同时下载的任务数'),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('$_downloadConcurrency'),
+                const Icon(Icons.chevron_right),
+              ],
+            ),
+            onTap: _editDownloadConcurrency,
+          ),
+          ListTile(
+            title: const Text('单任务连接数'),
+            subtitle: const Text('大于 1 时分段并发下载, 服务器不支持时自动用单连接'),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('$_downloadConnections'),
+                const Icon(Icons.chevron_right),
+              ],
+            ),
+            onTap: _editDownloadConnections,
+          ),
+
           const _SectionTitle('更新'),
           RadioGroup<UpdateSource>(
             groupValue: _updateSource,
@@ -613,17 +708,29 @@ class _UpdateSourceTile extends StatelessWidget {
   }
 }
 
-/// 更新包下载并发连接数的输入框, 只负责校验范围.
-class _ConnectionsDialog extends StatefulWidget {
-  const _ConnectionsDialog({required this.initial});
+/// 整数设置的输入框, 只负责校验范围.
+class _NumberDialog extends StatefulWidget {
+  const _NumberDialog({
+    required this.title,
+    required this.label,
+    required this.initial,
+    required this.min,
+    required this.max,
+    required this.helper,
+  });
 
+  final String title;
+  final String label;
   final int initial;
+  final int min;
+  final int max;
+  final String helper;
 
   @override
-  State<_ConnectionsDialog> createState() => _ConnectionsDialogState();
+  State<_NumberDialog> createState() => _NumberDialogState();
 }
 
-class _ConnectionsDialogState extends State<_ConnectionsDialog> {
+class _NumberDialogState extends State<_NumberDialog> {
   late final TextEditingController _controller;
   String? _error;
 
@@ -641,13 +748,8 @@ class _ConnectionsDialogState extends State<_ConnectionsDialog> {
 
   void _submit() {
     final value = int.tryParse(_controller.text.trim());
-    if (value == null ||
-        value < Pref.updateConnectionsMin ||
-        value > Pref.updateConnectionsMax) {
-      setState(
-        () => _error =
-            '请填 ${Pref.updateConnectionsMin} 到 ${Pref.updateConnectionsMax} 之间的整数',
-      );
+    if (value == null || value < widget.min || value > widget.max) {
+      setState(() => _error = '请填 ${widget.min} 到 ${widget.max} 之间的整数');
       return;
     }
     Navigator.pop(context, value);
@@ -656,14 +758,14 @@ class _ConnectionsDialogState extends State<_ConnectionsDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('下载并发连接数'),
+      title: Text(widget.title),
       content: TextField(
         controller: _controller,
         autofocus: true,
         keyboardType: TextInputType.number,
         decoration: InputDecoration(
-          labelText: '连接数',
-          helperText: '1 为单连接, 上限 ${Pref.updateConnectionsMax}',
+          labelText: widget.label,
+          helperText: widget.helper,
           errorText: _error,
         ),
         onSubmitted: (_) => _submit(),

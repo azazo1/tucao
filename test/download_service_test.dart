@@ -15,7 +15,14 @@ import 'package:tucao/services/download/download_store.dart';
 import 'package:tucao/services/download/download_transport.dart';
 
 class _Request {
-  _Request(this.uri, this.file, this.token, this.progress, this.offset);
+  _Request(
+    this.uri,
+    this.file,
+    this.token,
+    this.progress,
+    this.offset,
+    this.connections,
+  );
   final Uri uri;
   final File file;
   final CancelToken token;
@@ -23,6 +30,9 @@ class _Request {
 
   /// 服务要求的续传起点.
   final int offset;
+
+  /// 服务要求的分段连接数.
+  final int connections;
 
   Future<int> complete() async {
     await file.writeAsBytes([1, 2, 3], flush: true);
@@ -43,8 +53,16 @@ class _Transport implements DownloadTransport {
     required void Function(int received, int total) onProgress,
     int offset = 0,
     int expectedTotal = -1,
+    int connections = 1,
   }) async {
-    final request = _Request(uri, target, cancelToken, onProgress, offset);
+    final request = _Request(
+      uri,
+      target,
+      cancelToken,
+      onProgress,
+      offset,
+      connections,
+    );
     calls.add(request);
     return behavior == null ? request.complete() : behavior!(request);
   }
@@ -232,6 +250,74 @@ void main() {
     expect(await file?.readAsBytes(), [1, 2, 3]);
     expect(file?.path, service.store.media(service.items.first).path);
     expect((await service.store.load()).length, 2);
+  });
+
+  test('按设置同时下载多个任务, 暂停一个后按顺序补上空位', () async {
+    service.onClose();
+    await service.waitForIdle();
+    var limit = 2;
+    service = DownloadService(
+      directory: root,
+      transport: transport,
+      concurrency: () => limit,
+      connections: () => 3,
+    );
+    await service.initialize();
+    final releases = <String, Completer<void>>{};
+    final started = StreamController<String>();
+    transport.behavior = (request) async {
+      final id = path.basenameWithoutExtension(request.file.path);
+      final release = releases[id] = Completer<void>();
+      started.add(id);
+      await Future.any([release.future, request.token.whenCancel]);
+      if (request.token.isCancelled) {
+        throw request.token.cancelError!;
+      }
+      return request.complete();
+    };
+    const series = VideoModel(
+      hid: '123',
+      title: '四集',
+      parts: [
+        VideoPart(title: '1', file: 'https://media.example.com/1.mp4'),
+        VideoPart(title: '2', file: 'https://media.example.com/2.mp4'),
+        VideoPart(title: '3', file: 'https://media.example.com/3.mp4'),
+        VideoPart(title: '4', file: 'https://media.example.com/4.mp4'),
+      ],
+    );
+    final starts = StreamIterator(started.stream);
+    for (var part = 0; part < 4; part++) {
+      await service.enqueue(series, part);
+    }
+    expect(await starts.moveNext(), isTrue);
+    expect(await starts.moveNext(), isTrue);
+    await pumpEventQueue();
+    // 前两个同时在下, 后两个排队.
+    expect(transport.calls.length, 2);
+    expect(transport.calls.map((call) => call.connections), [3, 3]);
+    expect(releases.keys, unorderedEquals(['123-0', '123-1']));
+
+    await service.pause('123-0');
+    expect(await starts.moveNext(), isTrue);
+    expect(starts.current, '123-2');
+
+    // 调大后立即补位, 调小不打断已在下载的任务.
+    limit = 3;
+    service.reschedule();
+    expect(await starts.moveNext(), isTrue);
+    expect(starts.current, '123-3');
+    limit = 1;
+    for (final id in ['123-1', '123-2', '123-3']) {
+      releases[id]!.complete();
+    }
+    await service.waitForIdle();
+    expect(transport.calls.length, 4);
+    expect(service.find('123-0')?.status, DownloadStatus.paused);
+    for (final id in ['123-1', '123-2', '123-3']) {
+      expect(service.find(id)?.status, DownloadStatus.completed);
+    }
+    await starts.cancel();
+    await started.close();
   });
 
   test('暂停保留分片与进度, 继续时从分片末尾续传', () async {

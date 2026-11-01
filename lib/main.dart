@@ -65,6 +65,8 @@ Future<void> main() async {
     DownloadService(
       transport: DioDownloadTransport(HttpUtil.dio),
       assets: SiteDownloadAssets(HttpUtil.dio),
+      concurrency: () => Pref.downloadConcurrency,
+      connections: () => Pref.downloadConnections,
     ),
     permanent: true,
   );

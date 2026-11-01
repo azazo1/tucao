@@ -14,9 +14,16 @@ import 'package:tucao/services/download/download_store.dart';
 import 'package:tucao/services/download/download_transport.dart';
 import 'package:tucao/utils/logger.dart';
 
-/// 前台单文件缓存队列.
+/// 正在下载的一个任务.
+class _Transfer {
+  final cancel = CancelToken();
+  final finished = Completer<void>();
+}
+
+/// 前台单文件缓存队列, 按加入顺序同时下载 [concurrency] 个任务.
 ///
 /// 暂停与失败保留 `.part` 分片, 重试时按 Range 续传, 服务端不支持时从头下载.
+/// 单个任务按 [connections] 分段并发, 见 [DownloadTransport.fetch].
 /// 媒体之外顺带保存视频信息, 封面与弹幕, 见 [DownloadExtras].
 class DownloadService extends GetxController with WidgetsBindingObserver {
   DownloadService({
@@ -25,11 +32,15 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
     required DownloadTransport transport,
     DownloadAssets? assets,
     Future<Directory> Function()? location,
+    int Function()? concurrency,
+    int Function()? connections,
   }) : assert(directory == null || store == null),
        _store = store ?? (directory == null ? null : DownloadStore(directory)),
        _location = location ?? DownloadLocation.directory,
        _transport = transport,
-       _assets = assets;
+       _assets = assets,
+       _concurrency = concurrency ?? (() => 1),
+       _connections = connections ?? (() => 1);
 
   static DownloadService get instance => Get.find<DownloadService>();
 
@@ -57,13 +68,18 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
   final initializationError = RxnString();
   Future<void>? _initializing;
   final DownloadTransport _transport;
+
+  /// 同时下载的任务数, 每次排队时重新读取, 调整设置后不用重启.
+  final int Function() _concurrency;
+
+  /// 单个任务的分段连接数, 只影响之后开始的下载.
+  final int Function() _connections;
   final items = <DownloadTask>[].obs;
   final ready = false.obs;
   Future<void> _saving = Future.value();
-  Future<void>? _runner;
-  CancelToken? _cancel;
-  Completer<void>? _activeFinished;
-  String? _activeId;
+
+  /// 正在下载的任务, 键是任务编号.
+  final _active = <String, _Transfer>{};
   bool _foreground = true;
   bool _closed = false;
   final _removing = <String>{};
@@ -79,7 +95,9 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
   void onClose() {
     WidgetsBinding.instance.removeObserver(this);
     _closed = true;
-    _cancel?.cancel('缓存服务已关闭');
+    for (final transfer in _active.values) {
+      transfer.cancel.cancel('缓存服务已关闭');
+    }
     super.onClose();
   }
 
@@ -121,15 +139,14 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
     for (final task in saved) {
       if (task.status != DownloadStatus.completed) {
         // 保留分片供续传, 进度以磁盘上实际写下的字节为准.
-        final partial = store.media(task, partial: true);
-        final kept = await partial.exists() ? await partial.length() : 0;
+        final kept = await store.partialProgress(task);
         restored.add(
           task.update(
             status: task.status == DownloadStatus.failed
                 ? DownloadStatus.failed
                 : DownloadStatus.paused,
-            received: kept,
-            total: kept > 0 ? task.total : -1,
+            received: kept.received,
+            total: kept.total,
             error: task.error,
           ),
         );
@@ -447,8 +464,8 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
       throw StateError('请返回应用后再开始缓存');
     }
     // 取消后的旧请求必须先完成文件清理, 不能丢弃用户的立即重试.
-    if (_activeId == id) {
-      await _activeFinished?.future;
+    if (_active[id] case final transfer?) {
+      await transfer.finished.future;
       if (!identical(find(id), task) || _removing.contains(id) || _closed) {
         return;
       }
@@ -489,12 +506,9 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
     }
     _replace(task.update(status: DownloadStatus.paused));
     speeds.remove(id);
-    final finished = _activeId == id ? _activeFinished?.future : null;
-    if (_activeId == id) {
-      _cancel?.cancel('缓存已暂停');
-    }
-    if (finished != null) {
-      await finished;
+    if (_active[id] case final transfer?) {
+      transfer.cancel.cancel('缓存已暂停');
+      await transfer.finished.future;
     }
     await _persist();
   }
@@ -510,11 +524,11 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
       }
     }
     speeds.clear();
-    final finished = _activeFinished?.future;
-    _cancel?.cancel('缓存队列已暂停');
-    if (finished != null) {
-      await finished;
+    final running = _active.values.toList();
+    for (final transfer in running) {
+      transfer.cancel.cancel('缓存队列已暂停');
     }
+    await Future.wait(running.map((transfer) => transfer.finished.future));
     await _persist();
   }
 
@@ -539,12 +553,9 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
         _replace(task.update(status: DownloadStatus.paused));
       }
       speeds.remove(id);
-      final finished = _activeId == id ? _activeFinished?.future : null;
-      if (_activeId == id) {
-        _cancel?.cancel('缓存任务已删除');
-      }
-      if (finished != null) {
-        await finished;
+      if (_active[id] case final transfer?) {
+        transfer.cancel.cancel('缓存任务已删除');
+        await transfer.finished.future;
       }
       items.removeWhere((item) => item.id == id);
       // 先持久化删除, 写入失败时不能丢失仍在磁盘上的缓存记录.
@@ -642,200 +653,200 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
 
   /// 等待当前队列收尾, 用于关闭前或测试. 不会主动开始暂停任务.
   Future<void> waitForIdle() async {
-    while (_runner != null || _assetJobs.isNotEmpty) {
-      await _runner;
+    while (_active.isNotEmpty || _assetJobs.isNotEmpty) {
+      await Future.wait(
+        _active.values.map((transfer) => transfer.finished.future).toList(),
+      );
       await Future.wait(_assetJobs.values.toList());
     }
     await _saving;
   }
 
+  /// 同时缓存数调大后立即补上空位; 调小时不打断已在下载的任务.
+  void reschedule() => _schedule();
+
+  /// 按加入顺序补满空位.
   void _schedule() {
-    if (_runner != null || _closed || !_foreground) {
+    if (_closed || !_foreground) {
       return;
     }
-    _runner = _run()
-        .catchError((Object error, StackTrace stackTrace) {
-          Log.e('缓存队列异常', error: error, stackTrace: stackTrace);
-        })
-        .whenComplete(() {
-          _runner = null;
-          if (items.any(
-            (task) =>
-                task.status == DownloadStatus.queued &&
-                !_pending.contains(task.id),
-          )) {
-            _schedule();
-          }
-        });
-  }
-
-  Future<void> _run() async {
-    while (!_closed && _foreground) {
-      DownloadTask? next;
-      for (final task in items) {
-        if (task.status == DownloadStatus.queued &&
-            !_pending.contains(task.id)) {
-          next = task;
-          break;
-        }
-      }
-      if (next == null) {
+    var limit = _concurrency();
+    if (limit < 1) {
+      limit = 1;
+    }
+    for (final task in items.toList()) {
+      if (_active.length >= limit) {
         return;
       }
-      final task = next;
-      final token = CancelToken();
-      final finished = Completer<void>();
-      _activeId = task.id;
-      _cancel = token;
-      _activeFinished = finished;
-      _replace(task.update(status: DownloadStatus.downloading));
-      final watch = Stopwatch()..start();
-      var lastUpdate = -250;
-      var published = false;
-      var invalid = false;
-      void checkActive() {
-        if (token.isCancelled ||
-            find(task.id)?.status != DownloadStatus.downloading) {
-          throw token.cancelError ?? StateError('缓存任务已停止');
+      if (task.status == DownloadStatus.queued &&
+          !_pending.contains(task.id) &&
+          !_active.containsKey(task.id)) {
+        _start(task);
+      }
+    }
+  }
+
+  void _start(DownloadTask task) {
+    final transfer = _Transfer();
+    _active[task.id] = transfer;
+    _replace(task.update(status: DownloadStatus.downloading));
+    unawaited(
+      _download(task, transfer.cancel)
+          .catchError((Object error, StackTrace stackTrace) {
+            Log.e('缓存队列异常', error: error, stackTrace: stackTrace);
+          })
+          .whenComplete(() {
+            _active.remove(task.id);
+            // 先补上空位再通知等待者, waitForIdle 不会在两步之间误判空闲.
+            _schedule();
+            transfer.finished.complete();
+          }),
+    );
+  }
+
+  Future<void> _download(DownloadTask task, CancelToken token) async {
+    final watch = Stopwatch()..start();
+    var lastUpdate = -250;
+    var published = false;
+    var invalid = false;
+    void checkActive() {
+      if (token.isCancelled ||
+          find(task.id)?.status != DownloadStatus.downloading) {
+        throw token.cancelError ?? StateError('缓存任务已停止');
+      }
+    }
+
+    try {
+      await _persist();
+      checkActive();
+      final temporary = store.media(task, partial: true);
+      final uri = DownloadTask.sourceUri(task.source);
+      if (uri == null) {
+        throw const FormatException('无效的缓存来源');
+      }
+      // 以磁盘上已写下的字节为准, 超出记录总长说明分片不可信.
+      final kept = await store.partialProgress(task);
+      var offset = kept.received;
+      var known = kept.total;
+      if (task.total >= 0 && offset > task.total) {
+        offset = 0;
+        known = -1;
+      }
+      final active = find(task.id);
+      if (active != null && active.status == DownloadStatus.downloading) {
+        _replace(active.update(received: offset, total: offset > 0 ? known : -1));
+      }
+      final connections = _connections();
+      Log.i(
+        offset > 0
+            ? '续传缓存任务 ${task.id}, 已有 $offset 字节'
+            : '开始缓存任务 ${task.id}, 连接数 $connections',
+      );
+      var sampleAt = 0;
+      var sampleBytes = offset;
+      var speed = 0.0;
+      final bytes = await _transport.fetch(
+        uri: uri,
+        target: temporary,
+        cancelToken: token,
+        offset: offset,
+        expectedTotal: offset > 0 ? task.total : -1,
+        connections: connections,
+        onProgress: (received, total) {
+          final now = watch.elapsedMilliseconds;
+          if (now - lastUpdate < 250) {
+            return;
+          }
+          lastUpdate = now;
+          final current = find(task.id);
+          if (!token.isCancelled &&
+              identical(_active[task.id]?.cancel, token) &&
+              current?.status == DownloadStatus.downloading) {
+            _replace(current!.update(received: received, total: total));
+            // 每秒左右取一次样, 平滑后显示, 避免数字来回跳.
+            final elapsed = now - sampleAt;
+            if (elapsed >= 1000) {
+              final instant = (received - sampleBytes) * 1000 / elapsed;
+              speed = speed == 0 ? instant : speed * 0.6 + instant * 0.4;
+              speeds[task.id] = speed.round().clamp(0, 1 << 40);
+              sampleAt = now;
+              sampleBytes = received;
+            }
+          }
+        },
+      );
+      checkActive();
+      if (bytes <= 0 ||
+          !await temporary.exists() ||
+          await temporary.length() != bytes) {
+        throw const FormatException('缓存文件为空或不完整');
+      }
+      checkActive();
+      // 源路径与目标路径均由已校验的任务编号和私有目录生成.
+      await temporary.rename(store.media(task).path);
+      published = true;
+      checkActive();
+      final completed = task.update(
+        status: DownloadStatus.completed,
+        received: bytes,
+        total: bytes,
+      );
+      // 完成快照落盘前不暴露本地文件, 保存期间仍允许取消.
+      await _persist(completed: completed);
+      checkActive();
+      _replace(completed);
+      Log.i(
+        '缓存任务 ${task.id} 完成, $bytes 字节, 耗时 ${watch.elapsedMilliseconds}ms',
+      );
+    } catch (error, stackTrace) {
+      // 内容校验失败说明分片里不是媒体, 不能拿来续传.
+      invalid = !token.isCancelled && error is FormatException;
+      final current = find(task.id);
+      if (current != null && current.status == DownloadStatus.downloading) {
+        _replace(
+          current.update(
+            status: token.isCancelled
+                ? DownloadStatus.paused
+                : DownloadStatus.failed,
+            received: invalid ? 0 : null,
+            total: invalid ? -1 : null,
+            error: token.isCancelled ? null : _errorText(error),
+          ),
+        );
+      }
+      if (!token.isCancelled) {
+        Log.e('缓存任务 ${task.id} 失败', error: error, stackTrace: stackTrace);
+      }
+    } finally {
+      speeds.remove(task.id);
+      // 暂停与网络失败保留分片, 删除由 remove 负责清理.
+      if (invalid || find(task.id) == null) {
+        await store.discard(task, partial: true);
+      }
+      final after = find(task.id);
+      if (published && after?.status != DownloadStatus.completed) {
+        await store.discard(task);
+        // 分片已经提交后又被丢弃, 下次只能从头下载.
+        if (after != null) {
+          _replace(after.update(received: 0, total: -1, error: after.error));
         }
       }
-
       try {
         await _persist();
-        checkActive();
-        final temporary = store.media(task, partial: true);
-        final uri = DownloadTask.sourceUri(task.source);
-        if (uri == null) {
-          throw const FormatException('无效的缓存来源');
-        }
-        // 以磁盘上的分片长度为准, 超出记录总长说明分片不可信.
-        var offset = await temporary.exists() ? await temporary.length() : 0;
-        if (task.total >= 0 && offset > task.total) {
-          offset = 0;
-        }
-        final active = find(task.id);
-        if (active != null && active.status == DownloadStatus.downloading) {
-          _replace(
-            active.update(received: offset, total: offset > 0 ? task.total : -1),
-          );
-        }
-        Log.i(
-          offset > 0
-              ? '续传缓存任务 ${task.id}, 从 $offset 字节开始'
-              : '开始缓存任务 ${task.id}',
-        );
-        var sampleAt = 0;
-        var sampleBytes = offset;
-        var speed = 0.0;
-        final bytes = await _transport.fetch(
-          uri: uri,
-          target: temporary,
-          cancelToken: token,
-          offset: offset,
-          expectedTotal: offset > 0 ? task.total : -1,
-          onProgress: (received, total) {
-            final now = watch.elapsedMilliseconds;
-            if (now - lastUpdate < 250) {
-              return;
-            }
-            lastUpdate = now;
-            final current = find(task.id);
-            if (!token.isCancelled &&
-                identical(_cancel, token) &&
-                current?.status == DownloadStatus.downloading) {
-              _replace(current!.update(received: received, total: total));
-              // 每秒左右取一次样, 平滑后显示, 避免数字来回跳.
-              final elapsed = now - sampleAt;
-              if (elapsed >= 1000) {
-                final instant = (received - sampleBytes) * 1000 / elapsed;
-                speed = speed == 0 ? instant : speed * 0.6 + instant * 0.4;
-                speeds[task.id] = speed.round().clamp(0, 1 << 40);
-                sampleAt = now;
-                sampleBytes = received;
-              }
-            }
-          },
-        );
-        checkActive();
-        if (bytes <= 0 ||
-            !await temporary.exists() ||
-            await temporary.length() != bytes) {
-          throw const FormatException('缓存文件为空或不完整');
-        }
-        checkActive();
-        // 源路径与目标路径均由已校验的任务编号和私有目录生成.
-        await temporary.rename(store.media(task).path);
-        published = true;
-        checkActive();
-        final completed = task.update(
-          status: DownloadStatus.completed,
-          received: bytes,
-          total: bytes,
-        );
-        // 完成快照落盘前不暴露本地文件, 保存期间仍允许取消.
-        await _persist(completed: completed);
-        checkActive();
-        _replace(completed);
-        Log.i(
-          '缓存任务 ${task.id} 完成, $bytes 字节, 耗时 ${watch.elapsedMilliseconds}ms',
-        );
-      } catch (error, stackTrace) {
-        // 内容校验失败说明分片里不是媒体, 不能拿来续传.
-        invalid = !token.isCancelled && error is FormatException;
+      } catch (_) {
         final current = find(task.id);
-        if (current != null && current.status == DownloadStatus.downloading) {
+        if (current?.status == DownloadStatus.completed) {
           _replace(
-            current.update(
-              status: token.isCancelled
-                  ? DownloadStatus.paused
-                  : DownloadStatus.failed,
-              received: invalid ? 0 : null,
-              total: invalid ? -1 : null,
-              error: token.isCancelled ? null : _errorText(error),
+            current!.update(
+              status: DownloadStatus.failed,
+              received: 0,
+              total: -1,
+              error: '无法保存缓存任务, 请检查剩余空间',
             ),
           );
+          await store.discard(task);
         }
-        if (!token.isCancelled) {
-          Log.e('缓存任务 ${task.id} 失败', error: error, stackTrace: stackTrace);
-        }
-      } finally {
-        speeds.remove(task.id);
-        try {
-          // 暂停与网络失败保留分片, 删除由 remove 负责清理.
-          if (invalid || find(task.id) == null) {
-            await store.discard(task, partial: true);
-          }
-          final after = find(task.id);
-          if (published && after?.status != DownloadStatus.completed) {
-            await store.discard(task);
-            // 分片已经提交后又被丢弃, 下次只能从头下载.
-            if (after != null) {
-              _replace(after.update(received: 0, total: -1, error: after.error));
-            }
-          }
-          try {
-            await _persist();
-          } catch (_) {
-            final current = find(task.id);
-            if (current?.status == DownloadStatus.completed) {
-              _replace(
-                current!.update(
-                  status: DownloadStatus.failed,
-                  received: 0,
-                  total: -1,
-                  error: '无法保存缓存任务, 请检查剩余空间',
-                ),
-              );
-              await store.discard(task);
-            }
-            rethrow;
-          }
-        } finally {
-          _activeId = null;
-          _cancel = null;
-          _activeFinished = null;
-          finished.complete();
-        }
+        rethrow;
       }
     }
   }

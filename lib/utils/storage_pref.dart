@@ -31,6 +31,8 @@ abstract final class Pref {
   static const _kUpdateSource = 'update_source';
   static const _kUpdateMirrors = 'update_mirrors';
   static const _kUpdateConnections = 'update_connections';
+  static const _kDownloadConcurrency = 'download_concurrency';
+  static const _kDownloadConnections = 'download_connections';
   static const _kSiteHost = 'site_host';
 
   /// 跳转按钮的秒数下限.
@@ -280,6 +282,49 @@ abstract final class Pref {
   static set updateConnections(int value) => GStorage.setting.put(
     _kUpdateConnections,
     value.clamp(updateConnectionsMin, updateConnectionsMax),
+  );
+
+  /// 离线缓存同时下载的任务数.
+  static const downloadConcurrencyMin = 1;
+  static const downloadConcurrencyMax = 5;
+  static const downloadConcurrencyDefault = 2;
+
+  static int get downloadConcurrency {
+    final value =
+        GStorage.setting.get(
+              _kDownloadConcurrency,
+              defaultValue: downloadConcurrencyDefault,
+            )
+            as int;
+    return value.clamp(downloadConcurrencyMin, downloadConcurrencyMax);
+  }
+
+  static set downloadConcurrency(int value) => GStorage.setting.put(
+    _kDownloadConcurrency,
+    value.clamp(downloadConcurrencyMin, downloadConcurrencyMax),
+  );
+
+  /// 单个缓存任务的分段连接数, 1 表示单连接.
+  ///
+  /// 默认单连接: 视频源对同一 IP 的并发连接更敏感, 开多了可能被限速或拒绝.
+  /// 服务端不支持 Range 时自动退回单连接.
+  static const downloadConnectionsMin = 1;
+  static const downloadConnectionsMax = 8;
+  static const downloadConnectionsDefault = 1;
+
+  static int get downloadConnections {
+    final value =
+        GStorage.setting.get(
+              _kDownloadConnections,
+              defaultValue: downloadConnectionsDefault,
+            )
+            as int;
+    return value.clamp(downloadConnectionsMin, downloadConnectionsMax);
+  }
+
+  static set downloadConnections(int value) => GStorage.setting.put(
+    _kDownloadConnections,
+    value.clamp(downloadConnectionsMin, downloadConnectionsMax),
   );
 
   /// 请求使用的站点地址.
