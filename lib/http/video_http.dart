@@ -88,9 +88,12 @@ abstract final class VideoHttp {
     final detail = VideoPlayPageDetail(
       description: parseDescriptionHtml(raw),
       subject: parseSubjectInfoHtml(raw),
+      series: parseSeriesHtml(raw),
     );
-    // 两者都空多半是临时错误或页面结构变化, 不缓存, 下次调用重新请求.
-    if (detail.description.isEmpty && detail.subject.isEmpty) {
+    // 全都空多半是临时错误或页面结构变化, 不缓存, 下次调用重新请求.
+    if (detail.description.isEmpty &&
+        detail.subject.isEmpty &&
+        detail.series.isEmpty) {
       return detail;
     }
     _playPageCache[hid] = detail;
@@ -193,6 +196,36 @@ abstract final class VideoHttp {
 
   static String _normalizeSubjectValue(String raw) =>
       raw.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+  /// 解析播放页右侧 "视频列表" 里站点整理的系列, 包含当前视频.
+  ///
+  /// 条目是 `.v_link .c .i`, 每项一个链接, 带 `data-views` 播放数与内联
+  /// 背景图封面. `islink0` 是各季的投稿; `islink1` 是早年的单集, 链接却都
+  /// 指向第一季, 点开对不上标题, 不取. 同一 hid 只留第一次出现的.
+  static List<VideoModel> parseSeriesHtml(String raw) {
+    final document = html_parser.parse(raw);
+    final result = <VideoModel>[];
+    final seen = <String>{};
+    for (final item in document.querySelectorAll('.v_link .c .i.islink0')) {
+      final link = item.querySelector('a[href]');
+      final href = link?.attributes['href'] ?? '';
+      final hid = RegExp(r'/play/h(\d+)').firstMatch(href)?.group(1);
+      final title = _normalizeSubjectValue(link?.text ?? '');
+      if (hid == null || title.isEmpty || !seen.add(hid)) {
+        continue;
+      }
+      final style = item.querySelector('img')?.attributes['style'] ?? '';
+      result.add(
+        VideoModel(
+          hid: hid,
+          title: title,
+          cover: absoluteSiteUrl(_parseBackground(style)),
+          playCount: int.tryParse(link?.attributes['data-views'] ?? '') ?? 0,
+        ),
+      );
+    }
+    return result;
+  }
 
   /// 关键词搜索.
   static Future<ListResponse<VideoModel>> search({

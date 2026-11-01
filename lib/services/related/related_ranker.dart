@@ -53,6 +53,45 @@ abstract final class RelatedRanker {
     return _collapseEpisodes(entries);
   }
 
+  /// 整理站点给出的系列, 不去重, 不去掉当前视频, 也不收起单集.
+  ///
+  /// 站点的顺序不一定按季, 比如禁书目录排成第 2 季, 第 1 季, 第 3 季.
+  /// 认得出季数的按季数与前后篇排在前面; 认不出的多是剧场版与特别篇,
+  /// 保持站点原来的顺序跟在后面.
+  static List<RelatedEntry> sortSeries(List<VideoModel> videos) {
+    final parsed = [
+      for (final video in videos)
+        RelatedEntry(
+          video: video,
+          series: SeriesParser.parse(video.title, typeId: video.typeId),
+          sameSeries: true,
+        ),
+    ];
+    final filled = _fillSeasons(parsed);
+    final order = {
+      for (var i = 0; i < filled.length; i++) filled[i].video.hid: i,
+    };
+    int compare(RelatedEntry a, RelatedEntry b) {
+      final sa = a.series.season;
+      final sb = b.series.season;
+      if (sa != null && sb != null) {
+        final bySeason = sa.compareTo(sb);
+        if (bySeason != 0) {
+          return bySeason;
+        }
+        final byPart = (a.series.part ?? 0).compareTo(b.series.part ?? 0);
+        if (byPart != 0) {
+          return byPart;
+        }
+      } else if (sa != null || sb != null) {
+        return sa != null ? -1 : 1;
+      }
+      return order[a.video.hid]!.compareTo(order[b.video.hid]!);
+    }
+
+    return [...filled]..sort(compare);
+  }
+
   /// 单集常常只写续作标记不写季数, 比如 `超电磁炮S 02`. 别的投稿写过
   /// `超电磁炮S【第2季】` 时, 照着补上季数, 让它和整季投稿排在一起.
   static List<RelatedEntry> _fillSeasons(List<RelatedEntry> entries) {

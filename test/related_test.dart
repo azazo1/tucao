@@ -116,5 +116,16 @@ void main() {
       // S 有了第 2 季的整季投稿, 单集补上季数后被收掉.
       expect(filled.map((e) => e.video.hid), ['s2']);
     });
+
+    test('站点系列按季排序, 认不出季数的保持原顺序排在后面', () {
+      final sorted = RelatedRanker.sortSeries([
+        video('sp', '【特别·完结篇】辉夜姬想让人告白 迈向大人的阶梯'),
+        video('s4', '【2022新番】辉夜姬想让人告白【第4季】'),
+        video('m', '【剧场版】辉夜姬想让人告白 初吻不会结束'),
+        video('s3', '【2022新番】辉夜姬想让人告白【第3季】【1-13】'),
+        video('s1', '【WEBRIP/720P】辉夜姬想让人告白【第1季】'),
+      ]);
+      expect(sorted.map((e) => e.video.hid), ['s1', 's3', 's4', 'sp', 'm']);
+    });
   });
 }

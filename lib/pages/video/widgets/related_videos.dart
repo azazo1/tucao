@@ -133,10 +133,12 @@ class _RelatedVideosSliverState extends State<RelatedVideosSliver> {
     if (entries == null || entries.isEmpty) {
       return const SliverToBoxAdapter(child: SizedBox.shrink());
     }
-    // 在 Obx 里过滤, 屏蔽或解除屏蔽后列表跟着刷新.
+    // 在 Obx 里过滤, 屏蔽或解除屏蔽后列表跟着刷新. 上方系列区域已经列出的
+    // 投稿不再重复, 系列晚于相关视频到达时也跟着去掉.
     return Obx(() {
       final hidden = <String>{
         for (final item in BlockService.instance.list) item.hid,
+        for (final video in widget.controller.siteSeries) video.hid,
       };
       final visible = [
         for (final entry in entries)
@@ -151,7 +153,7 @@ class _RelatedVideosSliverState extends State<RelatedVideosSliver> {
           itemCount: visible.length + 1,
           itemBuilder: (context, index) {
             if (index == 0) {
-              return const _Header();
+              return const RelatedSectionHeader('相关视频');
             }
             final entry = visible[index - 1];
             return VideoCardHorizontal(
@@ -166,8 +168,11 @@ class _RelatedVideosSliverState extends State<RelatedVideosSliver> {
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header();
+/// 简介下方各个视频区域的标题.
+class RelatedSectionHeader extends StatelessWidget {
+  const RelatedSectionHeader(this.title, {super.key});
+
+  final String title;
 
   @override
   Widget build(BuildContext context) {
@@ -175,7 +180,7 @@ class _Header extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 8, bottom: 4),
       child: Text(
-        '相关视频',
+        title,
         style: theme.textTheme.titleSmall?.copyWith(
           fontWeight: FontWeight.w600,
         ),

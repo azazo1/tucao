@@ -11,6 +11,7 @@ import 'package:tucao/pages/video/cast_flow.dart';
 import 'package:tucao/pages/video/widgets/video_content_tabs.dart';
 import 'package:tucao/pages/video/widgets/player_view.dart';
 import 'package:tucao/pages/video/widgets/related_videos.dart';
+import 'package:tucao/pages/video/widgets/site_series.dart';
 import 'package:tucao/pages/video/widgets/video_action.dart';
 import 'package:tucao/pages/video/widgets/video_info.dart';
 import 'package:tucao/pages/video/widgets/video_more_menu.dart';
@@ -485,6 +486,7 @@ class _VideoPageState extends State<VideoPage>
               onComment: () => _contentTabs.animateTo(1),
             ),
           ),
+          SiteSeriesSliver(controller: _controller),
           RelatedVideosSliver(
             key: ValueKey(_controller.hid),
             controller: _controller,

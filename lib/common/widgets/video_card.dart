@@ -426,6 +426,7 @@ class VideoCardHorizontal extends StatelessWidget {
     this.onLongPress,
     this.showDescription = false,
     this.badge,
+    this.showDanmaku = true,
   });
 
   final VideoModel video;
@@ -438,6 +439,9 @@ class VideoCardHorizontal extends StatelessWidget {
 
   /// 封面左上角的角标, 为空时不显示.
   final String? badge;
+
+  /// 封面右下角是否显示弹幕数, 数据里没有弹幕数时关掉, 免得显示成 0.
+  final bool showDanmaku;
 
   @override
   Widget build(BuildContext context) {
@@ -469,10 +473,12 @@ class VideoCardHorizontal extends StatelessWidget {
                 children: [
                   VideoCover(
                     url: video.cover,
-                    overlay: CoverBadge(
-                      text: Utils.formatCount(video.danmakuCount),
-                      icon: Icons.subtitles_outlined,
-                    ),
+                    overlay: showDanmaku
+                        ? CoverBadge(
+                            text: Utils.formatCount(video.danmakuCount),
+                            icon: Icons.subtitles_outlined,
+                          )
+                        : null,
                     heroTag: heroTag,
                   ),
                   if (badge != null)

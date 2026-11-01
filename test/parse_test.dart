@@ -395,4 +395,22 @@ void main() {
       expect(VideoHttp.parseSubjectInfoHtml(raw).cover, isEmpty);
     });
   });
+
+  group('播放页站点系列解析', () {
+    test('只取各季投稿, 跳过链接错位的早年单集', () {
+      // islink1 的标题是第 2 季的单集, 链接却指向第 1 季.
+      const raw = '''
+      <div class="v_link"><div class="c">
+        <div class="i  islink1"><a href="/play/h4049682/" data-views="59"><img style="background-image:url(/a.jpg);" />『生肉』魔法禁书目录II 03话<div class="clear"></div></a></div>
+        <div class="i now islink0"><a href="/play/h4049299/" data-views="13613"><img style="background-image:url(https://www.tucao.my/b.jpg);" />【2010新番】魔法禁书目录Ⅱ【第2季】<div class="clear"></div></a></div>
+        <div class="i  islink0"><a href="/play/h4049682/" data-views="27073"><img style="background-image:url(/c.jpg);" />【2008新番】魔法禁书目录【第1季】<div class="clear"></div></a></div>
+      </div></div>
+      ''';
+      final series = VideoHttp.parseSeriesHtml(raw);
+      expect(series.map((e) => e.hid), ['4049299', '4049682']);
+      expect(series.last.title, '【2008新番】魔法禁书目录【第1季】');
+      expect(series.last.playCount, 27073);
+      expect(series.last.cover, '${Constants.baseUrl}c.jpg');
+    });
+  });
 }

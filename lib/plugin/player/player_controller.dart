@@ -85,6 +85,9 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
   /// 播放页里的番组信息, 与完整简介同一次请求解析出来.
   final subjectInfo = Rxn<VideoSubjectInfo>();
 
+  /// 播放页里站点整理的系列, 包含当前视频, 与番组信息同一次请求解析出来.
+  final siteSeries = <VideoModel>[].obs;
+
   /// 当前分P序号, 从 0 开始.
   final part = 0.obs;
 
@@ -373,6 +376,7 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     error.value = null;
     fullDescription.value = null;
     subjectInfo.value = null;
+    siteSeries.clear();
     try {
       final response = await _loadVideo(hid);
       if (!_requests.isCurrent(request)) {
@@ -427,10 +431,10 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     }
   }
 
-  /// 拉取播放页里的完整简介与番组信息.
+  /// 拉取播放页里的完整简介, 番组信息与站点系列.
   ///
-  /// 详情接口的简介只返回截断的一段, 番组信息只有播放页 html 才有,
-  /// 两者在同一页面, 一次请求取回.
+  /// 详情接口的简介只返回截断的一段, 番组信息与系列只有播放页 html 才有,
+  /// 三者在同一页面, 一次请求取回.
   Future<void> _loadPlayPage(String id) async {
     try {
       final page = await VideoHttp.fetchPlayPage(hid: id);
@@ -441,6 +445,7 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
         fullDescription.value = page.description;
       }
       subjectInfo.value = page.subject;
+      siteSeries.assignAll(page.series);
     } catch (e) {
       Log.w('加载播放页附加信息失败: $e');
     }

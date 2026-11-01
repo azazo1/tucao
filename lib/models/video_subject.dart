@@ -1,3 +1,5 @@
+import 'package:tucao/models/video.dart';
+
 /// 番组信息的一项.
 ///
 /// 标签与值都来自站点播放页的 `.vdata_info .b` 区块, 不同条目的字段
@@ -42,8 +44,15 @@ class VideoSubjectInfo {
 
 /// 播放页 html 里能解析出的附加信息.
 class VideoPlayPageDetail {
-  const VideoPlayPageDetail({required this.description, required this.subject});
+  const VideoPlayPageDetail({
+    required this.description,
+    required this.subject,
+    this.series = const [],
+  });
 
   final String description;
   final VideoSubjectInfo subject;
+
+  /// 站点给这个作品整理的系列, 包含当前视频, 按页面顺序. 没有时为空.
+  final List<VideoModel> series;
 }
