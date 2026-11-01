@@ -174,7 +174,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
               maxLength: FeedbackPage.maxLength,
               textInputAction: TextInputAction.newline,
               decoration: const InputDecoration(
-                hintText: '遇到的问题, 想要的功能, 或者对界面的建议',
+                hintText: '遇到的问题, 想要的功能, 或者对界面的建议等等, 大大小小的都可以哦, 欢迎吐槽~',
               ),
             ),
             if (_error != null)
