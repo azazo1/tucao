@@ -4,6 +4,7 @@ import 'package:extended_image/extended_image.dart';
 import 'package:flutter/material.dart';
 import 'package:tucao/utils/toast.dart';
 import 'package:tucao/services/image_save_service.dart';
+import 'package:tucao/utils/clipboard.dart';
 import 'package:tucao/utils/error_text.dart';
 import 'package:tucao/utils/logger.dart';
 
@@ -11,7 +12,7 @@ import 'package:tucao/utils/logger.dart';
 ///
 /// 手势交给 extended_image: 双指缩放, 放大后拖动. 双击放大与还原由本页做
 /// 补间动画, 因为库自身只在缩放越界时才动画, 范围内的双击会直接跳变, 手感很硬.
-/// 长按弹出菜单, 菜单里可以保存到系统相册.
+/// 长按弹出菜单, 菜单里可以保存到系统相册或复制图片链接.
 class ImageViewerPage extends StatefulWidget {
   const ImageViewerPage({
     super.key,
@@ -34,7 +35,7 @@ class ImageViewerPage extends StatefulWidget {
 }
 
 /// 长按菜单里能做的事.
-enum _ViewerAction { save }
+enum _ViewerAction { save, copyLink }
 
 class _ImageViewerPageState extends State<ImageViewerPage>
     with SingleTickerProviderStateMixin {
@@ -156,6 +157,12 @@ class _ImageViewerPageState extends State<ImageViewerPage>
               onTap: () => Navigator.of(sheetContext).pop(_ViewerAction.save),
             ),
             ListTile(
+              leading: const Icon(Icons.link),
+              title: const Text('复制图片链接'),
+              onTap: () =>
+                  Navigator.of(sheetContext).pop(_ViewerAction.copyLink),
+            ),
+            ListTile(
               leading: const Icon(Icons.close),
               title: const Text('取消'),
               onTap: () => Navigator.of(sheetContext).pop(),
@@ -164,8 +171,15 @@ class _ImageViewerPageState extends State<ImageViewerPage>
         ),
       ),
     );
-    if (action == _ViewerAction.save) {
-      await _save();
+    if (action == null || !context.mounted) {
+      return;
+    }
+    switch (action) {
+      case _ViewerAction.save:
+        await _save();
+      case _ViewerAction.copyLink:
+        // 直接复制当前这张图的地址, 调用方传进来的已是可访问的绝对地址.
+        await copyText(context, widget.url);
     }
   }
 
