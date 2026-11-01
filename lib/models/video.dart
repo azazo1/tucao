@@ -26,11 +26,42 @@ class VideoPart {
 
   factory VideoPart.fromJson(Map<String, dynamic> json) {
     return VideoPart(
-      file: json['file']?.toString(),
+      file: _repairFile(json),
       vid: json['vid']?.toString(),
       type: json['type']?.toString(),
       title: json['title']?.toString() ?? '',
     );
+  }
+
+  /// 分P对象里已知的字段, 其余的键视为被截断的地址片段.
+  static const _knownKeys = {'type', 'file', 'vid', 'title'};
+
+  /// 取出直链, 必要时把被截断的地址拼回来.
+  ///
+  /// TOFIX(site): `api_v2/view.php` 像解析 query string 一样把
+  /// `type=video&file=...` 按 `&` 拆开, 文件路径里自带的 `&` 也被当成分隔符.
+  /// 结果 `file` 只剩第一个 `&` 之前的部分, 后面每一段变成值为 null 的多余键,
+  /// 例如 h4079710 的 `【澄空學園&動漫國字幕組】` 与 `[DMG&SumiSora]`.
+  /// 截断地址返回的是一段 JSON 错误, 播放器报 "Failed to recognize file format".
+  ///
+  /// 站点侧应只在第一个 `=` 处切分 `file=` 之后的整段, 或在入库时把 `&`
+  /// 编码成 `%26`. 修好之前, 这里按原顺序用 `&` 把值为 null 的多余键接回
+  /// `file` 后面, 依赖 [Map] 保留 JSON 的键顺序. 站点修好之后不会再有这类键,
+  /// 这段逻辑自然不生效, 届时可以删掉. 片段里如果还带 `=`, 会被拆成有值的键,
+  /// 这种情况无法可靠还原, 这里不处理.
+  static String? _repairFile(Map<String, dynamic> json) {
+    final file = json['file']?.toString();
+    if (file == null || file.isEmpty) {
+      return file;
+    }
+    final fragments = [
+      for (final entry in json.entries)
+        if (entry.value == null && !_knownKeys.contains(entry.key)) entry.key,
+    ];
+    if (fragments.isEmpty) {
+      return file;
+    }
+    return [file, ...fragments].join('&');
   }
 }
 
