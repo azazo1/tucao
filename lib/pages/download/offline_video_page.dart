@@ -281,6 +281,8 @@ class _OfflineVideoPageState extends State<OfflineVideoPage>
         onOpenWebsite: () => unawaited(_openOnline()),
         websiteLabel: '在线观看',
         websiteIcon: Icons.public,
+        // 离线页只看本地缓存, 发弹幕请到在线播放页.
+        danmakuInput: false,
         brightness: const ScreenPlayerBrightness(),
         coverFile: _service.covers.contains(widget.video.hid)
             ? _service.coverFile(widget.video.hid)

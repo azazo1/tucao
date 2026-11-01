@@ -44,7 +44,11 @@ class VideoPlayerView extends StatefulWidget {
     this.coverFile,
     this.websiteLabel = '浏览器查看',
     this.websiteIcon = Icons.open_in_browser,
+    this.danmakuInput = true,
   });
+
+  /// 全屏顶栏是否提供发弹幕入口, 离线播放时关闭.
+  final bool danmakuInput;
 
   /// 本地封面, 离线播放时优先于网络封面.
   final File? coverFile;
@@ -363,11 +367,12 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
               subtitle: subtitle,
               onBack: widget.onToggleFullscreen,
               actions: [
-                _iconButton(
-                  Icons.chat_bubble_outline,
-                  _openDanmakuInput,
-                  tooltip: '发弹幕',
-                ),
+                if (widget.danmakuInput)
+                  _iconButton(
+                    Icons.chat_bubble_outline,
+                    _openDanmakuInput,
+                    tooltip: '发弹幕',
+                  ),
               ],
             );
           }),
