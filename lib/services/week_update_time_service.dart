@@ -20,8 +20,14 @@ class WeekUpdateTimeService extends GetxController {
   /// 已取到时刻的番剧, 键是 hid.
   ///
   /// 用 RxMap 而不是普通 Map, 界面在 Obx 里读到时就会订阅, 每取到一条
-  /// 时刻就重排一次并补上角标.
+  /// 时刻就补上角标.
   final times = <String, WeekUpdateTime>{}.obs;
+
+  /// 这一轮请求已有结果的番剧: 取到时刻, 确认没有, 或请求失败都算.
+  ///
+  /// 时间表靠它判断本组是否到齐, 到齐前不重排. 失败的番再次排队时会被
+  /// 移出, 等新的结果.
+  final settled = <String>{}.obs;
 
   /// 取过但播放页里没有更新时刻的番剧, 不再重复请求.
   final _missing = <String>{};
@@ -44,6 +50,7 @@ class WeekUpdateTimeService extends GetxController {
       }
       _pending.add(hid);
       _queue.add(hid);
+      settled.remove(hid);
       added = true;
     }
     if (added) {
@@ -80,6 +87,7 @@ class WeekUpdateTimeService extends GetxController {
       Log.w('取番剧更新时刻失败: $hid, $e');
     } finally {
       _pending.remove(hid);
+      settled.add(hid);
       _running--;
       _pump();
     }

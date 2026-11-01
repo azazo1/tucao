@@ -11,6 +11,7 @@ import 'package:tucao/models/site_favorite.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/models/week_update_time.dart';
 import 'package:tucao/pages/home/week_controller.dart';
+import 'package:tucao/pages/home/week_order.dart';
 import 'package:tucao/pages/home/widgets/continue_watching_banner.dart';
 import 'package:tucao/services/account_service.dart';
 import 'package:tucao/services/block_service.dart';
@@ -41,6 +42,23 @@ class _WeekViewState extends State<WeekView>
   /// 时刻要逐部请求播放页, 只在分组或列表内容变化时才重新发, 重建不算.
   String? _timesSignature;
 
+  /// 新的时刻请求已经定下, 但要等这一帧画完才发出.
+  ///
+  /// 以前请求失败的番还留在已有结果里, 要等请求发出才会被重新计为等待中,
+  /// 这期间不能判定本组已经到齐.
+  bool _requesting = false;
+
+  /// 到齐前的展示顺序.
+  final _order = WeekOrderGate();
+
+  /// 等时刻到齐的上限, 超时后先按已有数据排一次.
+  static const _settleTimeout = Duration(seconds: 3);
+
+  Timer? _settleTimer;
+
+  /// 已经处理过到齐计时的分组, 同一组只计时一次.
+  String? _settleGroup;
+
   @override
   bool get wantKeepAlive => true;
 
@@ -64,6 +82,7 @@ class _WeekViewState extends State<WeekView>
 
   @override
   void dispose() {
+    _settleTimer?.cancel();
     if (Get.isRegistered<WeekController>(tag: _tag)) {
       Get.delete<WeekController>(tag: _tag);
     }
@@ -97,16 +116,37 @@ class _WeekViewState extends State<WeekView>
       final index = _controller.index.value.clamp(0, groups.length - 1);
       final current = groups[index];
       final todayIndex = WeekController.todayIndex(groups.length);
+      final visible = current.list.withoutBlocked();
+      // 先定下请求, 下面判断是否到齐时要用到 `_requesting`.
+      _requestTimes(schedule, current.title, visible);
+      final favorites = _favorites;
       final followed = {
-        for (final item in _favorites?.list ?? const <SiteFavoriteItem>[])
+        for (final item in favorites?.list ?? const <SiteFavoriteItem>[])
           item.hid,
       };
-      final items = arrangeWeekItems(
-        current.list.withoutBlocked(),
+      final arranged = arrangeWeekItems(
+        visible,
         followed: followed,
         times: schedule?.times ?? const <String, WeekUpdateTime>{},
         sortByTime: sortByTime,
       );
+      final settledCount = schedule == null
+          ? visible.length
+          : visible.where((e) => schedule.settled.contains(e.hid)).length;
+      final timesReady =
+          schedule == null ||
+          (!_requesting && settledCount == visible.length);
+      // 追番列表晚到也会把已追的番挪到前面, 一并等它.
+      final favoritesReady = favorites == null || !favorites.loading.value;
+      final ready = favoritesReady && (!sortByTime || timesReady);
+      // 排序开关也算进分组键, 切换开关时重新开始等待, 不沿用上次的到齐状态.
+      final orderKey = '${current.title}|$sortByTime';
+      final items = _order.resolve(
+        group: orderKey,
+        arranged: arranged,
+        ready: ready,
+      );
+      _watchSettle(orderKey, ready);
       // 逐条读一次时刻: 既订阅 `times` 的后续变化, 也把本轮要显示的内容
       // 定下来. 关掉排序时 arrangeWeekItems 不会碰时刻, 这里仍然要读.
       final times = <String, WeekUpdateTime>{};
@@ -116,7 +156,10 @@ class _WeekViewState extends State<WeekView>
           times[item.hid] = time;
         }
       }
-      _requestTimes(schedule, current.title, items);
+      // 只有还会再重排时才显示进度, 关掉排序时时刻只补角标, 不必提示.
+      final progress = sortByTime && !timesReady && visible.isNotEmpty
+          ? settledCount / visible.length
+          : null;
 
       return Column(
         children: [
@@ -128,6 +171,7 @@ class _WeekViewState extends State<WeekView>
             todayIndex: todayIndex,
             onChanged: _controller.changeIndex,
           ),
+          _SettleProgress(value: progress),
           Expanded(
             child: AdaptiveBody(
               maxWidth: Adaptive.gridMaxWidth,
@@ -165,7 +209,8 @@ class _WeekViewState extends State<WeekView>
 
   /// 为当前分组里的番剧取更新时刻.
   ///
-  /// 列表签名没变时不再重复排队, 播放页请求一次就够.
+  /// 签名按站点原顺序算, 卡片重排不会让它变化. 签名没变时不再重复排队,
+  /// 播放页请求一次就够.
   void _requestTimes(
     WeekUpdateTimeService? schedule,
     String groupTitle,
@@ -179,11 +224,38 @@ class _WeekViewState extends State<WeekView>
       return;
     }
     _timesSignature = signature;
+    _requesting = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
       }
       schedule.ensure(items.map((e) => e.hid));
+      // 本组全是已有时刻的番时 ensure 不会改动任何 Rx, 这里自己触发重建.
+      setState(() => _requesting = false);
+    });
+  }
+
+  /// 本组没到齐时开始计时, 超时先按已有数据排一次.
+  ///
+  /// 同一组只计时一次, 兜底之后就等全部到齐再排最后一次.
+  void _watchSettle(String group, bool ready) {
+    if (ready) {
+      _settleTimer?.cancel();
+      _settleTimer = null;
+      _settleGroup = group;
+      return;
+    }
+    if (_settleGroup == group) {
+      return;
+    }
+    _settleGroup = group;
+    _settleTimer?.cancel();
+    _settleTimer = Timer(_settleTimeout, () {
+      _settleTimer = null;
+      if (!mounted) {
+        return;
+      }
+      setState(() => _order.flush(group));
     });
   }
 }
@@ -402,54 +474,35 @@ class _WeekCard extends StatelessWidget {
   }
 }
 
-/// 已追的番排在前面, 排序开启时两部分内部再按更新时刻升序.
+/// 分组切换条下的细进度条, 表示本组更新时刻取回了多少.
 ///
-/// 时刻要等播放页请求回来才有, 列表会随数据到达整体重排; 没有时刻的
-/// 番剧排在所在部分的最后, 彼此之间保持站点原来的顺序.
-List<VideoModel> arrangeWeekItems(
-  List<VideoModel> list, {
-  required Set<String> followed,
-  required Map<String, WeekUpdateTime> times,
-  required bool sortByTime,
-}) {
-  final followedList = <VideoModel>[];
-  final rest = <VideoModel>[];
-  for (final video in list) {
-    (followed.contains(video.hid) ? followedList : rest).add(video);
-  }
-  if (!sortByTime) {
-    return [...followedList, ...rest];
-  }
-  return [
-    ...sortByUpdateTime(followedList, times),
-    ...sortByUpdateTime(rest, times),
-  ];
-}
+/// 高度始终占住, 只做淡入淡出, 出现和消失时下面的网格不会跟着上下移动.
+class _SettleProgress extends StatelessWidget {
+  const _SettleProgress({required this.value});
 
-/// 按更新时刻升序, 没有时刻的排在后面, 时刻相同时保持站点顺序.
-///
-/// `List.sort` 不保证稳定, 因此用原下标兜底.
-List<VideoModel> sortByUpdateTime(
-  List<VideoModel> list,
-  Map<String, WeekUpdateTime> times,
-) {
-  final indexed = list.indexed.toList();
-  indexed.sort((a, b) {
-    final left = times[a.$2.hid]?.minutesOfDay;
-    final right = times[b.$2.hid]?.minutesOfDay;
-    if (left == null && right == null) {
-      return a.$1 - b.$1;
-    }
-    if (left == null) {
-      return 1;
-    }
-    if (right == null) {
-      return -1;
-    }
-    if (left != right) {
-      return left - right;
-    }
-    return a.$1 - b.$1;
-  });
-  return [for (final (_, video) in indexed) video];
+  /// 0 到 1 的进度, 为空时隐藏.
+  final double? value;
+
+  static const height = 2.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final current = value;
+    return SizedBox(
+      height: height,
+      child: AnimatedOpacity(
+        opacity: current == null ? 0 : 1,
+        duration: const Duration(milliseconds: 200),
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(end: current ?? 1),
+          duration: const Duration(milliseconds: 200),
+          builder: (context, animated, _) => LinearProgressIndicator(
+            value: animated,
+            minHeight: height,
+            backgroundColor: Colors.transparent,
+          ),
+        ),
+      ),
+    );
+  }
 }

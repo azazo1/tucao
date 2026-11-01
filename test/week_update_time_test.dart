@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/models/week_update_time.dart';
-import 'package:tucao/pages/home/week_view.dart';
+import 'package:tucao/pages/home/week_order.dart';
 
 VideoModel _video(String hid) => VideoModel(hid: hid, title: hid);
 
@@ -92,6 +92,59 @@ void main() {
         sortByTime: true,
       );
       expect(arranged.map((e) => e.hid).toList(), ['a', 'b']);
+    });
+  });
+
+  group('时间表顺序闸门', () {
+    List<String> hids(List<VideoModel> list) => [for (final e in list) e.hid];
+
+    test('到齐前定住顺序, 到齐后只换一次', () {
+      final gate = WeekOrderGate();
+      final a = _video('a'), b = _video('b'), c = _video('c');
+      expect(
+        hids(gate.resolve(group: 'g', arranged: [a, b, c], ready: false)),
+        ['a', 'b', 'c'],
+      );
+      // 时刻陆续到达, 排序结果变了也先不动.
+      expect(
+        hids(gate.resolve(group: 'g', arranged: [c, a, b], ready: false)),
+        ['a', 'b', 'c'],
+      );
+      expect(
+        hids(gate.resolve(group: 'g', arranged: [c, b, a], ready: true)),
+        ['c', 'b', 'a'],
+      );
+    });
+
+    test('定住期间去掉消失的, 新出现的接在末尾', () {
+      final gate = WeekOrderGate();
+      final a = _video('a'), b = _video('b'), c = _video('c'), d = _video('d');
+      gate.resolve(group: 'g', arranged: [a, b, c], ready: false);
+      expect(
+        hids(gate.resolve(group: 'g', arranged: [d, c, a], ready: false)),
+        ['a', 'c', 'd'],
+      );
+    });
+
+    test('超时兜底排一次后继续定住', () {
+      final gate = WeekOrderGate();
+      final a = _video('a'), b = _video('b'), c = _video('c');
+      gate.resolve(group: 'g', arranged: [a, b, c], ready: false);
+      // 切走的分组不受兜底影响.
+      gate.flush('other');
+      expect(
+        hids(gate.resolve(group: 'g', arranged: [b, a, c], ready: false)),
+        ['a', 'b', 'c'],
+      );
+      gate.flush('g');
+      expect(
+        hids(gate.resolve(group: 'g', arranged: [b, a, c], ready: false)),
+        ['b', 'a', 'c'],
+      );
+      expect(
+        hids(gate.resolve(group: 'g', arranged: [c, b, a], ready: false)),
+        ['b', 'a', 'c'],
+      );
     });
   });
 }
