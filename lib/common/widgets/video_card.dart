@@ -14,7 +14,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 /// 视频卡片长按菜单的动作.
 enum _CardAction { viewCover, copyTitle, copyLink, block }
 
-/// 视频卡片长按菜单: 查看标题图, 复制标题, 复制视频链接与屏蔽.
+/// 视频卡片长按菜单: 查看封面图, 复制标题, 复制视频链接与屏蔽.
 Future<void> showVideoCardMenu(BuildContext context, VideoModel video) async {
   final hasCover = video.cover.isNotEmpty;
   final action = await showModalBottomSheet<_CardAction>(
@@ -39,7 +39,7 @@ Future<void> showVideoCardMenu(BuildContext context, VideoModel video) async {
             if (hasCover)
               ListTile(
                 leading: const Icon(Icons.image_outlined),
-                title: const Text('查看标题图'),
+                title: const Text('查看封面图'),
                 onTap: () =>
                     Navigator.pop(sheetContext, _CardAction.viewCover),
               ),
