@@ -57,6 +57,9 @@ class TucaoPlayer extends ChangeNotifier {
     'Referer': Constants.baseUrl,
   };
 
+  /// 所有未释放的播放器, 同一时刻只允许其中一个在播放.
+  static final _instances = <TucaoPlayer>{};
+
   Player? _player;
   VideoController? _videoController;
   Future<void>? _initializing;
@@ -136,6 +139,7 @@ class TucaoPlayer extends ChangeNotifier {
       configuration: const PlayerConfiguration(title: 'tucao'),
     );
     _player = player;
+    _instances.add(this);
     _videoController = VideoController(
       player,
       configuration: VideoControllerConfiguration(
@@ -301,6 +305,9 @@ class TucaoPlayer extends ChangeNotifier {
           return;
         }
         _playing = value;
+        if (value) {
+          _pauseOthers();
+        }
         _updateWakelock();
         _notify();
       }),
@@ -391,10 +398,28 @@ class TucaoPlayer extends ChangeNotifier {
     return lower.contains('could not open codec');
   }
 
-  /// 播放中阻止息屏, 暂停或释放时取消.
-  void _updateWakelock() {
+  /// 开始播放时暂停其他播放器, 新打开的页面优先, 之前的页面停下.
+  void _pauseOthers() {
+    for (final other in _instances.toList()) {
+      if (identical(other, this) || !other._playing) {
+        continue;
+      }
+      Log.i('其他播放器开始播放, 暂停当前播放器');
+      unawaited(
+        other.pause().catchError((Object error, StackTrace stackTrace) {
+          Log.e('暂停其他播放器失败', error: error, stackTrace: stackTrace);
+        }),
+      );
+    }
+  }
+
+  /// 任一播放器在播放时阻止息屏, 全部暂停或释放后取消.
+  ///
+  /// 按全体实例计算, 避免被暂停的旧播放器关掉新播放器需要的息屏锁.
+  static void _updateWakelock() {
+    final playing = _instances.any((item) => item._playing);
     unawaited(
-      (_playing ? WakelockPlus.enable() : WakelockPlus.disable()).catchError((
+      (playing ? WakelockPlus.enable() : WakelockPlus.disable()).catchError((
         Object error,
       ) {
         Log.w('息屏控制失败: $error');
@@ -415,12 +440,14 @@ class TucaoPlayer extends ChangeNotifier {
       return;
     }
     _disposed = true;
+    _playing = false;
+    _instances.remove(this);
     _requests.close();
     for (final subscription in _subscriptions) {
       unawaited(subscription.cancel());
     }
     _subscriptions.clear();
-    unawaited(WakelockPlus.disable().catchError((Object error) {}));
+    _updateWakelock();
     // 在途原生调用结束后再释放, 不与 open/init 竞争.
     unawaited(_release());
     Log.i('播放器已释放');
