@@ -47,6 +47,12 @@ class _SpacePageState extends State<SpacePage> {
     return user != null && user.userId > 0 && user.userId == widget.userId;
   }
 
+  /// 是否是游客弹幕的聚合账号.
+  ///
+  /// 站点把未登录用户发的弹幕统计在 uid 0 名下, u 榜里名为 网友.
+  /// 这类账号没有资料与投稿, 打开空间页会是一片空白, 需要单独说明.
+  bool get _isGuestAggregate => widget.userId == 0;
+
   @override
   void dispose() {
     if (Get.isRegistered<SpaceController>(tag: _tag)) {
@@ -133,12 +139,18 @@ class _SpacePageState extends State<SpacePage> {
                 ),
               ),
               SliverToBoxAdapter(child: _buildStats(context, info)),
+              if (_isGuestAggregate)
+                SliverToBoxAdapter(child: _buildGuestNotice(context)),
               SliverToBoxAdapter(child: _buildActions(context)),
               if (items.isEmpty)
                 SliverFillRemaining(
                   hasScrollBody: false,
                   child: EmptyWidget(
-                    message: raw.isEmpty ? '这位 up 还没有投稿' : '投稿都已被屏蔽',
+                    message: raw.isEmpty
+                        ? (_isGuestAggregate
+                              ? '游客弹幕没有对应的投稿'
+                              : '这位 up 还没有投稿')
+                        : '投稿都已被屏蔽',
                   ),
                 )
               else
@@ -224,6 +236,10 @@ class _SpacePageState extends State<SpacePage> {
       if (_isOwnProfile) {
         return _buildAccountActions(context);
       }
+      // 游客聚合账号没有接收私信的用户名, 不显示入口.
+      if (_isGuestAggregate) {
+        return const SizedBox.shrink();
+      }
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
         child: Align(
@@ -295,6 +311,47 @@ class _SpacePageState extends State<SpacePage> {
                   )
                 : const Icon(Icons.logout, size: 18),
             label: const Text('退出登录'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 游客弹幕聚合账号的说明.
+  ///
+  /// 这类账号的资料与投稿都是空的, 需要在页面上说明来源, 免得看起来像加载失败.
+  Widget _buildGuestNotice(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, size: 18, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('游客弹幕聚合账号', style: theme.textTheme.labelLarge),
+                const SizedBox(height: 4),
+                Text(
+                  '未登录用户发的弹幕都统计在这个账号下, 它在 u 榜里显示为 '
+                  '${SpaceHttp.guestUserName}. 站点没有为它建立资料, 因此这里没有'
+                  '头像, 昵称和投稿.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

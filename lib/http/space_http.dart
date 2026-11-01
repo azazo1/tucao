@@ -72,6 +72,12 @@ class SpacePage {
 /// 站点 `play/u{uid}/` 是投稿人的主页, 没有 json 接口, 只能抓页面,
 /// 分页参数是 `?page=N`.
 abstract final class SpaceHttp {
+  /// 游客弹幕聚合账号的显示名.
+  ///
+  /// 站点把未登录用户发的弹幕都统计在 uid 0 名下, u 榜里给它的名字是
+  /// 网友, 但空间页的 `h1` 是空的, 这里沿用榜单的叫法.
+  static const guestUserName = '网友';
+
   /// 站点用户空间每页固定返回的条数.
   static const pageSize = 50;
 
@@ -167,11 +173,13 @@ abstract final class SpaceHttp {
     // 页大小固定 50, 与站点的实际行为一致.
     final hasMore = list.length >= pageSize;
 
+    final userName = nameNode?.text.trim() ?? '';
     Log.i('用户空间解析完成, uid=$userId 第 $page 页, ${list.length} 条');
     return SpacePage(
       info: SpaceInfo(
         userId: userId,
-        userName: nameNode?.text.trim() ?? '',
+        // uid 0 是游客弹幕的聚合账号, 站点没有给它昵称, 这里补一个显示名.
+        userName: userName.isEmpty && userId == 0 ? guestUserName : userName,
         loginName: loginName,
         avatar: avatarUrl(avatar, revision: avatarRevision?.toString()),
         banner: _absolute(banner),
