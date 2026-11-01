@@ -102,6 +102,16 @@ abstract final class SpaceHttp {
     int page = 1,
     CancelToken? cancelToken,
   }) async {
+    // uid 0 只是游客弹幕的聚合账号, 不该去请求站点页面:
+    // 站点对已登录的会话请求 /play/u0/ 会返回登录者自己的空间,
+    // 直接构造一张空页, 页面上只显示游客聚合的说明.
+    if (userId == 0) {
+      return const SpacePage(
+        info: SpaceInfo(userId: 0, userName: guestUserName),
+        list: [],
+        hasMore: false,
+      );
+    }
     final response = await HttpUtil.dio.get(
       '${Constants.baseUrl}${ApiPath.userUrl(userId)}',
       queryParameters: {if (page > 1) 'page': page},
