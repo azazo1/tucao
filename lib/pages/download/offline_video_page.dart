@@ -9,6 +9,7 @@ import 'package:tucao/models/api_response.dart';
 import 'package:tucao/models/danmaku.dart';
 import 'package:tucao/models/download_task.dart';
 import 'package:tucao/models/video.dart';
+import 'package:tucao/pages/video/cast_flow.dart';
 import 'package:tucao/pages/video/video_page.dart';
 import 'package:tucao/pages/video/widgets/player_view.dart';
 import 'package:tucao/pages/video/widgets/video_info.dart';
@@ -81,6 +82,9 @@ class _OfflineVideoPageState extends State<OfflineVideoPage>
   final _playerKey = GlobalKey();
   bool _fullscreen = false;
 
+  /// 投屏流程, 与在线页共用; 本地文件由转发服务读给电视.
+  late final CastFlow _castFlow;
+
   @override
   void initState() {
     super.initState();
@@ -98,6 +102,24 @@ class _OfflineVideoPageState extends State<OfflineVideoPage>
       ),
       tag: _tag,
     );
+    _castFlow = CastFlow(controller: _controller, toast: _toast)
+      ..addListener(_onCastChanged);
+  }
+
+  /// 投屏开始或收起时换掉播放区与顶栏按钮.
+  void _onCastChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _toast(String message) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   /// 优先读本地弹幕. 老缓存没有弹幕时联网补一次, 失败就不显示.
@@ -124,6 +146,9 @@ class _OfflineVideoPageState extends State<OfflineVideoPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _castFlow
+      ..removeListener(_onCastChanged)
+      ..dispose();
     _controller.detachDanmaku();
     if (Get.isRegistered<PlayerPageController>(tag: _tag)) {
       Get.delete<PlayerPageController>(tag: _tag);
@@ -162,6 +187,8 @@ class _OfflineVideoPageState extends State<OfflineVideoPage>
 
   /// 转到在线播放页, 接着当前分P.
   Future<void> _openOnline() async {
+    // 在线页另起投屏, 这里先让电视停下.
+    await _castFlow.finish(restore: false);
     await _controller.player.pause();
     if (_fullscreen) {
       await _exitFullscreen();
@@ -257,6 +284,7 @@ class _OfflineVideoPageState extends State<OfflineVideoPage>
         style: const TextStyle(fontSize: 15),
       ),
       actions: [
+        CastButton(flow: _castFlow),
         IconButton(
           key: const ValueKey('offline-open-online'),
           tooltip: '在线观看',
@@ -277,6 +305,8 @@ class _OfflineVideoPageState extends State<OfflineVideoPage>
       () => VideoPlayerView(
         controller: _controller,
         fullscreen: _fullscreen,
+        cast: _castFlow.session,
+        onExitCast: () => unawaited(_castFlow.finish(restore: true)),
         onToggleFullscreen: _fullscreen ? _exitFullscreen : _enterFullscreen,
         onOpenWebsite: () => unawaited(_openOnline()),
         websiteLabel: '在线观看',

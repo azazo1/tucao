@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:tucao/models/cast_device.dart';
@@ -64,6 +65,9 @@ class CastSession extends ChangeNotifier {
   String? _proxyUrl;
   String _title = '视频';
 
+  /// 本地文件的媒体类型, 远端地址为空, 交给电视按地址猜.
+  String? _mime;
+
   /// 跳转后的短暂窗口, 这段时间不拿轮询位置覆盖界面, 避免游标弹回原处.
   DateTime? _seekGuard;
 
@@ -95,11 +99,21 @@ class CastSession extends ChangeNotifier {
   }) async {
     _setState(CastState.connecting);
     try {
-      final url = await proxy.register(mediaUrl);
+      final source = Uri.tryParse(mediaUrl);
+      final Uri url;
+      if (source != null && source.scheme == 'file') {
+        // 离线缓存: 电视没有文件权限, 由手机按 Range 读给它.
+        final file = File.fromUri(source);
+        _mime = await CastProxy.sniffMime(file);
+        url = await proxy.registerFile(file, mime: _mime);
+      } else {
+        _mime = null;
+        url = await proxy.register(mediaUrl);
+      }
       Log.i('投屏地址 ${url.host}:${url.port} -> $mediaUrl');
       _proxyUrl = url.toString();
       _title = title;
-      await renderer.setMedia(_proxyUrl!, title: title);
+      await renderer.setMedia(_proxyUrl!, title: title, mime: _mime);
       await renderer.play();
       if (startAt > const Duration(seconds: 2)) {
         await renderer.seek(startAt);
@@ -179,7 +193,7 @@ class CastSession extends ChangeNotifier {
     }
     final wasPaused = _state == CastState.paused;
     await renderer.stop();
-    await renderer.setMedia(url, title: _title);
+    await renderer.setMedia(url, title: _title, mime: _mime);
     await renderer.play();
     await renderer.seek(target);
     if (wasPaused) {

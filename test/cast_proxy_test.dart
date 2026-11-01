@@ -95,6 +95,85 @@ void main() {
     expect(response.statusCode, 404);
   });
 
+  group('本地文件', () {
+    late Directory directory;
+    late File file;
+
+    setUp(() async {
+      directory = await Directory.systemTemp.createTemp('cast-proxy-');
+      file = File('${directory.path}/movie.media');
+      await file.writeAsBytes(_payload);
+    });
+
+    tearDown(() => directory.delete(recursive: true));
+
+    Future<(HttpClientResponse, List<int>)> get(
+      Uri uri, {
+      String? range,
+      String method = 'GET',
+    }) async {
+      final client = HttpClient();
+      final request = await client.openUrl(method, uri);
+      if (range != null) {
+        request.headers.set(HttpHeaders.rangeHeader, range);
+      }
+      final response = await request.close();
+      final bytes = await _readAll(response);
+      client.close(force: true);
+      return (response, bytes);
+    }
+
+    test('整段, 区间, 末尾区间与 HEAD 都按文件内容返回', () async {
+      final uri = await proxy.registerFile(file, mime: 'video/mp4');
+
+      final (whole, all) = await get(uri);
+      expect(whole.statusCode, 200);
+      expect(all, _payload);
+      expect(whole.headers.value(HttpHeaders.acceptRangesHeader), 'bytes');
+
+      final (part, middle) = await get(uri, range: 'bytes=100-199');
+      expect(part.statusCode, 206);
+      expect(middle, _payload.sublist(100, 200));
+      expect(
+        part.headers.value(HttpHeaders.contentRangeHeader),
+        'bytes 100-199/4096',
+      );
+
+      final (_, open) = await get(uri, range: 'bytes=4000-');
+      expect(open, _payload.sublist(4000));
+      final (_, tail) = await get(uri, range: 'bytes=-96');
+      expect(tail, _payload.sublist(4000));
+
+      final (head, empty) = await get(uri, method: 'HEAD');
+      expect(head.statusCode, 200);
+      expect(head.contentLength, 4096);
+      expect(empty, isEmpty);
+    });
+
+    test('区间越界返回 416, 文件不存在时拒绝登记', () async {
+      final uri = await proxy.registerFile(file, mime: 'video/mp4');
+      final (response, _) = await get(uri, range: 'bytes=5000-');
+      expect(response.statusCode, 416);
+      expect(
+        response.headers.value(HttpHeaders.contentRangeHeader),
+        'bytes */4096',
+      );
+      expect(
+        () => proxy.registerFile(File('${directory.path}/missing.media')),
+        throwsA(isA<CastException>()),
+      );
+    });
+
+    test('按文件头判断媒体类型, 认不出时按 mp4', () async {
+      await file.writeAsBytes([0x46, 0x4c, 0x56, 0x01, 0x05]);
+      expect(await CastProxy.sniffMime(file), 'video/x-flv');
+      await file.writeAsBytes([0x1a, 0x45, 0xdf, 0xa3, 0x01]);
+      expect(await CastProxy.sniffMime(file), 'video/x-matroska');
+      await file.writeAsBytes([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70]);
+      expect(await CastProxy.sniffMime(file), 'video/mp4');
+    });
+  });
+
   test('非 http 地址拒绝登记', () async {
     expect(
       () => proxy.register('file:///sdcard/movie.mp4'),

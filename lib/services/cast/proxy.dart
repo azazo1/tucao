@@ -11,6 +11,8 @@ import 'package:tucao/utils/logger.dart';
 /// 站点直链常常校验 Referer 与 UA, 电视发请求时不会带, 于是出现手机能播,
 /// 投屏后黑屏. 这里在本机开一个很小的 HTTP 服务, 只转发登记过的地址,
 /// 补上请求头, 并把 https 统一成电视更容易接受的 http.
+///
+/// 离线缓存的本地文件也走这里, 由手机直接按 Range 读给电视, 不经过网络.
 class CastProxy {
   CastProxy({
     this.userAgent = Constants.userAgent,
@@ -34,6 +36,9 @@ class CastProxy {
 
   final Map<String, Uri> _targets = {};
 
+  /// 登记过的本地文件与其媒体类型.
+  final Map<String, ({File file, String mime})> _files = {};
+
   HttpServer? _server;
 
   int get port => _server?.port ?? 0;
@@ -47,16 +52,66 @@ class CastProxy {
         (target.scheme != 'http' && target.scheme != 'https')) {
       throw const CastException('该地址无法投屏');
     }
+    return _publish((token) => _targets[token] = target);
+  }
+
+  /// 登记本地文件, 返回电视可以访问的地址. [mime] 为空时按文件头判断.
+  Future<Uri> registerFile(File file, {String? mime}) async {
+    if (!await file.exists()) {
+      throw const CastException('本地文件不存在, 无法投屏');
+    }
+    final type = mime ?? await sniffMime(file);
+    return _publish((token) => _files[token] = (file: file, mime: type));
+  }
+
+  Future<Uri> _publish(void Function(String token) save) async {
     await _start();
     final address = await _addressResolver();
     final token = _token();
-    _targets[token] = target;
+    save(token);
     return Uri(
       scheme: 'http',
       host: address,
       port: port,
       pathSegments: ['cast', token],
     );
+  }
+
+  /// 按文件头判断常见的媒体类型, 认不出时按 mp4 处理.
+  ///
+  /// 缓存文件没有可靠的后缀, 电视又会按这个类型决定能不能播.
+  static Future<String> sniffMime(File file) async {
+    final head = <int>[];
+    try {
+      await for (final chunk in file.openRead(0, 12)) {
+        head.addAll(chunk);
+      }
+    } on FileSystemException {
+      return 'video/mp4';
+    }
+    bool at(int offset, List<int> magic) {
+      if (head.length < offset + magic.length) {
+        return false;
+      }
+      for (var index = 0; index < magic.length; index++) {
+        if (head[offset + index] != magic[index]) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    if (at(0, const [0x46, 0x4c, 0x56])) {
+      return 'video/x-flv';
+    }
+    if (at(0, const [0x1a, 0x45, 0xdf, 0xa3])) {
+      return 'video/x-matroska';
+    }
+    if (at(0, const [0x49, 0x44, 0x33]) || at(0, const [0xff, 0xfb])) {
+      return 'audio/mpeg';
+    }
+    // mp4 / mov 第 4 字节起是 ftyp, 其余情况也当 mp4.
+    return 'video/mp4';
   }
 
   Future<void> _start() async {
@@ -76,10 +131,12 @@ class CastProxy {
   Future<void> _handle(HttpRequest request) async {
     final response = request.response;
     final segments = request.uri.pathSegments;
-    final target = segments.length == 2 && segments.first == 'cast'
-        ? _targets[segments[1]]
+    final token = segments.length == 2 && segments.first == 'cast'
+        ? segments[1]
         : null;
-    if (target == null) {
+    final target = _targets[token];
+    final local = _files[token];
+    if (target == null && local == null) {
       response.statusCode = HttpStatus.notFound;
       await response.close();
       return;
@@ -89,8 +146,20 @@ class CastProxy {
       await response.close();
       return;
     }
+    if (local != null) {
+      try {
+        await _serveFile(request, local.file, local.mime);
+      } on FileSystemException catch (error) {
+        Log.w('读取投屏本地文件失败: $error');
+        await _abort(response, HttpStatus.notFound);
+      } on IOException {
+        // 电视中途跳转或退出时连接会断, 不算错误.
+        await _abort(response, HttpStatus.ok);
+      }
+      return;
+    }
     try {
-      await _forward(request, target);
+      await _forward(request, target!);
     } on SocketException catch (error) {
       Log.w('转发媒体失败 ${target.host}: $error');
       await _abort(response, HttpStatus.badGateway);
@@ -152,8 +221,64 @@ class CastProxy {
     }
   }
 
+  /// 直接读本地文件给电视, 支持单段 Range, 电视拖动进度要靠它.
+  Future<void> _serveFile(HttpRequest request, File file, String mime) async {
+    final client = request.response;
+    final length = await file.length();
+    client.headers.set(HttpHeaders.contentTypeHeader, mime);
+    client.headers.set(HttpHeaders.acceptRangesHeader, 'bytes');
+    client.headers.set('server', 'tucao-cast');
+    var start = 0;
+    var end = length - 1;
+    final range = request.headers.value(HttpHeaders.rangeHeader);
+    if (range != null) {
+      final parsed = _parseRange(range, length);
+      if (parsed == null) {
+        client.statusCode = HttpStatus.requestedRangeNotSatisfiable;
+        client.headers.set(HttpHeaders.contentRangeHeader, 'bytes */$length');
+        await client.close();
+        return;
+      }
+      (start, end) = parsed;
+      client.statusCode = HttpStatus.partialContent;
+      client.headers.set(
+        HttpHeaders.contentRangeHeader,
+        'bytes $start-$end/$length',
+      );
+    }
+    client.contentLength = end - start + 1;
+    if (request.method == 'HEAD') {
+      await client.close();
+      return;
+    }
+    await client.addStream(file.openRead(start, end + 1));
+    await client.close();
+  }
+
+  /// 解析 `bytes=a-b`, `bytes=a-`, `bytes=-n`, 不合法或越界时返回空.
+  static (int, int)? _parseRange(String header, int length) {
+    final match = RegExp(r'^bytes=(\d*)-(\d*)$').firstMatch(header.trim());
+    if (match == null || length <= 0) {
+      return null;
+    }
+    final first = int.tryParse(match.group(1)!);
+    final last = int.tryParse(match.group(2)!);
+    if (first == null) {
+      // 只给了末尾长度, 取最后 n 字节.
+      if (last == null || last <= 0) {
+        return null;
+      }
+      return (last >= length ? 0 : length - last, length - 1);
+    }
+    if (first >= length || (last != null && last < first)) {
+      return null;
+    }
+    return (first, last == null || last >= length ? length - 1 : last);
+  }
+
   Future<void> close() async {
     _targets.clear();
+    _files.clear();
     final server = _server;
     _server = null;
     if (server != null) {

@@ -7,7 +7,7 @@ import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/common/widgets/cover_hero.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/models/video.dart';
-import 'package:tucao/pages/video/widgets/cast_sheet.dart';
+import 'package:tucao/pages/video/cast_flow.dart';
 import 'package:tucao/pages/video/widgets/video_content_tabs.dart';
 import 'package:tucao/pages/video/widgets/player_view.dart';
 import 'package:tucao/pages/video/widgets/related_videos.dart';
@@ -18,9 +18,6 @@ import 'package:tucao/pages/video/widgets/download_sheet.dart';
 import 'package:tucao/plugin/player/player_brightness.dart';
 import 'package:tucao/plugin/player/player_controller.dart';
 import 'package:tucao/router/routes.dart';
-import 'package:tucao/services/cast/proxy.dart';
-import 'package:tucao/services/cast/renderer.dart';
-import 'package:tucao/services/cast/session.dart';
 import 'package:tucao/services/block_service.dart';
 import 'package:tucao/services/history_service.dart';
 import 'package:tucao/services/pip_service.dart';
@@ -104,17 +101,8 @@ class _VideoPageState extends State<VideoPage>
   /// 重启播放时递增, 用来让简介, 统计, 评论这些子组件重建并重新请求.
   int _contentEpoch = 0;
 
-  /// 当前投屏会话, 为空表示没有在投屏.
-  CastSession? _cast;
-
-  /// 投屏前本地是否在播放, 退出投屏时据此决定要不要接着放.
-  bool _castWasPlaying = false;
-
-  /// 结束投屏时的重入保护: 停止会触发状态通知, 通知里又会回来收尾.
-  bool _endingCast = false;
-
-  /// 切换分P时收起投屏, 否则电视还在放上一个分P.
-  Worker? _partWorker;
+  /// 投屏流程, 与离线页共用.
+  late final CastFlow _castFlow;
 
   /// 路由里明确指定了分P就用它, 否则按观看历史恢复上次看的分P.
   ///
@@ -150,11 +138,8 @@ class _VideoPageState extends State<VideoPage>
     );
     _controller.player.addListener(_syncPipAutoEnter);
     PipService.instance.inPipMode.addListener(_onPipModeChanged);
-    _partWorker = ever<int>(_controller.part, (_) {
-      if (_cast != null) {
-        unawaited(_finishCast(restore: false));
-      }
-    });
+    _castFlow = CastFlow(controller: _controller, toast: _toast)
+      ..addListener(_onCastChanged);
     unawaited(_loadPipSupport());
   }
 
@@ -165,14 +150,9 @@ class _VideoPageState extends State<VideoPage>
     PipService.instance.inPipMode.removeListener(_onPipModeChanged);
     // 离开播放页后不再自动进入小窗.
     unawaited(PipService.instance.setAutoEnter(enabled: false));
-    _partWorker?.dispose();
-    _partWorker = null;
-    final session = _cast;
-    _cast = null;
-    if (session != null) {
-      session.removeListener(_onCastChanged);
-      unawaited(session.stop().whenComplete(session.dispose));
-    }
+    _castFlow
+      ..removeListener(_onCastChanged)
+      ..dispose();
     _contentTabs.dispose();
     _controller.detachDanmaku();
     if (Get.isRegistered<PlayerPageController>(tag: _tag)) {
@@ -375,21 +355,7 @@ class _VideoPageState extends State<VideoPage>
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       actions: [
-        if (_cast case final session?)
-          AnimatedBuilder(
-            animation: session,
-            builder: (context, _) => IconButton(
-              tooltip: '退出投屏',
-              icon: const Icon(Icons.cast_connected),
-              onPressed: () => unawaited(_finishCast(restore: true)),
-            ),
-          )
-        else
-          IconButton(
-            tooltip: '投屏',
-            icon: const Icon(Icons.cast),
-            onPressed: () => unawaited(_startCast()),
-          ),
+        CastButton(flow: _castFlow),
         Obx(() {
           final video = _controller.video.value;
           return VideoMoreMenu(
@@ -444,8 +410,8 @@ class _VideoPageState extends State<VideoPage>
       controller: _controller,
       fullscreen: _fullscreen,
       pipMode: _pipMode,
-      cast: _cast,
-      onExitCast: () => unawaited(_finishCast(restore: true)),
+      cast: _castFlow.session,
+      onExitCast: () => unawaited(_castFlow.finish(restore: true)),
       // 不支持时不给回调, 播放器就不显示入口.
       onEnterPip: _pipSupported ? _enterPip : null,
       onToggleFullscreen: _fullscreen ? _exitFullscreen : _enterFullscreen,
@@ -584,96 +550,18 @@ class _VideoPageState extends State<VideoPage>
     }
   }
 
-  /// 选一台电视并把当前分P投上去.
-  Future<void> _startCast() async {
-    final url = _controller.playUrl.value;
-    if (url.isEmpty || !url.startsWith('http')) {
-      _toast('当前视频没有可投屏的地址');
-      return;
-    }
-    final device = await showCastDeviceSheet(context);
-    if (device == null || !mounted) {
-      return;
-    }
-    final wasPlaying = _controller.player.playing;
-    final startAt = _controller.player.position;
-    // 投屏期间本地不再出声; 卸载地址而不是暂停, 免得那条空闲连接失效.
-    await _controller.releaseForCast();
-    if (!mounted) {
-      return;
-    }
-    final session = CastSession(
-      device: device,
-      renderer: DlnaRenderer(device: device),
-      proxy: CastProxy(),
-    )..addListener(_onCastChanged);
-    _castWasPlaying = wasPlaying;
-    setState(() => _cast = session);
-    Log.i('开始投屏到 ${device.name} ${device.location}');
-    await session.start(
-      mediaUrl: url,
-      title: _controller.video.value?.title ?? '视频',
-      startAt: startAt,
-    );
-  }
-
-  /// 会话进入终态时收尾, 进度变化交给界面自己监听, 不整页重建.
+  /// 投屏开始或收起时换掉播放区与顶栏按钮.
   void _onCastChanged() {
-    final session = _cast;
-    if (session == null) {
-      return;
-    }
-    switch (session.state) {
-      case CastState.failed:
-        unawaited(_finishCast(restore: true, message: session.error ?? '投屏失败'));
-      case CastState.finished:
-        unawaited(_finishCast(restore: true));
-      default:
-        break;
-    }
-  }
-
-  /// 收起投屏并把本地播放接回来.
-  Future<void> _finishCast({required bool restore, String? message}) async {
-    final session = _cast;
-    if (session == null || _endingCast) {
-      return;
-    }
-    _endingCast = true;
-    session.removeListener(_onCastChanged);
-    final position = session.position;
-    final wasPlaying = _castWasPlaying;
     if (mounted) {
-      setState(() => _cast = null);
+      setState(() {});
     }
-    try {
-      if (session.state != CastState.finished) {
-        await session.stop();
-      }
-    } catch (error, stackTrace) {
-      Log.e('停止投屏失败', error: error, stackTrace: stackTrace);
-    } finally {
-      session.dispose();
-      _endingCast = false;
-    }
-    if (message != null) {
-      _toast(message);
-    }
-    if (!restore || !mounted) {
-      return;
-    }
-    // 从电视端停下的位置接着放, 与原生客户端的投屏体验一致.
-    // 重新打开地址而不是 seek: 旧连接在投屏期间可能已经被服务端断开.
-    await _controller.resumeAfterCast(position, autoPlay: wasPlaying);
   }
 
   /// 重载播放器与页面信息, 效果等同于退出播放页再进来, 但不切换路由.
   ///
   /// 播放器卡死或者画面停在错误上时用这个恢复; 正在投屏的话先收起投屏.
   Future<void> _restartPlayback() async {
-    if (_cast != null) {
-      await _finishCast(restore: false);
-    }
+    await _castFlow.finish(restore: false);
     if (!mounted) {
       return;
     }
