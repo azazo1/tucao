@@ -9,7 +9,9 @@ import 'package:tucao/models/video.dart';
 import 'package:tucao/pages/search/search_controller.dart';
 import 'package:tucao/pages/search/widgets/hot_search_section.dart';
 import 'package:tucao/router/routes.dart';
+import 'package:tucao/router/site_navigation.dart';
 import 'package:tucao/services/block_service.dart';
+import 'package:tucao/utils/site_route.dart';
 
 /// 搜索页.
 ///
@@ -75,6 +77,10 @@ class _SearchPageState extends State<SearchPage> {
       _controller.clearKeyword();
       return;
     }
+    // 粘贴站点地址时直接进对应页面, 不把它当成关键词搜索.
+    if (_openSiteInput(keyword)) {
+      return;
+    }
     if (_inputController.text != keyword) {
       _inputController.value = TextEditingValue(
         text: keyword,
@@ -88,6 +94,28 @@ class _SearchPageState extends State<SearchPage> {
   void _clearInput() {
     _inputController.clear();
     _controller.clearKeyword();
+  }
+
+  /// 输入的是站点地址时直接跳到对应页面, 返回是否已经处理.
+  ///
+  /// 站点没有对应页面的地址给出提示, 不退回关键词搜索: 拿链接去搜不到东西,
+  /// 用户也很难看出是哪里不对.
+  bool _openSiteInput(String text) {
+    final uri = parseSiteUrlInput(text);
+    if (uri == null) {
+      return false;
+    }
+    final route = siteRouteOf(uri);
+    if (route == null) {
+      _focusNode.unfocus();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('该站点地址没有对应的页面')),
+      );
+      return true;
+    }
+    _focusNode.unfocus();
+    openSiteRoute(route);
+    return true;
   }
 
   @override
@@ -139,7 +167,7 @@ class _SearchPageState extends State<SearchPage> {
       },
       onSubmitted: _submit,
       decoration: InputDecoration(
-        hintText: '搜索视频',
+        hintText: '搜索视频或站点链接',
         hintStyle: const TextStyle(fontSize: 14),
         prefixIcon: const Padding(
           padding: EdgeInsets.only(left: 12, right: 6),

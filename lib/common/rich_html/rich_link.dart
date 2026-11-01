@@ -1,6 +1,6 @@
-import 'package:get/get.dart';
-import 'package:tucao/router/routes.dart';
+import 'package:tucao/router/site_navigation.dart';
 import 'package:tucao/utils/logger.dart';
+import 'package:tucao/utils/site_route.dart';
 import 'package:tucao/utils/site_url.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -14,18 +14,10 @@ Future<void> openRichLink(String url) async {
     return;
   }
   if (isSiteUrl(url)) {
-    final match = RegExp(r'^/play/([hdu])(\d+)/?$').firstMatch(uri.path);
-    if (match != null) {
-      final id = match.group(2)!;
+    final route = siteRouteOf(uri);
+    if (route != null) {
       Log.i('正文链接在应用内打开: ${uri.path}');
-      switch (match.group(1)) {
-        case 'h':
-          Get.toNamed(Routes.video, parameters: {'hid': id});
-        case 'd':
-          Get.toNamed(Routes.article, parameters: {'hid': id});
-        default:
-          Get.toNamed(Routes.space, parameters: {'uid': id});
-      }
+      openSiteRoute(route);
       return;
     }
   }
