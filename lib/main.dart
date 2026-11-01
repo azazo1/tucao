@@ -9,6 +9,7 @@ import 'package:tucao/services/account_service.dart';
 import 'package:tucao/services/ad_service.dart';
 import 'package:tucao/services/block_service.dart';
 import 'package:tucao/services/danmaku_trend_service.dart';
+import 'package:tucao/services/download/download_assets.dart';
 import 'package:tucao/services/download/download_service.dart';
 import 'package:tucao/services/download/download_transport.dart';
 import 'package:tucao/services/history_service.dart';
@@ -61,7 +62,10 @@ Future<void> main() async {
   // 首页轮转区里的站务文章, 通知条与顶栏铃铛共用.
   Get.put(SiteNoticeService(), permanent: true);
   final downloads = Get.put(
-    DownloadService(transport: DioDownloadTransport(HttpUtil.dio)),
+    DownloadService(
+      transport: DioDownloadTransport(HttpUtil.dio),
+      assets: SiteDownloadAssets(HttpUtil.dio),
+    ),
     permanent: true,
   );
   try {

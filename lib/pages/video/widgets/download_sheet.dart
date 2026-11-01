@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/models/download_task.dart';
 import 'package:tucao/models/video.dart';
+import 'package:tucao/router/routes.dart';
 import 'package:tucao/services/download/download_service.dart';
 import 'package:tucao/utils/logger.dart';
 
@@ -24,11 +25,22 @@ Future<void> showVideoDownloadSheet(
   if (result == null || !context.mounted || route?.isCurrent != true) {
     return;
   }
-  ScaffoldMessenger.of(context).showSnackBar(
+  final messenger = ScaffoldMessenger.of(context);
+  messenger.hideCurrentSnackBar();
+  messenger.showSnackBar(
     SnackBar(
       content: Text(
-        '已提交 ${result.succeeded} 项, 失败 ${result.failed} 项. 提交不代表缓存完成.',
+        result.failed == 0
+            ? '已加入缓存 ${result.succeeded} 项'
+            : '已加入缓存 ${result.succeeded} 项, ${result.failed} 项提交失败',
       ),
+      action: result.succeeded > 0
+          ? SnackBarAction(
+              key: const ValueKey('download-snackbar-open'),
+              label: '查看',
+              onPressed: () => Get.toNamed(Routes.downloads),
+            )
+          : null,
     ),
   );
 }
@@ -155,6 +167,12 @@ class _VideoDownloadSheetState extends State<_VideoDownloadSheet> {
     }
   }
 
+  /// 收起弹层并进入离线缓存页.
+  void _openDownloads() {
+    Navigator.of(context).pop();
+    Get.toNamed(Routes.downloads);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -171,13 +189,28 @@ class _VideoDownloadSheetState extends State<_VideoDownloadSheet> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Text('选择缓存分 P', style: theme.textTheme.titleMedium),
+                padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '选择缓存分 P',
+                        style: theme.textTheme.titleMedium,
+                      ),
+                    ),
+                    TextButton.icon(
+                      key: const ValueKey('download-open-cache'),
+                      onPressed: _submitting ? null : _openDownloads,
+                      icon: const Icon(Icons.download_done, size: 18),
+                      label: const Text('查看缓存'),
+                    ),
+                  ],
+                ),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Text(
-                  '仅在前台下载. 暂停或失败后, 重试将从头开始.',
+                  '仅在前台下载. 暂停或中断后从已下载的位置继续.',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -187,7 +220,7 @@ class _VideoDownloadSheetState extends State<_VideoDownloadSheet> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                   child: Text(
-                    '缓存服务不可用, 请在视频缓存页面重新加载.',
+                    '缓存服务不可用, 请在离线缓存页重新加载.',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.error,
                     ),
@@ -214,7 +247,11 @@ class _VideoDownloadSheetState extends State<_VideoDownloadSheet> {
                             subtitle: reason != null
                                 ? Text(reason)
                                 : retry
-                                ? const Text('从头重试')
+                                ? Text(
+                                    existing?.status == DownloadStatus.failed
+                                        ? '上次下载失败, 将重新尝试'
+                                        : '已暂停, 将继续下载',
+                                  )
                                 : null,
                             value: selected.contains(part),
                             onChanged: reason != null || _submitting

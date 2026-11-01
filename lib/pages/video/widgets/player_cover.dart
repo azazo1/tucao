@@ -1,4 +1,5 @@
-import 'dart:ui';
+import 'dart:io';
+import 'dart:ui' show ImageFilter;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -14,9 +15,13 @@ class PlayerCover extends StatefulWidget {
     required this.url,
     required this.visible,
     this.heroTag,
+    this.file,
   });
 
   final String url;
+
+  /// 本地封面文件, 有时不走网络.
+  final File? file;
 
   final bool visible;
 
@@ -44,7 +49,8 @@ class _PlayerCoverState extends State<PlayerCover> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.url.isEmpty || _gone) {
+    final file = widget.file;
+    if ((widget.url.isEmpty && file == null) || _gone) {
       return const SizedBox.shrink();
     }
     return IgnorePointer(
@@ -61,14 +67,24 @@ class _PlayerCoverState extends State<PlayerCover> {
           child: ClipRect(
             child: ImageFiltered(
               imageFilter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-              child: CachedNetworkImage(
-                imageUrl: widget.url,
-                fit: BoxFit.cover,
-                color: Colors.black38,
-                colorBlendMode: BlendMode.darken,
-                fadeInDuration: const Duration(milliseconds: 150),
-                errorWidget: (context, url, error) => const SizedBox.shrink(),
-              ),
+              child: file != null
+                  ? Image.file(
+                      file,
+                      fit: BoxFit.cover,
+                      color: Colors.black38,
+                      colorBlendMode: BlendMode.darken,
+                      errorBuilder: (context, error, stackTrace) =>
+                          const SizedBox.shrink(),
+                    )
+                  : CachedNetworkImage(
+                      imageUrl: widget.url,
+                      fit: BoxFit.cover,
+                      color: Colors.black38,
+                      colorBlendMode: BlendMode.darken,
+                      fadeInDuration: const Duration(milliseconds: 150),
+                      errorWidget: (context, url, error) =>
+                          const SizedBox.shrink(),
+                    ),
             ),
           ),
         ),

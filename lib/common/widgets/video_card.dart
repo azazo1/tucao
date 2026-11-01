@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/models/video.dart';
@@ -104,6 +106,7 @@ class VideoCover extends StatelessWidget {
   const VideoCover({
     super.key,
     required this.url,
+    this.file,
     this.aspectRatio = Style.coverAspectRatio,
     this.radius = Style.cardRadius,
     this.overlay,
@@ -116,6 +119,9 @@ class VideoCover extends StatelessWidget {
   final String? heroTag;
 
   final String url;
+
+  /// 本地封面文件, 有时优先于 [url], 离线缓存列表使用.
+  final File? file;
   final double aspectRatio;
   final double radius;
 
@@ -137,7 +143,17 @@ class VideoCover extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            if (url.isEmpty)
+            if (file != null)
+              CoverHero.wrap(
+                tag: heroTag,
+                child: Image.file(
+                  file!,
+                  fit: fit,
+                  errorBuilder: (context, error, stackTrace) =>
+                      ColoredBox(color: scheme.surfaceContainerHighest),
+                ),
+              )
+            else if (url.isEmpty)
               ColoredBox(color: scheme.surfaceContainerHighest)
             else
               CoverHero.wrap(

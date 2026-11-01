@@ -4,29 +4,55 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
+import 'package:tucao/models/danmaku.dart';
 import 'package:tucao/models/download_task.dart';
 import 'package:tucao/models/video.dart';
+import 'package:tucao/services/download/download_assets.dart';
+import 'package:tucao/services/download/download_extras.dart';
 import 'package:tucao/services/download/download_location.dart';
 import 'package:tucao/services/download/download_store.dart';
 import 'package:tucao/services/download/download_transport.dart';
 import 'package:tucao/utils/logger.dart';
 
-/// 前台单文件缓存队列. 不做分段下载, 暂停后重试从头开始.
+/// 前台单文件缓存队列.
+///
+/// 暂停与失败保留 `.part` 分片, 重试时按 Range 续传, 服务端不支持时从头下载.
+/// 媒体之外顺带保存视频信息, 封面与弹幕, 见 [DownloadExtras].
 class DownloadService extends GetxController with WidgetsBindingObserver {
   DownloadService({
     Directory? directory,
     DownloadStore? store,
     required DownloadTransport transport,
+    DownloadAssets? assets,
     Future<Directory> Function()? location,
   }) : assert(directory == null || store == null),
        _store = store ?? (directory == null ? null : DownloadStore(directory)),
        _location = location ?? DownloadLocation.directory,
-       _transport = transport;
+       _transport = transport,
+       _assets = assets;
 
   static DownloadService get instance => Get.find<DownloadService>();
 
   DownloadStore? _store;
   DownloadStore get store => _store ?? (throw StateError('外部缓存目录尚未就绪'));
+
+  /// 为空表示不保存附属数据, 只缓存媒体.
+  final DownloadAssets? _assets;
+
+  DownloadExtras? _extras;
+  DownloadExtras get extras => _extras ??= DownloadExtras(store.directory);
+
+  /// 正在下载的任务网速, 字节每秒.
+  final speeds = <String, int>{}.obs;
+
+  /// 已经保存了封面的视频.
+  final covers = <String>{}.obs;
+
+  /// 已保存的视频信息, 列表展示作者等字段时用, 不必逐行读文件.
+  final videos = <String, VideoModel>{}.obs;
+
+  /// 各任务在途的附属数据保存, 删除前要等它们写完.
+  final _assetJobs = <String, Future<void>>{};
   final Future<Directory> Function() _location;
   final initializationError = RxnString();
   Future<void>? _initializing;
@@ -93,38 +119,53 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
     final saved = await store.load();
     final restored = <DownloadTask>[];
     for (final task in saved) {
-      await store.discard(task, partial: true);
-      if (task.status == DownloadStatus.completed) {
-        final file = store.media(task);
-        final valid =
-            await file.exists() &&
-            await file.length() > 0 &&
-            await file.length() == task.received;
-        restored.add(
-          valid
-              ? task
-              : task.update(
-                  status: DownloadStatus.failed,
-                  received: 0,
-                  total: -1,
-                  error: '本地缓存文件缺失或不完整, 请重新下载',
-                ),
-        );
-      } else {
+      if (task.status != DownloadStatus.completed) {
+        // 保留分片供续传, 进度以磁盘上实际写下的字节为准.
+        final partial = store.media(task, partial: true);
+        final kept = await partial.exists() ? await partial.length() : 0;
         restored.add(
           task.update(
             status: task.status == DownloadStatus.failed
                 ? DownloadStatus.failed
                 : DownloadStatus.paused,
-            received: 0,
-            total: -1,
+            received: kept,
+            total: kept > 0 ? task.total : -1,
             error: task.error,
           ),
         );
+        continue;
       }
+      await store.discard(task, partial: true);
+      final file = store.media(task);
+      final valid =
+          await file.exists() &&
+          await file.length() > 0 &&
+          await file.length() == task.received;
+      restored.add(
+        valid
+            ? task
+            : task.update(
+                status: DownloadStatus.failed,
+                received: 0,
+                total: -1,
+                error: '本地缓存文件缺失或不完整, 请重新下载',
+              ),
+      );
     }
     items.assignAll(restored);
     await _persist();
+    final withCover = <String>{};
+    final infos = <String, VideoModel>{};
+    for (final hid in restored.map((task) => task.hid).toSet()) {
+      if (await extras.cover(hid).exists()) {
+        withCover.add(hid);
+      }
+      if (await extras.loadVideo(hid) case final video?) {
+        infos[hid] = video;
+      }
+    }
+    covers.assignAll(withCover);
+    videos.assignAll(infos);
     ready.value = true;
     Log.i('缓存任务恢复完成, 共 ${items.length} 项');
   }
@@ -182,6 +223,7 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
           existing.status == DownloadStatus.failed) {
         // 重新从视频详情添加时使用最新直链, 避免一直重试过期的临时地址.
         _replace(existing.update(source: source));
+        _trackExtras(existing, () => _saveExtras(video, existing));
         await retry(existing.id);
       }
       final current = find(existing.id);
@@ -215,8 +257,180 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
     } finally {
       _pending.remove(task.id);
     }
+    _trackExtras(task, () => _saveExtras(video, task));
     _schedule();
     return find(task.id) ?? (throw StateError('缓存任务已删除'));
+  }
+
+  /// 记下在途的附属数据保存, 同一任务的后一次排在前一次之后.
+  void _trackExtras(DownloadTask task, Future<void> Function() job) {
+    if (_assets == null) {
+      return;
+    }
+    final previous = _assetJobs[task.id] ?? Future.value();
+    late final Future<void> current;
+    current = previous.catchError((Object _) {}).then((_) => job()).whenComplete(() {
+      if (identical(_assetJobs[task.id], current)) {
+        _assetJobs.remove(task.id);
+      }
+    });
+    _assetJobs[task.id] = current;
+  }
+
+  /// 保存视频信息, 封面与该分P弹幕. 失败只记日志, 不影响媒体下载.
+  Future<void> _saveExtras(VideoModel video, DownloadTask task) async {
+    final assets = _assets;
+    if (assets == null || _closed) {
+      return;
+    }
+    try {
+      await _storeVideo(video);
+    } catch (error, stackTrace) {
+      Log.e('保存缓存视频信息失败 ${video.hid}', error: error, stackTrace: stackTrace);
+    }
+    if (!covers.contains(video.hid)) {
+      try {
+        final bytes = await assets.cover(video);
+        if (bytes != null && _stillCached(task)) {
+          await extras.saveCover(video.hid, bytes);
+          covers.add(video.hid);
+        }
+      } catch (error) {
+        Log.w('保存缓存封面失败 ${video.hid}: $error');
+      }
+    }
+    try {
+      final danmaku = await assets.danmaku(video, task.part);
+      if (_stillCached(task)) {
+        await extras.saveDanmaku(task, danmaku);
+        Log.i('已保存缓存弹幕 ${task.id}, 共 ${danmaku.length} 条');
+      }
+    } catch (error) {
+      Log.w('保存缓存弹幕失败 ${task.id}: $error');
+    }
+  }
+
+  /// 保存视频信息并同步内存表.
+  ///
+  /// 详情接口的简介是截断的, 已存的简介更长时保留旧的.
+  /// 分P地址存的是线上直链, 离线播放时由 [offlineVideo] 换成本地文件.
+  Future<VideoModel> _storeVideo(VideoModel video) async {
+    final saved = videos[video.hid] ?? await extras.loadVideo(video.hid);
+    final merged =
+        saved != null && saved.description.length > video.description.length
+        ? video.copyWith(description: saved.description)
+        : video;
+    await extras.saveVideo(merged);
+    videos[video.hid] = merged;
+    return merged;
+  }
+
+  /// 任务还在列表里且没有被删除, 附属数据才值得写.
+  bool _stillCached(DownloadTask task) =>
+      !_closed && !_removing.contains(task.id) && find(task.id) != null;
+
+  /// 重新拉取视频信息, 封面与已缓存分P的弹幕.
+  ///
+  /// 老版本缓存没有附属数据, 也可以用它补上. 返回成功更新弹幕的分P数.
+  Future<int> refreshExtras(String hid) async {
+    final assets = _assets;
+    if (assets == null || !ready.value) {
+      return 0;
+    }
+    final tasks = items.where((task) => task.hid == hid).toList();
+    if (tasks.isEmpty) {
+      return 0;
+    }
+    final fetched = await assets.video(hid);
+    final merged = fetched == null
+        ? await extras.loadVideo(hid)
+        : await _storeVideo(fetched);
+    if (merged == null) {
+      throw StateError('视频信息拉取失败');
+    }
+    covers.remove(hid);
+    var updated = 0;
+    for (final task in tasks) {
+      final job = Completer<bool>();
+      _trackExtras(task, () async {
+        try {
+          if (!covers.contains(hid)) {
+            final bytes = await assets.cover(merged);
+            if (bytes != null && _stillCached(task)) {
+              await extras.saveCover(hid, bytes);
+              covers.add(hid);
+            }
+          }
+        } catch (error) {
+          Log.w('更新缓存封面失败 $hid: $error');
+        }
+        try {
+          final danmaku = await assets.danmaku(merged, task.part);
+          if (_stillCached(task)) {
+            await extras.saveDanmaku(task, danmaku);
+          }
+          job.complete(true);
+        } catch (error) {
+          Log.w('更新缓存弹幕失败 ${task.id}: $error');
+          job.complete(false);
+        }
+      });
+      if (await job.future) {
+        updated++;
+      }
+    }
+    // 封面可能没换, 补回标记, 让列表继续显示本地图.
+    if (!covers.contains(hid) && await extras.cover(hid).exists()) {
+      covers.add(hid);
+    }
+    Log.i('已更新缓存附属数据 $hid, 弹幕 $updated/${tasks.length}');
+    return updated;
+  }
+
+  /// 已保存的视频信息, 老版本缓存或保存失败时为空.
+  Future<VideoModel?> savedVideo(String hid) => extras.loadVideo(hid);
+
+  /// 已保存的封面文件, 没有时为空.
+  File? coverFile(String hid) =>
+      covers.contains(hid) ? extras.cover(hid) : null;
+
+  /// 已保存的分P弹幕, 没有保存过时为空.
+  Future<List<DanmakuModel>?> savedDanmaku(String id) async {
+    final task = find(id);
+    return task == null ? null : extras.loadDanmaku(task);
+  }
+
+  /// 离线播放用的视频信息: 已缓存分P指向本地文件, 其余分P没有地址.
+  ///
+  /// 没有保存视频信息的老缓存按任务里的标题拼一份.
+  Future<VideoModel?> offlineVideo(String hid) async {
+    final tasks = {
+      for (final task in items)
+        if (task.hid == hid) task.part: task,
+    };
+    if (tasks.isEmpty) {
+      return null;
+    }
+    final saved = await extras.loadVideo(hid);
+    final maxPart = tasks.keys.reduce((a, b) => a > b ? a : b);
+    final count = saved == null || saved.parts.length <= maxPart
+        ? maxPart + 1
+        : saved.parts.length;
+    final parts = <VideoPart>[];
+    for (var index = 0; index < count; index++) {
+      final base = saved != null && index < saved.parts.length
+          ? saved.parts[index]
+          : VideoPart(title: tasks[index]?.partTitle ?? '');
+      final task = tasks[index];
+      String? file;
+      if (task != null && task.status == DownloadStatus.completed) {
+        file = (await localFile(task.id))?.uri.toString();
+      }
+      parts.add(base.withFile(file));
+    }
+    final first = tasks.values.first;
+    final video = saved ?? VideoModel(hid: hid, title: first.title);
+    return video.copyWith(parts: parts);
   }
 
   Future<void> retry(String id) async {
@@ -242,11 +456,8 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
         throw StateError('请返回应用后再开始缓存');
       }
     }
-    final queued = task.update(
-      status: DownloadStatus.queued,
-      received: 0,
-      total: -1,
-    );
+    // 保留已有进度, 实际续传起点由 _run 按分片长度重新核对.
+    final queued = (find(id) ?? task).update(status: DownloadStatus.queued);
     _pending.add(id);
     _replace(queued);
     try {
@@ -276,9 +487,8 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
         ].contains(task.status)) {
       return;
     }
-    _replace(
-      task.update(status: DownloadStatus.paused, received: 0, total: -1),
-    );
+    _replace(task.update(status: DownloadStatus.paused));
+    speeds.remove(id);
     final finished = _activeId == id ? _activeFinished?.future : null;
     if (_activeId == id) {
       _cancel?.cancel('缓存已暂停');
@@ -296,17 +506,26 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
     for (final task in items.toList()) {
       if (task.status == DownloadStatus.queued ||
           task.status == DownloadStatus.downloading) {
-        _replace(
-          task.update(status: DownloadStatus.paused, received: 0, total: -1),
-        );
+        _replace(task.update(status: DownloadStatus.paused));
       }
     }
+    speeds.clear();
     final finished = _activeFinished?.future;
     _cancel?.cancel('缓存队列已暂停');
     if (finished != null) {
       await finished;
     }
     await _persist();
+  }
+
+  /// 继续所有暂停与失败的任务, 按加入顺序排队.
+  Future<void> resumeAll() async {
+    for (final task in items.toList()) {
+      if (task.status == DownloadStatus.paused ||
+          task.status == DownloadStatus.failed) {
+        await retry(task.id);
+      }
+    }
   }
 
   Future<void> remove(String id) async {
@@ -317,10 +536,9 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
     try {
       if (task.status == DownloadStatus.downloading ||
           task.status == DownloadStatus.queued) {
-        _replace(
-          task.update(status: DownloadStatus.paused, received: 0, total: -1),
-        );
+        _replace(task.update(status: DownloadStatus.paused));
       }
+      speeds.remove(id);
       final finished = _activeId == id ? _activeFinished?.future : null;
       if (_activeId == id) {
         _cancel?.cancel('缓存任务已删除');
@@ -372,9 +590,25 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
         }
         Error.throwWithStackTrace(error, stackTrace);
       }
+      await _discardExtras(task);
       Log.i('已删除缓存任务 ${task.id}');
     } finally {
       _removing.remove(id);
+    }
+  }
+
+  /// 媒体删完后再清附属数据, 失败只留下无主的小文件, 不回滚删除.
+  Future<void> _discardExtras(DownloadTask task) async {
+    try {
+      await _assetJobs[task.id];
+      await extras.discardPart(task);
+      if (!items.any((item) => item.hid == task.hid)) {
+        await extras.discardVideo(task.hid);
+        covers.remove(task.hid);
+        videos.remove(task.hid);
+      }
+    } catch (error, stackTrace) {
+      Log.e('清理缓存附属数据失败 ${task.id}', error: error, stackTrace: stackTrace);
     }
   }
 
@@ -408,8 +642,9 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
 
   /// 等待当前队列收尾, 用于关闭前或测试. 不会主动开始暂停任务.
   Future<void> waitForIdle() async {
-    while (_runner != null) {
+    while (_runner != null || _assetJobs.isNotEmpty) {
       await _runner;
+      await Future.wait(_assetJobs.values.toList());
     }
     await _saving;
   }
@@ -457,6 +692,7 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
       final watch = Stopwatch()..start();
       var lastUpdate = -250;
       var published = false;
+      var invalid = false;
       void checkActive() {
         if (token.isCancelled ||
             find(task.id)?.status != DownloadStatus.downloading) {
@@ -472,21 +708,51 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
         if (uri == null) {
           throw const FormatException('无效的缓存来源');
         }
-        Log.i('开始缓存任务 ${task.id}');
+        // 以磁盘上的分片长度为准, 超出记录总长说明分片不可信.
+        var offset = await temporary.exists() ? await temporary.length() : 0;
+        if (task.total >= 0 && offset > task.total) {
+          offset = 0;
+        }
+        final active = find(task.id);
+        if (active != null && active.status == DownloadStatus.downloading) {
+          _replace(
+            active.update(received: offset, total: offset > 0 ? task.total : -1),
+          );
+        }
+        Log.i(
+          offset > 0
+              ? '续传缓存任务 ${task.id}, 从 $offset 字节开始'
+              : '开始缓存任务 ${task.id}',
+        );
+        var sampleAt = 0;
+        var sampleBytes = offset;
+        var speed = 0.0;
         final bytes = await _transport.fetch(
           uri: uri,
           target: temporary,
           cancelToken: token,
+          offset: offset,
+          expectedTotal: offset > 0 ? task.total : -1,
           onProgress: (received, total) {
-            if (watch.elapsedMilliseconds - lastUpdate < 250) {
+            final now = watch.elapsedMilliseconds;
+            if (now - lastUpdate < 250) {
               return;
             }
-            lastUpdate = watch.elapsedMilliseconds;
+            lastUpdate = now;
             final current = find(task.id);
             if (!token.isCancelled &&
                 identical(_cancel, token) &&
                 current?.status == DownloadStatus.downloading) {
               _replace(current!.update(received: received, total: total));
+              // 每秒左右取一次样, 平滑后显示, 避免数字来回跳.
+              final elapsed = now - sampleAt;
+              if (elapsed >= 1000) {
+                final instant = (received - sampleBytes) * 1000 / elapsed;
+                speed = speed == 0 ? instant : speed * 0.6 + instant * 0.4;
+                speeds[task.id] = speed.round().clamp(0, 1 << 40);
+                sampleAt = now;
+                sampleBytes = received;
+              }
             }
           },
         );
@@ -514,6 +780,8 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
           '缓存任务 ${task.id} 完成, $bytes 字节, 耗时 ${watch.elapsedMilliseconds}ms',
         );
       } catch (error, stackTrace) {
+        // 内容校验失败说明分片里不是媒体, 不能拿来续传.
+        invalid = !token.isCancelled && error is FormatException;
         final current = find(task.id);
         if (current != null && current.status == DownloadStatus.downloading) {
           _replace(
@@ -521,8 +789,8 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
               status: token.isCancelled
                   ? DownloadStatus.paused
                   : DownloadStatus.failed,
-              received: 0,
-              total: -1,
+              received: invalid ? 0 : null,
+              total: invalid ? -1 : null,
               error: token.isCancelled ? null : _errorText(error),
             ),
           );
@@ -531,10 +799,19 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
           Log.e('缓存任务 ${task.id} 失败', error: error, stackTrace: stackTrace);
         }
       } finally {
+        speeds.remove(task.id);
         try {
-          await store.discard(task, partial: true);
-          if (published && find(task.id)?.status != DownloadStatus.completed) {
+          // 暂停与网络失败保留分片, 删除由 remove 负责清理.
+          if (invalid || find(task.id) == null) {
+            await store.discard(task, partial: true);
+          }
+          final after = find(task.id);
+          if (published && after?.status != DownloadStatus.completed) {
             await store.discard(task);
+            // 分片已经提交后又被丢弃, 下次只能从头下载.
+            if (after != null) {
+              _replace(after.update(received: 0, total: -1, error: after.error));
+            }
           }
           try {
             await _persist();
@@ -569,6 +846,9 @@ class DownloadService extends GetxController with WidgetsBindingObserver {
     }
     if (error is FileSystemException) {
       return '无法写入缓存文件, 请检查剩余空间';
+    }
+    if (error is DownloadInterruptedException) {
+      return '连接中断, 可继续下载';
     }
     return '下载失败, 请检查网络后重试';
   }

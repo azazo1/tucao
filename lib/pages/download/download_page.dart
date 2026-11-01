@@ -1,44 +1,41 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/models/download_task.dart';
-import 'package:tucao/pages/download/cached_video_page.dart';
-import 'package:tucao/services/download/download_service.dart';
+import 'package:tucao/pages/download/download_actions.dart';
+import 'package:tucao/pages/download/downloading_page.dart';
+import 'package:tucao/pages/download/offline_video_page.dart';
+import 'package:tucao/pages/download/widgets/cached_video_tile.dart';
+import 'package:tucao/pages/download/widgets/download_task_tile.dart';
+import 'package:tucao/pages/video/video_page.dart';
 import 'package:tucao/utils/logger.dart';
 
-/// 前台缓存任务与本地已缓存视频.
+/// 离线缓存: 上方是缓存中的任务, 下方按视频分组列出已缓存内容.
 class DownloadPage extends StatefulWidget {
   const DownloadPage({super.key});
+
+  /// 主页只露出这么多条缓存中任务, 其余进缓存队列页查看.
+  static const previewCount = 3;
 
   @override
   State<DownloadPage> createState() => _DownloadPageState();
 }
 
-class _DownloadPageState extends State<DownloadPage> {
-  final _service = DownloadService.instance;
-  final _busy = <String>{};
+class _DownloadPageState extends State<DownloadPage> with DownloadActions {
   bool _initializing = false;
 
-  bool get _current => mounted && ModalRoute.of(context)?.isCurrent == true;
-
-  void _notify(String message) {
-    if (_current) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
-    }
-  }
-
   Future<void> _initialize() async {
-    if (_initializing || !_current) {
+    if (_initializing || !onTop) {
       return;
     }
     setState(() => _initializing = true);
     try {
-      await _service.initialize();
+      await downloads.initialize();
     } catch (error, stackTrace) {
       Log.e('重新加载缓存失败', error: error, stackTrace: stackTrace);
-      _notify('缓存加载失败, 请稍后重试');
+      notify('缓存加载失败, 请稍后重试');
     } finally {
       if (mounted) {
         setState(() => _initializing = false);
@@ -46,307 +43,254 @@ class _DownloadPageState extends State<DownloadPage> {
     }
   }
 
-  Future<void> _perform(String id, Future<void> Function() action) async {
-    if (_busy.contains(id) || !_current) {
+  Future<void> _open(String hid, {int? part}) =>
+      perform('video-$hid', () => OfflineVideoPage.open(context, hid, part: part));
+
+  Future<void> _more(CachedVideo group) async {
+    final action = await showCachedVideoSheet(
+      context,
+      group: group,
+      onPart: (task) => unawaited(_open(group.hid, part: task.part)),
+      onRemovePart: (task) => unawaited(removeTask(task)),
+    );
+    if (action == null || !onTop) {
       return;
     }
-    setState(() => _busy.add(id));
-    try {
-      await action();
-    } catch (error, stackTrace) {
-      Log.e('缓存任务操作失败', error: error, stackTrace: stackTrace);
-      _notify('操作失败, 请稍后重试');
-    } finally {
-      if (mounted) {
-        setState(() => _busy.remove(id));
-      }
+    switch (action) {
+      case CachedVideoAction.play:
+        await _open(group.hid);
+      case CachedVideoAction.online:
+        VideoPage.openByHid(group.hid);
+      case CachedVideoAction.refresh:
+        await _refresh(group);
+      case CachedVideoAction.removeAll:
+        await _removeAll(group);
     }
   }
 
-  Future<void> _remove(DownloadTask task) => _perform(task.id, () async {
-    final confirmed = await showDialog<bool>(
+  Future<void> _refresh(CachedVideo group) => perform(
+    'video-${group.hid}',
+    () async {
+      Log.i('用户更新缓存附属数据 ${group.hid}');
+      final updated = await downloads.refreshExtras(group.hid);
+      notify(
+        updated == group.tasks.length
+            ? '弹幕与信息已更新'
+            : '信息已更新, ${group.tasks.length - updated} 个分P弹幕更新失败',
+      );
+    },
+    failure: '更新失败, 请检查网络后重试',
+  );
+
+  Future<void> _removeAll(CachedVideo group) =>
+      perform('video-${group.hid}', () async {
+        final count = group.tasks.length;
+        if (!await confirmRemove(
+          count > 1 ? '将删除这个视频已缓存的 $count 个分P, 确定继续吗?' : '将删除这个视频的本地缓存, 确定继续吗?',
+        )) {
+          return;
+        }
+        Log.i('用户删除视频全部缓存 ${group.hid}');
+        for (final task in group.tasks) {
+          await downloads.remove(task.id);
+        }
+        notify('缓存已删除');
+      });
+
+  void _showInfo() {
+    showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('删除缓存'),
-        content: Text('将删除 P${task.part + 1} 的缓存任务和本地文件, 确定继续吗?'),
+        title: const Text('关于离线缓存'),
+        content: const Text(
+          '缓存保存在 Android/data 下的应用专属目录, 卸载应用时一并清除.\n\n'
+          '仅在应用前台时下载. 点击缓存中的任务可以暂停或继续, '
+          '继续时从已下载的位置接着下载, 视频源不支持断点续传时才会从头开始.\n\n'
+          '缓存时会一并保存封面, 简介与弹幕, 离线时也能带弹幕播放. '
+          '弹幕过时可在已缓存视频的更多菜单里更新.',
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('删除'),
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('知道了'),
           ),
         ],
       ),
-    );
-    if (confirmed != true || !_current) {
-      return;
-    }
-    await _service.remove(task.id);
-    _notify('缓存已删除');
-  });
-
-  Future<void> _open(DownloadTask task) => _perform(task.id, () async {
-    final file = await _service.localFile(task.id);
-    if (!_current) {
-      return;
-    }
-    if (file == null) {
-      _notify('本地缓存文件缺失或不完整, 请从头重试');
-      return;
-    }
-    Get.to(() => CachedVideoPage(task: task, file: file));
-  });
-
-  Widget _list(
-    BuildContext context,
-    List<DownloadTask> tasks, {
-    required bool completed,
-  }) {
-    if (tasks.isEmpty) {
-      return Center(child: Text(completed ? '还没有已缓存的视频' : '还没有缓存任务'));
-    }
-    return ListView.separated(
-      padding: EdgeInsets.symmetric(
-        horizontal: Adaptive.sidePadding(context),
-        vertical: 4,
-      ),
-      itemCount: tasks.length,
-      separatorBuilder: (context, index) =>
-          const Divider(height: 1, indent: 16),
-      itemBuilder: (context, index) {
-        final task = tasks[index];
-        final busy = _busy.contains(task.id);
-        final retry =
-            task.status == DownloadStatus.paused ||
-            task.status == DownloadStatus.failed;
-        return _DownloadTile(
-          key: ValueKey(task.id),
-          task: task,
-          busy: busy,
-          onOpen: completed && !busy ? () => _open(task) : null,
-          onRemove: busy ? null : () => _remove(task),
-          onAction: busy || completed
-              ? null
-              : () => _perform(
-                  task.id,
-                  () =>
-                      retry ? _service.retry(task.id) : _service.pause(task.id),
-                ),
-        );
-      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('视频缓存'),
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: '缓存中'),
-              Tab(text: '已缓存'),
-            ],
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('离线缓存'),
+        actions: [
+          batchAction(),
+          IconButton(
+            tooltip: '说明',
+            onPressed: _showInfo,
+            icon: const Icon(Icons.info_outline),
           ),
-        ),
-        body: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        ],
+      ),
+      body: Obx(() {
+        if (!downloads.ready.value) {
+          return _buildUnavailable();
+        }
+        final items = downloads.items.toList();
+        final pending = items
+            .where((task) => task.status != DownloadStatus.completed)
+            .toList();
+        final groups = _group(
+          items.where((task) => task.status == DownloadStatus.completed),
+        );
+        if (pending.isEmpty && groups.isEmpty) {
+          return _buildEmpty();
+        }
+        return _buildList(pending, groups);
+      }),
+    );
+  }
+
+  static List<CachedVideo> _group(Iterable<DownloadTask> completed) {
+    final byHid = <String, List<DownloadTask>>{};
+    for (final task in completed) {
+      byHid.putIfAbsent(task.hid, () => []).add(task);
+    }
+    return [
+      for (final entry in byHid.entries) CachedVideo(entry.key, entry.value),
+    ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
+  Widget _buildList(List<DownloadTask> pending, List<CachedVideo> groups) {
+    final side = Adaptive.sidePadding(context);
+    final preview = pending.take(DownloadPage.previewCount).toList();
+    return ListView(
+      padding: EdgeInsets.fromLTRB(side, 4, side, 24),
+      children: [
+        if (pending.isNotEmpty) ...[
+          _SectionHeader(
+            title: '正在缓存',
+            count: pending.length,
+            onMore: pending.length > preview.length
+                ? () => Get.to(() => const DownloadingPage())
+                : null,
+          ),
+          for (final task in preview)
+            DownloadTaskTile(
+              key: ValueKey(task.id),
+              task: task,
+              busy: busy.contains(task.id),
+              onToggle: () => unawaited(toggle(task)),
+              onRemove: () => unawaited(removeTask(task)),
+            ),
+        ],
+        _SectionHeader(title: '已缓存视频', count: groups.length),
+        if (groups.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 32),
+            child: Center(
               child: Text(
-                '缓存位于 Android/data 应用专属目录. 仅在前台下载, 暂停后从头开始.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+                '下载完成的视频会出现在这里',
+                style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
-            Expanded(
-              child: Obx(() {
-                if (!_service.ready.value) {
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _service.initializationError.value ?? '缓存加载失败或尚未就绪',
-                        ),
-                        const SizedBox(height: 8),
-                        FilledButton(
-                          key: const ValueKey('download-initialize'),
-                          onPressed: _initializing ? null : _initialize,
-                          child: _initializing
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Text('重新加载'),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-                final items = _service.items.toList();
-                return TabBarView(
-                  children: [
-                    _list(
-                      context,
-                      items
-                          .where(
-                            (task) => task.status != DownloadStatus.completed,
-                          )
-                          .toList(),
-                      completed: false,
-                    ),
-                    _list(
-                      context,
-                      items
-                          .where(
-                            (task) => task.status == DownloadStatus.completed,
-                          )
-                          .toList(),
-                      completed: true,
-                    ),
-                  ],
-                );
-              }),
+          )
+        else
+          for (final group in groups)
+            CachedVideoTile(
+              key: ValueKey('cached-${group.hid}'),
+              group: group,
+              busy: busy.contains('video-${group.hid}'),
+              onOpen: () => unawaited(_open(group.hid)),
+              onMore: () => unawaited(_more(group)),
+            ),
+      ],
+    );
+  }
+
+  Widget _buildEmpty() {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.download_for_offline_outlined,
+              size: 56,
+              color: theme.colorScheme.outline,
+            ),
+            const SizedBox(height: 12),
+            Text('还没有离线缓存', style: theme.textTheme.titleSmall),
+            const SizedBox(height: 4),
+            Text(
+              '在播放页右上角的更多菜单里选择缓存',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildUnavailable() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(downloads.initializationError.value ?? '缓存加载失败或尚未就绪'),
+          const SizedBox(height: 8),
+          FilledButton(
+            key: const ValueKey('download-initialize'),
+            onPressed: _initializing ? null : _initialize,
+            child: _initializing
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('重新加载'),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _DownloadTile extends StatelessWidget {
-  const _DownloadTile({
-    super.key,
-    required this.task,
-    required this.busy,
-    required this.onOpen,
-    required this.onRemove,
-    required this.onAction,
-  });
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title, required this.count, this.onMore});
 
-  final DownloadTask task;
-  final bool busy;
-  final VoidCallback? onOpen;
-  final VoidCallback? onRemove;
-  final VoidCallback? onAction;
-
-  String get _status => switch (task.status) {
-    DownloadStatus.queued => '排队中',
-    DownloadStatus.downloading => '下载中',
-    DownloadStatus.paused => '已暂停',
-    DownloadStatus.completed => '已缓存',
-    DownloadStatus.failed => '下载失败',
-  };
-
-  String _bytes(int value) {
-    if (value < 1024) return '$value B';
-    if (value < 1024 * 1024) return '${(value / 1024).toStringAsFixed(1)} KB';
-    if (value < 1024 * 1024 * 1024) {
-      return '${(value / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-    return '${(value / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
-  }
+  final String title;
+  final int count;
+  final VoidCallback? onMore;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final completed = task.status == DownloadStatus.completed;
-    final retry =
-        task.status == DownloadStatus.paused ||
-        task.status == DownloadStatus.failed;
-    final size = task.total > 0
-        ? '${_bytes(task.received)} / ${_bytes(task.total)}'
-        : '${_bytes(task.received)} / 大小未知';
-    return InkWell(
-      onTap: onOpen,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    task.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'P${task.part + 1} ${task.partTitle}',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: 6),
-                  Text('$_status - $size', style: theme.textTheme.bodySmall),
-                  if (!completed) ...[
-                    const SizedBox(height: 8),
-                    LinearProgressIndicator(
-                      value: task.status == DownloadStatus.downloading
-                          ? task.progress
-                          : task.progress ?? 0,
-                      minHeight: 3,
-                    ),
-                  ],
-                  if (task.status == DownloadStatus.failed &&
-                      task.error != null) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      task.error!,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.error,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 4),
-                  if (completed)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
-                      child: Text('点击播放本地视频'),
-                    )
-                  else
-                    TextButton(
-                      key: ValueKey('download-action-${task.id}'),
-                      onPressed: onAction,
-                      child: Text(retry ? '从头重试' : '暂停'),
-                    ),
-                ],
-              ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 4, 4),
+      child: Row(
+        children: [
+          Text(title, style: theme.textTheme.titleSmall),
+          const SizedBox(width: 6),
+          Text(
+            '$count',
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
             ),
-            if (busy)
-              const Padding(
-                padding: EdgeInsets.all(12),
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-            IconButton(
-              key: ValueKey('download-remove-${task.id}'),
-              tooltip: '删除缓存',
-              onPressed: onRemove,
-              icon: const Icon(Icons.delete_outline),
+          ),
+          const Spacer(),
+          if (onMore != null)
+            TextButton(
+              key: const ValueKey('download-show-all'),
+              onPressed: onMore,
+              child: const Text('全部'),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }

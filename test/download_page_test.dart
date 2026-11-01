@@ -1,13 +1,12 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:tucao/models/download_task.dart';
 import 'package:tucao/models/video.dart';
-import 'package:tucao/pages/download/cached_video_page.dart';
 import 'package:tucao/pages/download/download_page.dart';
+import 'package:tucao/pages/download/offline_video_page.dart';
 import 'package:tucao/pages/video/widgets/download_sheet.dart';
 import 'package:tucao/services/download/download_service.dart';
 
@@ -20,6 +19,13 @@ class _FakeDownloads extends GetxController implements DownloadService {
   @override
   final initializationError = RxnString();
 
+  @override
+  final speeds = <String, int>{}.obs;
+  @override
+  final covers = <String>{}.obs;
+  @override
+  final videos = <String, VideoModel>{}.obs;
+
   final pauses = <String>[];
   final retries = <String>[];
   final removals = <String>[];
@@ -27,7 +33,7 @@ class _FakeDownloads extends GetxController implements DownloadService {
   final lookups = <String>[];
   int initializations = 0;
   Completer<void>? action;
-  Completer<File?>? lookup;
+  Completer<VideoModel?>? lookup;
   Future<DownloadTask> Function(VideoModel, int)? submit;
 
   @override
@@ -57,8 +63,8 @@ class _FakeDownloads extends GetxController implements DownloadService {
   }
 
   @override
-  Future<File?> localFile(String id) async {
-    lookups.add(id);
+  Future<VideoModel?> offlineVideo(String hid) async {
+    lookups.add(hid);
     return lookup == null ? null : await lookup!.future;
   }
 
@@ -155,36 +161,26 @@ void main() {
     );
     expect(known.value, 0.25);
     expect(unknown.value, isNull);
+    // 已完成的分P只出现在按视频分组的已缓存区, 没有暂停继续操作.
     expect(_key('123-2'), findsNothing);
-    await tester.tap(find.byType(Tab).at(1));
-    final controller = DefaultTabController.of(
-      tester.element(find.byType(TabBar)),
-    );
-    expect(controller.index, 1);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.pump();
-    expect(_key('123-2'), findsOneWidget);
+    expect(_key('cached-123'), findsOneWidget);
     expect(_key('download-action-123-2'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('任务操作防重, 页面销毁后异步完成不触发 setState', (tester) async {
+  testWidgets('点整行暂停, 操作防重, 页面销毁后异步完成不触发 setState', (tester) async {
     service.items.assignAll([_task(0, DownloadStatus.downloading)]);
     service.action = Completer<void>();
     await page(tester);
-    await tester.tap(_key('download-action-123-0'));
+    await tester.tap(find.text('分 P'));
     await tester.pump();
     expect(service.pauses, ['123-0']);
-    expect(
-      tester.widget<TextButton>(_key('download-action-123-0')).onPressed,
-      isNull,
-    );
+    expect(_key('download-action-123-0'), findsNothing);
     expect(
       tester.widget<IconButton>(_key('download-remove-123-0')).onPressed,
       isNull,
     );
-    await tester.tap(_key('download-action-123-0'));
+    await tester.tap(find.text('分 P'));
     expect(service.pauses.length, 1);
     await tester.pumpWidget(const SizedBox.shrink());
     service.action!.complete();
@@ -192,10 +188,10 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('暂停任务重试与删除确认, 删除未完成前保持操作锁', (tester) async {
+  testWidgets('点整行继续暂停任务, 删除确认, 删除未完成前保持操作锁', (tester) async {
     service.items.assignAll([_task(0, DownloadStatus.paused)]);
     await page(tester);
-    await tester.tap(_key('download-action-123-0'));
+    await tester.tap(find.text('分 P'));
     await tester.pump();
     expect(service.retries, ['123-0']);
     expect(service.pauses, isEmpty);
@@ -232,27 +228,21 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('已缓存先查本地文件, 返回空文件不进入播放器', (tester) async {
+  testWidgets('已缓存先读本地信息, 文件缺失不进入播放器, 读取期间防重', (tester) async {
     service.items.assignAll([
       _task(0, DownloadStatus.completed, received: 1, total: 1),
     ]);
-    service.lookup = Completer<File?>();
+    service.lookup = Completer<VideoModel?>();
     await page(tester);
-    await tester.tap(find.byType(Tab).at(1));
-    final controller = DefaultTabController.of(
-      tester.element(find.byType(TabBar)),
-    );
-    expect(controller.index, 1);
+    await tester.tap(_key('cached-123'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(_key('cached-123'));
     await tester.pump();
-    await tester.tap(_key('123-0'));
-    await tester.pump();
-    expect(service.lookups, ['123-0']);
-    expect(find.byType(CachedVideoPage), findsNothing);
+    expect(service.lookups, ['123']);
+    expect(find.byType(OfflineVideoPage), findsNothing);
     service.lookup!.complete(null);
     await tester.pump();
-    expect(find.byType(CachedVideoPage), findsNothing);
+    expect(find.byType(OfflineVideoPage), findsNothing);
     expect(find.byType(SnackBar), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });

@@ -15,9 +15,16 @@ import 'package:tucao/utils/html_text.dart';
 
 /// 播放页下方的视频信息区.
 class VideoInfoPanel extends StatelessWidget {
-  const VideoInfoPanel({super.key, required this.controller});
+  const VideoInfoPanel({
+    super.key,
+    required this.controller,
+    this.onlineStats = true,
+  });
 
   final PlayerPageController controller;
+
+  /// 是否联网拉取播放数, 评论数与在线人数, 离线播放时关闭.
+  final bool onlineStats;
 
   @override
   Widget build(BuildContext context) {
@@ -99,7 +106,7 @@ class VideoInfoPanel extends StatelessWidget {
             ),
           ],
           // 统计放在简介下方, 紧挨着分 P 上方的分隔线.
-          if (video.typeId > 0) ...[
+          if (onlineStats && video.typeId > 0) ...[
             const SizedBox(height: 10),
             VideoStatsBar(video: video),
           ],

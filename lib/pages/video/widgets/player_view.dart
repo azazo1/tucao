@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:canvas_danmaku/canvas_danmaku.dart';
 import 'package:flutter/material.dart';
@@ -40,7 +41,17 @@ class VideoPlayerView extends StatefulWidget {
     this.onExitCast,
     this.brightness,
     this.coverHeroTag,
+    this.coverFile,
+    this.websiteLabel = '浏览器查看',
+    this.websiteIcon = Icons.open_in_browser,
   });
+
+  /// 本地封面, 离线播放时优先于网络封面.
+  final File? coverFile;
+
+  /// 出错时备用按钮的文案与图标, 离线播放时改为在线观看.
+  final String websiteLabel;
+  final IconData websiteIcon;
 
   final PlayerPageController controller;
 
@@ -424,6 +435,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
             _controller.sourceError.value != null || player.error != null;
         return PlayerCover(
           url: url,
+          file: widget.coverFile,
           visible: !player.hasFrame && !failed,
           heroTag: widget.coverHeroTag,
         );
@@ -473,8 +485,8 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
                 TextButton.icon(
                   onPressed: widget.onOpenWebsite,
                   style: TextButton.styleFrom(foregroundColor: Colors.white),
-                  icon: const Icon(Icons.open_in_browser, size: 18),
-                  label: const Text('浏览器查看'),
+                  icon: Icon(widget.websiteIcon, size: 18),
+                  label: Text(widget.websiteLabel),
                 ),
             ],
           ),

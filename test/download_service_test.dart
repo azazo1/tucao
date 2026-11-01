@@ -5,19 +5,24 @@ import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as path;
+import 'package:tucao/models/danmaku.dart';
 import 'package:tucao/models/download_task.dart';
 import 'package:tucao/models/video.dart';
+import 'package:tucao/services/download/download_assets.dart';
 import 'package:tucao/services/download/download_location.dart';
 import 'package:tucao/services/download/download_service.dart';
 import 'package:tucao/services/download/download_store.dart';
 import 'package:tucao/services/download/download_transport.dart';
 
 class _Request {
-  _Request(this.uri, this.file, this.token, this.progress);
+  _Request(this.uri, this.file, this.token, this.progress, this.offset);
   final Uri uri;
   final File file;
   final CancelToken token;
   final void Function(int, int) progress;
+
+  /// 服务要求的续传起点.
+  final int offset;
 
   Future<int> complete() async {
     await file.writeAsBytes([1, 2, 3], flush: true);
@@ -36,11 +41,34 @@ class _Transport implements DownloadTransport {
     required File target,
     required CancelToken cancelToken,
     required void Function(int received, int total) onProgress,
+    int offset = 0,
+    int expectedTotal = -1,
   }) async {
-    final request = _Request(uri, target, cancelToken, onProgress);
+    final request = _Request(uri, target, cancelToken, onProgress, offset);
     calls.add(request);
     return behavior == null ? request.complete() : behavior!(request);
   }
+}
+
+/// 附属数据来源, 只在内存里构造.
+class _Assets implements DownloadAssets {
+  @override
+  Future<VideoModel?> video(String hid) async => null;
+
+  @override
+  Future<List<DanmakuModel>> danmaku(VideoModel video, int part) async => [
+    DanmakuModel(
+      time: 1.5,
+      mode: 1,
+      fontSize: 25,
+      color: 0xFFFFFF,
+      timestamp: 1,
+      text: '第 ${part + 1} P',
+    ),
+  ];
+
+  @override
+  Future<List<int>?> cover(VideoModel video) async => [0xFF, 0xD8, 0xFF];
 }
 
 class _Store extends DownloadStore {
@@ -206,7 +234,7 @@ void main() {
     expect((await service.store.load()).length, 2);
   });
 
-  test('暂停取消正在写入的请求, 删除半文件, 重试从头下载', () async {
+  test('暂停保留分片与进度, 继续时从分片末尾续传', () async {
     final started = Completer<void>();
     transport.behavior = (request) async {
       if (transport.calls.length == 1) {
@@ -215,7 +243,9 @@ void main() {
         started.complete();
         throw await request.token.whenCancel;
       }
-      return request.complete();
+      await request.file.writeAsBytes([2, 3], mode: FileMode.append);
+      request.progress(3, 3);
+      return 3;
     };
     await service.enqueue(video, 0);
     await started.future;
@@ -223,16 +253,37 @@ void main() {
     await service.waitForIdle();
     final paused = service.find('123-0')!;
     expect(paused.status, DownloadStatus.paused);
-    expect(paused.received, 0);
-    expect(await service.store.media(paused, partial: true).exists(), isFalse);
+    expect(paused.received, 1);
+    expect(await service.store.media(paused, partial: true).length(), 1);
     expect(await service.localFile(paused.id), isNull);
     await service.retry(paused.id);
     await service.waitForIdle();
-    expect(transport.calls.length, 2);
+    expect(transport.calls.map((call) => call.offset), [0, 1]);
     expect(service.find(paused.id)?.status, DownloadStatus.completed);
+    expect(await (await service.localFile(paused.id))?.readAsBytes(), [1, 2, 3]);
   });
 
-  test('失败清理半文件并保存失败状态, 不当作已缓存', () async {
+  test('连接中断记为失败但保留分片, 重试时续传', () async {
+    transport.behavior = (request) async {
+      if (transport.calls.length == 1) {
+        await request.file.writeAsBytes([1, 2]);
+        throw DownloadInterruptedException('模拟连接中断');
+      }
+      await request.file.writeAsBytes([3], mode: FileMode.append);
+      return 3;
+    };
+    await service.enqueue(video, 0);
+    await service.waitForIdle();
+    final failed = service.find('123-0')!;
+    expect(failed.status, DownloadStatus.failed);
+    expect(await service.store.media(failed, partial: true).length(), 2);
+    await service.retry(failed.id);
+    await service.waitForIdle();
+    expect(transport.calls.last.offset, 2);
+    expect(service.find(failed.id)?.status, DownloadStatus.completed);
+  });
+
+  test('内容无效时清理半文件并保存失败状态, 不当作已缓存', () async {
     transport.behavior = (request) async {
       await request.file.writeAsBytes([1]);
       throw const FormatException('分段媒体不支持');
@@ -263,7 +314,7 @@ void main() {
     expect(await service.store.load(), isEmpty);
   });
 
-  test('恢复任务验证完成文件, 未完成任务暂停且不自动产生流量', () async {
+  test('恢复任务验证完成文件, 未完成任务保留分片暂停且不自动产生流量', () async {
     await service.enqueue(video, 0);
     await service.waitForIdle();
     final completed = service.items.single;
@@ -283,10 +334,13 @@ void main() {
     final restored = DownloadService(directory: root, transport: transport);
     await restored.initialize();
     expect(restored.find(completed.id)?.status, DownloadStatus.completed);
-    expect(restored.find(pending.id)?.status, DownloadStatus.paused);
+    final resumable = restored.find(pending.id)!;
+    expect(resumable.status, DownloadStatus.paused);
+    expect(resumable.received, 1);
+    expect(resumable.total, 3);
     expect(
       await restored.store.media(pending, partial: true).exists(),
-      isFalse,
+      isTrue,
     );
     expect(transport.calls.length, 1);
     restored.onClose();
@@ -379,8 +433,10 @@ void main() {
     release.complete();
     await Future.wait([pausing, retrying]);
     await retried.future;
+    // 旧请求迟到的进度不能覆盖新请求, 新请求从旧分片末尾开始.
     transport.calls.first.progress(999, 999);
-    expect(service.find('123-0')?.received, 0);
+    expect(transport.calls.last.offset, 1);
+    expect(service.find('123-0')?.received, 1);
     finishRetry.complete();
     await service.waitForIdle();
     expect(transport.calls.length, 2);
@@ -631,6 +687,45 @@ void main() {
     await service.remove(task.id);
     await service.store.manifest.writeAsString('{');
     expect(await service.store.load(), isEmpty);
+  });
+
+  test('附属数据随缓存保存, 离线信息只给已完成分P本地地址, 删光分P后一并清理', () async {
+    final extras = Directory(path.join(root.path, 'extras'));
+    final cached = DownloadService(
+      directory: extras,
+      transport: transport,
+      assets: _Assets(),
+    );
+    await cached.initialize();
+    final first = await cached.enqueue(video, 0);
+    await cached.waitForIdle();
+    final offline = (await cached.offlineVideo('123'))!;
+    expect(offline.parts.length, 2);
+    expect(Uri.parse(offline.parts[0].file!).scheme, 'file');
+    expect(offline.parts[1].isThirdParty, isTrue);
+    expect((await cached.savedDanmaku(first.id))!.single.text, '第 1 P');
+    expect(cached.covers.contains('123'), isTrue);
+    expect(cached.videos['123']?.title, video.title);
+
+    // 重启后能读回封面与视频信息.
+    cached.onClose();
+    final restored = DownloadService(
+      directory: extras,
+      transport: transport,
+      assets: _Assets(),
+    );
+    await restored.initialize();
+    expect(restored.covers.contains('123'), isTrue);
+    expect(restored.videos['123']?.parts.length, 2);
+
+    await restored.remove(first.id);
+    expect(await restored.extras.danmaku(first).exists(), isFalse);
+    expect(await restored.extras.info('123').exists(), isFalse);
+    expect(await restored.extras.cover('123').exists(), isFalse);
+    expect(restored.covers, isEmpty);
+    expect(restored.videos, isEmpty);
+    restored.onClose();
+    await restored.waitForIdle();
   });
 
   test('清单不能注入路径, 未支持的结构版本不恢复任务', () async {

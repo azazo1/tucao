@@ -24,6 +24,18 @@ class VideoPart {
 
   bool get isThirdParty => file == null || file!.isEmpty;
 
+  /// 与 [VideoPart.fromJson] 对称, 离线缓存保存视频信息时使用.
+  Map<String, dynamic> toJson() => {
+    'type': type,
+    'file': file,
+    'vid': vid,
+    'title': title,
+  };
+
+  /// 换掉播放地址, 离线播放时指向本地文件.
+  VideoPart withFile(String? file) =>
+      VideoPart(file: file, vid: vid, type: type, title: title);
+
   factory VideoPart.fromJson(Map<String, dynamic> json) {
     return VideoPart(
       file: _repairFile(json),
@@ -113,6 +125,45 @@ class VideoModel {
 
   /// 分P列表, 列表接口也会返回.
   final List<VideoPart> parts;
+
+  /// 与 [VideoModel.fromJson] 对称, 键名沿用站点接口.
+  Map<String, dynamic> toJson() => {
+    'hid': hid,
+    'title': title,
+    'typeid': typeId,
+    'typename': typeName,
+    'thumb': cover,
+    'play': playCount,
+    'mukio': danmakuCount,
+    'create': createTime,
+    'description': description,
+    'keywords': keywords,
+    'user': userName,
+    'userid': userId,
+    'part': partCount,
+    'url': url,
+    'video': parts.map((part) => part.toJson()).toList(),
+  };
+
+  VideoModel copyWith({String? description, List<VideoPart>? parts}) {
+    return VideoModel(
+      hid: hid,
+      title: title,
+      typeId: typeId,
+      typeName: typeName,
+      cover: cover,
+      playCount: playCount,
+      danmakuCount: danmakuCount,
+      createTime: createTime,
+      description: description ?? this.description,
+      keywords: keywords,
+      userName: userName,
+      userId: userId,
+      partCount: partCount,
+      url: url,
+      parts: parts ?? this.parts,
+    );
+  }
 
   factory VideoModel.fromJson(Map<String, dynamic> json) {
     final rawParts = json['video'];

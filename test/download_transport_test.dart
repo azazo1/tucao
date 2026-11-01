@@ -42,11 +42,15 @@ void main() {
     Uri? source,
     CancelToken? cancelToken,
     void Function(int, int)? progress,
+    int offset = 0,
+    int expectedTotal = -1,
   }) => transport.fetch(
     uri: source ?? uri,
     target: target,
     cancelToken: cancelToken ?? CancelToken(),
     onProgress: progress ?? (_, _) {},
+    offset: offset,
+    expectedTotal: expectedTotal,
   );
 
   ResponseBody bytes(
@@ -54,14 +58,19 @@ void main() {
     String? mime = 'video/mp4',
     int? length,
     int status = 200,
+    String? range,
   }) => ResponseBody.fromBytes(
     data,
     status,
     headers: {
       if (mime != null) Headers.contentTypeHeader: [mime],
       if (length != null) Headers.contentLengthHeader: ['$length'],
+      if (range != null) 'content-range': [range],
     },
   );
+
+  bool ranged(RequestOptions options) =>
+      options.headers.keys.any((key) => key.toLowerCase() == 'range');
 
   setUp(() async {
     workspace = Directory.current.resolveSymbolicLinksSync();
@@ -209,19 +218,61 @@ void main() {
     expect(await target.readAsString(), '#EX');
   });
 
-  test('空文件与已知长度的短缺或超出均失败, 不删除部分文件', () async {
-    for (final data in [
-      <int>[],
-      [1, 2],
-      [1, 2, 3, 4],
+  test('空文件与超出长度是无效内容, 提前断开可续传, 都不删除部分文件', () async {
+    for (final (data, matcher) in [
+      (<int>[], throwsFormatException),
+      ([1, 2], throwsA(isA<DownloadInterruptedException>())),
+      ([1, 2, 3, 4], throwsFormatException),
     ]) {
       adapter.respond = (_) => bytes(data, length: 3);
-      await expectLater(fetch(), throwsFormatException);
+      await expectLater(fetch(), matcher);
       expect(target.existsSync(), isTrue);
       expect(await target.readAsBytes(), data);
     }
     adapter.respond = (_) => bytes([]);
     await expectLater(fetch(), throwsFormatException);
+  });
+
+  test('206 从分片末尾续传, 先截掉起点之后的残留', () async {
+    await target.writeAsBytes([1, 2, 9]);
+    adapter.respond = (_) =>
+        bytes([3, 4, 5], status: 206, length: 3, range: 'bytes 2-4/5');
+    final progress = <List<int>>[];
+    final received = await fetch(
+      offset: 2,
+      expectedTotal: 5,
+      progress: (received, total) => progress.add([received, total]),
+    );
+    expect(received, 5);
+    expect(await target.readAsBytes(), [1, 2, 3, 4, 5]);
+    expect(progress, [
+      [5, 5],
+    ]);
+    expect(adapter.requests.single.headers['range'], 'bytes=2-');
+  });
+
+  test('服务端不支持续传时返回 200, 从头覆盖分片', () async {
+    await target.writeAsBytes([1, 2]);
+    adapter.respond = (_) => bytes([7, 8, 9], length: 3);
+    expect(await fetch(offset: 2, expectedTotal: 3), 3);
+    expect(await target.readAsBytes(), [7, 8, 9]);
+    expect(adapter.requests.length, 1);
+  });
+
+  test('总长变化, 区间不符与 416 都丢弃分片重新请求整个文件', () async {
+    for (final partial in [
+      bytes([3, 4, 5], status: 206, length: 3, range: 'bytes 2-4/9'),
+      bytes([3, 4, 5], status: 206, length: 3, range: 'bytes 0-2/5'),
+      bytes([], status: 416, mime: null),
+    ]) {
+      adapter.requests.clear();
+      await target.writeAsBytes([1, 2]);
+      adapter.respond = (options) =>
+          ranged(options) ? partial : bytes([6, 7, 8, 9, 10], length: 5);
+      expect(await fetch(offset: 2, expectedTotal: 5), 5);
+      expect(await target.readAsBytes(), [6, 7, 8, 9, 10]);
+      expect(adapter.requests.map(ranged), [true, false]);
+    }
   });
 
   test('传输前取消不发出请求, 分块写入后取消保留 Dio 取消异常', () async {

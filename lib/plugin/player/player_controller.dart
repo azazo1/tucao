@@ -35,6 +35,8 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     TucaoPlayer? player,
     Future<ApiResponse<VideoModel>> Function(String)? loadVideo,
     Future<List<DanmakuModel>> Function(int, String, int)? loadDanmaku,
+    this.loadPlayPage = true,
+    this.missingSourceMessage = '该视频源已失效',
   }) : _initialPart = part,
        _initial = initial,
        player = player ?? TucaoPlayer(),
@@ -46,6 +48,12 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
 
   /// 视频 id.
   final String hid;
+
+  /// 是否请求站点播放页取完整简介与番组信息, 离线播放时关闭.
+  final bool loadPlayPage;
+
+  /// 分P没有播放地址时的提示, 离线播放时说明该分P未缓存.
+  final String missingSourceMessage;
 
   final int _initialPart;
 
@@ -375,7 +383,9 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
         return;
       }
       video.value = response.result;
-      unawaited(_loadPlayPage(hid));
+      if (loadPlayPage) {
+        unawaited(_loadPlayPage(hid));
+      }
       final index = part.value.clamp(0, partCount - 1);
       await _loadPart(index, resume: true, request: request, startAt: startAt);
     } catch (e, stackTrace) {
@@ -475,7 +485,7 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
     final target = index >= 0 && index < list.length ? list[index] : null;
     final url = target?.file ?? '';
     if (target == null || url.isEmpty) {
-      sourceError.value = '该视频源已失效';
+      sourceError.value = missingSourceMessage;
       Log.w('分P ${index + 1} 没有可播放地址, vid=${target?.vid}');
       await _requests.run(request, () async {
         _playingPart = null;

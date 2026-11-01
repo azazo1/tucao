@@ -13,6 +13,12 @@ class _LayoutDownloads extends GetxController implements DownloadService {
   @override
   final initializationError = RxnString();
   @override
+  final speeds = <String, int>{}.obs;
+  @override
+  final covers = <String>{}.obs;
+  @override
+  final videos = <String, VideoModel>{}.obs;
+  @override
   final items = <DownloadTask>[
     const DownloadTask(
       hid: '123',

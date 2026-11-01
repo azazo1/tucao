@@ -531,9 +531,13 @@ class _VideoPageState extends State<VideoPage>
   void _openDownloadSheet() {
     final video = _controller.video.value;
     if (video != null) {
+      // 详情接口的简介是截断的, 有完整简介时一起存进离线缓存.
+      final description = _controller.fullDescription.value;
       showVideoDownloadSheet(
         context,
-        video: video,
+        video: description == null
+            ? video
+            : video.copyWith(description: description),
         initialPart: _controller.part.value,
       );
     }

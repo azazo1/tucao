@@ -3,14 +3,33 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:tucao/common/constants.dart';
+import 'package:tucao/utils/logger.dart';
+
+/// 连接提前结束. 已写入的部分仍然有效, 下次可以续传.
+class DownloadInterruptedException implements Exception {
+  const DownloadInterruptedException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
 
 /// 单文件媒体传输, 文件目录与最终提交由下载服务负责.
 abstract class DownloadTransport {
+  /// 把 [uri] 写进 [target], 返回写完后的文件总字节数.
+  ///
+  /// [offset] 大于 0 时按 Range 从该字节续传, 追加到 [target] 末尾.
+  /// 服务端不支持区间时退回从头下载并覆盖 [target].
+  /// [expectedTotal] 是上次记下的总大小, 与服务端不一致说明文件已变, 从头下载.
+  /// [onProgress] 的两个值都是整个文件的绝对字节数, 不是本次请求的增量.
   Future<int> fetch({
     required Uri uri,
     required File target,
     required CancelToken cancelToken,
     required void Function(int received, int total) onProgress,
+    int offset = 0,
+    int expectedTotal = -1,
   });
 }
 
@@ -26,9 +45,47 @@ class DioDownloadTransport implements DownloadTransport {
     required File target,
     required CancelToken cancelToken,
     required void Function(int received, int total) onProgress,
+    int offset = 0,
+    int expectedTotal = -1,
+  }) async {
+    if (offset > 0) {
+      final resumed = await _fetchOnce(
+        uri: uri,
+        target: target,
+        cancelToken: cancelToken,
+        onProgress: onProgress,
+        offset: offset,
+        expectedTotal: expectedTotal,
+      );
+      if (resumed != null) {
+        return resumed;
+      }
+      Log.w('续传条件不满足, 从头下载: $uri');
+    }
+    final bytes = await _fetchOnce(
+      uri: uri,
+      target: target,
+      cancelToken: cancelToken,
+      onProgress: onProgress,
+      offset: 0,
+      expectedTotal: -1,
+    );
+    // 从零开始的请求不会要求重新开始.
+    return bytes!;
+  }
+
+  /// 发一次请求. 返回空表示本地分片不能接着用, 需要从头下载.
+  Future<int?> _fetchOnce({
+    required Uri uri,
+    required File target,
+    required CancelToken cancelToken,
+    required void Function(int received, int total) onProgress,
+    required int offset,
+    required int expectedTotal,
   }) async {
     cancelToken.throwIfCancellationRequested();
     _rejectPlaylistPath(uri);
+    final resume = offset > 0;
     final response = await _dio.getUri<ResponseBody>(
       uri,
       cancelToken: cancelToken,
@@ -37,6 +94,7 @@ class DioDownloadTransport implements DownloadTransport {
         headers: {
           'user-agent': Constants.userAgent,
           'referer': Constants.baseUrl,
+          if (resume) 'range': 'bytes=$offset-',
         },
         // 状态码由传输层检查, 网络错误仍由 Dio 原样上抛.
         validateStatus: (_) => true,
@@ -50,25 +108,56 @@ class DioDownloadTransport implements DownloadTransport {
     var streamStarted = false;
     try {
       cancelToken.throwIfCancellationRequested();
-      if (response.statusCode != 200) {
-        throw FormatException('下载仅支持 HTTP 200, 收到 ${response.statusCode}');
+      final status = response.statusCode;
+      final lengthHeader = response.headers.value(Headers.contentLengthHeader);
+      final length = lengthHeader == null ? -1 : int.tryParse(lengthHeader);
+      if (length == null || (lengthHeader != null && length < 0)) {
+        throw const FormatException('下载响应的 Content-Length 无效');
+      }
+      var start = 0;
+      int total;
+      if (resume && status == 206) {
+        final range = _parseContentRange(
+          response.headers.value('content-range'),
+        );
+        if (range == null || range.start != offset) {
+          Log.w('续传响应区间与本地分片不符: ${response.headers.value('content-range')}');
+          return null;
+        }
+        total = range.total >= 0
+            ? range.total
+            : (length >= 0 ? offset + length : -1);
+        if (expectedTotal >= 0 && total >= 0 && total != expectedTotal) {
+          // 服务端文件大小变了, 旧分片不能和新内容拼接.
+          return null;
+        }
+        start = offset;
+      } else if (resume && status == 416) {
+        // 本地分片已超出服务端文件, 只能从头来.
+        return null;
+      } else if (status == 200) {
+        total = length;
+      } else {
+        throw FormatException('下载失败, 收到状态码 $status');
       }
       _rejectPlaylistPath(response.realUri);
       _validateMime(response.headers.value(Headers.contentTypeHeader));
-      final lengthHeader = response.headers.value(Headers.contentLengthHeader);
-      final total = lengthHeader == null ? -1 : int.tryParse(lengthHeader);
-      if (total == null || (lengthHeader != null && total < 0)) {
-        throw const FormatException('下载响应的 Content-Length 无效');
+      if (start > 0) {
+        // 先截到续传起点, 避免分片末尾残留半个块.
+        output = await target.open(mode: FileMode.append);
+        await output.truncate(start);
+        await output.setPosition(start);
+      } else {
+        output = await target.open(mode: FileMode.write);
       }
-      output = await target.open(mode: FileMode.write);
-      var received = 0;
+      var received = start;
       final prefix = <int>[];
       streamStarted = true;
       await for (final chunk in body.stream) {
         cancelToken.throwIfCancellationRequested();
         if (chunk.isEmpty) continue;
-        // 只保留首部小段, 同时识别跨网络分块拆开的文本标记.
-        if (prefix.length < 512) {
+        // 只检查文件开头, 续传的中段本来就是二进制, 不需要再嗅探.
+        if (start == 0 && prefix.length < 512) {
           prefix.addAll(chunk.take(512 - prefix.length));
           _sniff(prefix);
         }
@@ -85,7 +174,9 @@ class DioDownloadTransport implements DownloadTransport {
         throw const FormatException('下载文件为空');
       }
       if (total >= 0 && received != total) {
-        throw FormatException('下载不完整, 预期 $total 字节, 实际 $received 字节');
+        throw DownloadInterruptedException(
+          '下载中断, 预期 $total 字节, 实际 $received 字节',
+        );
       }
       return received;
     } finally {
@@ -98,6 +189,19 @@ class DioDownloadTransport implements DownloadTransport {
         await output?.close();
       }
     }
+  }
+
+  /// 解析 `bytes 100-999/1000`, 总长未知时 `total` 为 -1.
+  static ({int start, int total})? _parseContentRange(String? value) {
+    final match = RegExp(
+      r'^bytes\s+(\d+)-(\d+)/(\d+|\*)$',
+    ).firstMatch(value?.trim() ?? '');
+    if (match == null) {
+      return null;
+    }
+    final start = int.parse(match.group(1)!);
+    final rawTotal = match.group(3)!;
+    return (start: start, total: rawTotal == '*' ? -1 : int.parse(rawTotal));
   }
 
   static void _rejectPlaylistPath(Uri uri) {
