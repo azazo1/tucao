@@ -49,6 +49,7 @@ class _SettingPageState extends State<SettingPage> {
   late bool _autoPlay;
   late bool _continueLast;
   late bool _autoNext;
+  late bool _showRelated;
   late double _longPressSpeed;
   late bool _doubleTapSeek;
   late bool _hardwareDecode;
@@ -83,6 +84,7 @@ class _SettingPageState extends State<SettingPage> {
     _autoPlay = Pref.playerAutoPlay;
     _continueLast = Pref.playerContinueLast;
     _autoNext = Pref.playerAutoNext;
+    _showRelated = Pref.showRelatedVideos;
     final longPress = Pref.playerLongPressSpeed;
     _longPressSpeed = PlayerSpeeds.longPressOptions.contains(longPress)
         ? longPress
@@ -379,6 +381,15 @@ class _SettingPageState extends State<SettingPage> {
             onChanged: (value) {
               setState(() => _autoNext = value);
               Pref.playerAutoNext = value;
+            },
+          ),
+          SwitchListTile(
+            title: const Text('显示相关视频'),
+            subtitle: const Text('简介下方按作品名搜索同系列的其他季与剧场版'),
+            value: _showRelated,
+            onChanged: (value) {
+              setState(() => _showRelated = value);
+              Pref.showRelatedVideos = value;
             },
           ),
           SwitchListTile(

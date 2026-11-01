@@ -24,6 +24,7 @@ abstract final class Pref {
   static const _kShowHomeNotice = 'show_home_notice';
   static const _kShowContinueWatching = 'show_continue_watching';
   static const _kWeekSortByUpdateTime = 'week_sort_by_update_time';
+  static const _kShowRelatedVideos = 'show_related_videos';
   static const _kPlayerSeekStep = 'player_seek_step';
   static const _kDanmakuTrend = 'danmaku_trend';
   static const _kSkippedUpdateVersion = 'skipped_update_version';
@@ -197,6 +198,12 @@ abstract final class Pref {
       GStorage.setting.get(_kShowContinueWatching, defaultValue: true) as bool;
   static set showContinueWatching(bool value) =>
       GStorage.setting.put(_kShowContinueWatching, value);
+
+  /// 是否在播放页简介下方显示相关视频.
+  static bool get showRelatedVideos =>
+      GStorage.setting.get(_kShowRelatedVideos, defaultValue: true) as bool;
+  static set showRelatedVideos(bool value) =>
+      GStorage.setting.put(_kShowRelatedVideos, value);
 
   /// 首页时间表是否按每周更新时刻排序.
   static bool get weekSortByUpdateTime =>

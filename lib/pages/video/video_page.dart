@@ -10,6 +10,7 @@ import 'package:tucao/models/video.dart';
 import 'package:tucao/pages/video/widgets/cast_sheet.dart';
 import 'package:tucao/pages/video/widgets/video_content_tabs.dart';
 import 'package:tucao/pages/video/widgets/player_view.dart';
+import 'package:tucao/pages/video/widgets/related_videos.dart';
 import 'package:tucao/pages/video/widgets/video_action.dart';
 import 'package:tucao/pages/video/widgets/video_info.dart';
 import 'package:tucao/pages/video/widgets/video_more_menu.dart';
@@ -507,15 +508,20 @@ class _VideoPageState extends State<VideoPage>
       typeId: video.typeId,
       hid: _controller.hid,
       part: _controller.part.value,
-      introduction: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          VideoInfoPanel(controller: _controller),
-          const Divider(),
-          VideoPartBar(controller: _controller),
-          VideoActionBar(
+      introduction: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(child: VideoInfoPanel(controller: _controller)),
+          const SliverToBoxAdapter(child: Divider()),
+          SliverToBoxAdapter(child: VideoPartBar(controller: _controller)),
+          SliverToBoxAdapter(
+            child: VideoActionBar(
+              controller: _controller,
+              onComment: () => _contentTabs.animateTo(1),
+            ),
+          ),
+          RelatedVideosSliver(
+            key: ValueKey(_controller.hid),
             controller: _controller,
-            onComment: () => _contentTabs.animateTo(1),
           ),
         ],
       ),

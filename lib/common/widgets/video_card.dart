@@ -409,6 +409,7 @@ class VideoCardHorizontal extends StatelessWidget {
     this.onTap,
     this.onLongPress,
     this.showDescription = false,
+    this.badge,
   });
 
   final VideoModel video;
@@ -418,6 +419,9 @@ class VideoCardHorizontal extends StatelessWidget {
   final VoidCallback? onLongPress;
 
   final bool showDescription;
+
+  /// 封面左上角的角标, 为空时不显示.
+  final String? badge;
 
   @override
   Widget build(BuildContext context) {
@@ -445,13 +449,23 @@ class VideoCardHorizontal extends StatelessWidget {
           children: [
             SizedBox(
               width: 148,
-              child: VideoCover(
-                url: video.cover,
-                overlay: CoverBadge(
-                  text: Utils.formatCount(video.danmakuCount),
-                  icon: Icons.subtitles_outlined,
-                ),
-                heroTag: heroTag,
+              child: Stack(
+                children: [
+                  VideoCover(
+                    url: video.cover,
+                    overlay: CoverBadge(
+                      text: Utils.formatCount(video.danmakuCount),
+                      icon: Icons.subtitles_outlined,
+                    ),
+                    heroTag: heroTag,
+                  ),
+                  if (badge != null)
+                    Positioned(
+                      left: 6,
+                      top: 6,
+                      child: CoverBadge(text: badge!),
+                    ),
+                ],
               ),
             ),
             const SizedBox(width: 10),
