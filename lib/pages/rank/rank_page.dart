@@ -6,7 +6,6 @@ import 'package:tucao/common/widgets/channel_bar.dart';
 import 'package:tucao/common/widgets/loading_widget.dart';
 import 'package:tucao/common/widgets/video_card.dart';
 import 'package:tucao/http/rank_http.dart';
-import 'package:tucao/models/video.dart';
 import 'package:tucao/pages/rank/rank_controller.dart';
 import 'package:tucao/router/routes.dart';
 import 'package:tucao/services/block_service.dart';
@@ -135,7 +134,12 @@ class _RankPageState extends State<RankPage> {
     if (error != null) {
       return ErrorWidgetView(message: error, onRetry: _controller.load);
     }
-    final list = _controller.list.withoutBlocked();
+    // 屏蔽状态是响应式的, 在 Obx 里按编号过滤, 解除屏蔽后条目会回到榜单.
+    final blocked = BlockService.instance;
+    final list = [
+      for (final entry in _controller.list)
+        if (!blocked.isBlocked(entry.video.hid)) entry,
+    ];
     // 平板与横屏下把榜单收窄居中, 避免一行文字过长.
     final side = Adaptive.sidePadding(
       context,
@@ -156,8 +160,11 @@ class _RankPageState extends State<RankPage> {
               padding: EdgeInsets.fromLTRB(side + 12, 2, side + 12, 12),
               itemCount: list.length,
               separatorBuilder: (context, index) => const Divider(),
-              itemBuilder: (context, index) =>
-                  _RankItem(video: list[index], rank: index + 1),
+              itemBuilder: (context, index) => _RankItem(
+                entry: list[index],
+                rank: index + 1,
+                statKind: _controller.type.value.statKind,
+              ),
             ),
     );
   }
@@ -165,15 +172,40 @@ class _RankPageState extends State<RankPage> {
 
 /// 单条排行记录, 比通用横版卡片更紧凑, 左侧是排名.
 class _RankItem extends StatelessWidget {
-  const _RankItem({required this.video, required this.rank});
+  const _RankItem({
+    required this.entry,
+    required this.rank,
+    required this.statKind,
+  });
 
-  final VideoModel video;
+  final RankEntry entry;
   final int rank;
+
+  /// 这一项统计值的含义, 决定配什么图标.
+  final RankStatKind statKind;
+
+  /// 统计值前面的图标, 文案型榜单没有图标.
+  static IconData? iconOf(RankStatKind kind) => switch (kind) {
+    RankStatKind.play => Icons.play_circle_outline,
+    RankStatKind.favorite => Icons.favorite_border,
+    RankStatKind.text => null,
+  };
+
+  /// 统计值文本.
+  ///
+  /// 数字型榜单沿用站点的数字, 文案型榜单直接显示站点原话,
+  /// 例如无人区榜的 `99.96%人错过`.
+  String get _statText => switch (statKind) {
+    RankStatKind.text => entry.text,
+    _ => Utils.formatCount(entry.count),
+  };
 
   @override
   Widget build(BuildContext context) {
+    final video = entry.video;
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final statIcon = iconOf(statKind);
     // 前三名用主色突出, 与站点的 n123 样式一致.
     final highlight = rank <= 3;
     return InkWell(
@@ -219,18 +251,32 @@ class _RankItem extends StatelessWidget {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      Icon(
-                        Icons.play_circle_outline,
-                        size: 13,
-                        color: scheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: 3),
-                      Text(
-                        Utils.formatCount(video.playCount),
-                        style: theme.textTheme.labelSmall?.copyWith(
+                      if (statIcon != null) ...[
+                        Icon(
+                          statIcon,
+                          size: 13,
                           color: scheme.onSurfaceVariant,
                         ),
-                      ),
+                        const SizedBox(width: 3),
+                      ],
+                      // 文案型榜单的原文长短由站点决定, 允许压缩但不挤掉用户名.
+                      statKind == RankStatKind.text
+                          ? Flexible(
+                              child: Text(
+                                _statText,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: scheme.onSurfaceVariant,
+                                ),
+                              ),
+                            )
+                          : Text(
+                              _statText,
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
                       if (video.userName.isNotEmpty) ...[
                         const SizedBox(width: 10),
                         Flexible(

@@ -1,7 +1,6 @@
 import 'package:get/get.dart';
 import 'package:tucao/common/widgets/channel_bar.dart';
 import 'package:tucao/http/rank_http.dart';
-import 'package:tucao/models/video.dart';
 
 /// 排行榜页控制器.
 ///
@@ -69,7 +68,7 @@ class RankPageController extends GetxController {
   final groupIndex = 0.obs;
 
   /// 当前维度下的榜单, 没有对应维度时回落到页面返回的第一个榜单.
-  List<VideoModel> get list {
+  List<RankEntry> get list {
     if (groups.isEmpty) {
       // 分组为空时不能走 clamp, Dart 的 clamp 要求下界不大于上界,
       // clamp(0, -1) 会直接抛异常.

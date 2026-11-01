@@ -5,6 +5,22 @@ import 'package:tucao/common/constants.dart';
 import 'package:tucao/models/video.dart';
 import 'package:tucao/utils/http_util.dart';
 
+/// 榜单条目在 `.i` 里给出的统计值是什么.
+///
+/// 各榜单页面结构相同, 但同一个位置放的东西不一样: 大多数榜单是播放量,
+/// 追番榜是追番数, 无人区榜则是一句 "99.96%人错过" 的文案. 只按位置取值
+/// 会把追番数当成播放量显示出去.
+enum RankStatKind {
+  /// 播放量.
+  play,
+
+  /// 站点追番数.
+  favorite,
+
+  /// 站点给的一句说明文案, 不含可用的数字.
+  text,
+}
+
 /// 一个时间维度下的排行榜.
 class RankGroup {
   const RankGroup({required this.title, this.period = 0, this.list = const []});
@@ -18,7 +34,23 @@ class RankGroup {
   final int period;
 
   /// 榜单内容, 顺序即排名.
-  final List<VideoModel> list;
+  final List<RankEntry> list;
+}
+
+/// 榜单里的一条: 视频本身, 加上站点在这条榜单里给出的统计值.
+///
+/// 统计值的含义随榜单变化, 见 [RankType.statKind]. 数字型榜单用 [count],
+/// 文案型榜单保留站点原文到 [text].
+class RankEntry {
+  const RankEntry({required this.video, this.count = 0, this.text = ''});
+
+  final VideoModel video;
+
+  /// 播放量或追番数, 仅数字型榜单有效.
+  final int count;
+
+  /// 站点原文, 仅文案型榜单有效, 如 `99.96%人错过`.
+  final String text;
 }
 
 /// 热搜榜的一个关键词.
@@ -57,19 +89,27 @@ enum RankType {
   hot('排行榜', 'html/hot.html', supportsChannel: true),
   danmaku('弹幕榜', 'html/danmu.html'),
   digg('神评论', 'html/digg.html'),
-  zero('无人区', 'html/zero.html'),
-  fav('追番榜', 'html/fav_hot.html'),
+  zero('无人区', 'html/zero.html', statKind: RankStatKind.text),
+  fav('追番榜', 'html/fav_hot.html', statKind: RankStatKind.favorite),
   online('在线', 'html/ol.html'),
   todayUpdate('今天更新', 'html/new.html'),
   todayRecommend('今天推荐', 'html/pos.html');
 
-  const RankType(this.label, this.path, {this.supportsChannel = false});
+  const RankType(
+    this.label,
+    this.path, {
+    this.supportsChannel = false,
+    this.statKind = RankStatKind.play,
+  });
 
   final String label;
   final String path;
 
   /// 是否支持按分区筛选, 目前只有排行榜支持.
   final bool supportsChannel;
+
+  /// 条目里那个统计值的含义, 决定列表上配哪个图标.
+  final RankStatKind statKind;
 
   String get url => '${Constants.baseUrl}$path';
 }
@@ -107,7 +147,7 @@ abstract final class RankHttp {
       cancelToken: cancelToken,
       options: Options(headers: {'user-agent': Constants.desktopUserAgent}),
     );
-    return parseRankHtml(response.data.toString());
+    return parseRankHtml(response.data.toString(), statKind: type.statKind);
   }
 
   /// 拉取热搜榜.
@@ -179,14 +219,20 @@ abstract final class RankHttp {
   ///
   /// 页面结构为若干 `div.time_item`, 每个下面是 `div.time_title` 与
   /// `div.list`, list 里是 `div.item`: `a.p` 里的封面, `a.t` 的标题与地址,
-  /// `.i` 里的播放数与作者. 结果按时间维度分组, 空榜单会被跳过.
+  /// `.i` 里的统计值与作者. 结果按时间维度分组, 空榜单会被跳过.
+  ///
+  /// [statKind] 说明 `.i` 里那个值是播放量, 追番数还是一句文案, 各榜单不同,
+  /// 取值见 [RankType.statKind].
   ///
   /// 在线榜这类页面只有一个不带 `time_item` 的 `div.list`, 此时整页作为一组.
-  static List<RankGroup> parseRankHtml(String raw) {
+  static List<RankGroup> parseRankHtml(
+    String raw, {
+    RankStatKind statKind = RankStatKind.play,
+  }) {
     final document = html_parser.parse(raw);
     final sections = document.querySelectorAll('.time_item');
     if (sections.isEmpty) {
-      final list = _parseList(document, <String>{});
+      final list = _parseList(document, <String>{}, statKind);
       if (list.isEmpty) {
         return const [];
       }
@@ -198,7 +244,7 @@ abstract final class RankHttp {
     final groups = <RankGroup>[];
     for (final node in sections) {
       final title = node.querySelector('.time_title')?.text.trim() ?? '';
-      final list = _parseList(node, <String>{});
+      final list = _parseList(node, <String>{}, statKind);
       if (list.isEmpty) {
         continue;
       }
@@ -217,19 +263,27 @@ abstract final class RankHttp {
   /// 从一个容器里取出榜单条目, 同一榜单内重复的视频只保留靠前的一次.
   ///
   /// 容器可以是整个文档 (在线榜这类只有一个 list 的页面), 也可以是分组节点.
-  static List<VideoModel> _parseList(dynamic node, Set<String> seen) {
-    final list = <VideoModel>[];
+  static List<RankEntry> _parseList(
+    dynamic node,
+    Set<String> seen,
+    RankStatKind statKind,
+  ) {
+    final list = <RankEntry>[];
     for (final item in node.querySelectorAll('.list .item')) {
-      final video = _parseItem(item, seen);
-      if (video != null) {
-        list.add(video);
+      final entry = _parseItem(item, seen, statKind);
+      if (entry != null) {
+        list.add(entry);
       }
     }
     return list;
   }
 
   /// 解析单个榜单条目, 同一榜单内重复的视频只保留排名靠前的一次.
-  static VideoModel? _parseItem(Element item, Set<String> seen) {
+  static RankEntry? _parseItem(
+    Element item,
+    Set<String> seen,
+    RankStatKind statKind,
+  ) {
     final link = item.querySelector('a.t') ?? item.querySelector('a');
     if (link == null) {
       return null;
@@ -239,14 +293,19 @@ abstract final class RankHttp {
       return null;
     }
     final info = item.querySelector('.i');
-    return VideoModel(
+    final rawStat = info?.querySelector('span')?.text.trim() ?? '';
+    final video = VideoModel(
       hid: hid,
       title: link.text.trim(),
       cover: _parseCover(item.querySelector('img')),
-      playCount: _parseCount(info?.querySelector('span')?.text ?? ''),
       userName: info?.querySelector('a')?.text.trim() ?? '',
       userId: _parseUserId(info?.querySelector('a')?.attributes['href'] ?? ''),
     );
+    // 无人区这类榜单的 `.i` 是一句文案, 原文留着展示, 不当作数字解析.
+    if (statKind == RankStatKind.text) {
+      return RankEntry(video: video, text: rawStat);
+    }
+    return RankEntry(video: video, count: _parseCount(rawStat));
   }
 
   /// 封面地址写在 style 的 background-image 里, img 的 src 是占位图.

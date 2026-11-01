@@ -73,16 +73,17 @@ void main() {
       for (final group in groups) {
         expect(group.list, isNotEmpty, reason: '${group.title} 榜单为空');
         for (final item in group.list) {
-          expect(item.hid, isNotEmpty);
-          expect(item.title, isNotEmpty);
-          expect(item.cover, startsWith('http'));
+          expect(item.video.hid, isNotEmpty);
+          expect(item.video.title, isNotEmpty);
+          expect(item.video.cover, startsWith('http'));
+          expect(item.count, greaterThan(0));
         }
       }
     });
 
     test('同一榜单内 hid 不重复', () {
       for (final group in groups) {
-        final ids = group.list.map((e) => e.hid).toList();
+        final ids = group.list.map((e) => e.video.hid).toList();
         expect(ids.toSet().length, ids.length);
       }
     });
@@ -98,13 +99,38 @@ void main() {
         for (final group in groups) {
           expect(group.list, isNotEmpty);
           for (final item in group.list) {
-            expect(item.hid, isNotEmpty);
-            expect(item.title, isNotEmpty);
-            expect(item.cover, startsWith('http'));
+            expect(item.video.hid, isNotEmpty);
+            expect(item.video.title, isNotEmpty);
+            expect(item.video.cover, startsWith('http'));
           }
         }
       });
     }
+
+    test('追番榜的统计值是追番数, 排在播放量的位置上', () {
+      final raw = File('test/fixtures/rank_fav_hot.html').readAsStringSync();
+      final groups = RankHttp.parseRankHtml(
+        raw,
+        statKind: RankStatKind.favorite,
+      );
+      for (final group in groups) {
+        for (final item in group.list) {
+          // 追番数远小于播放量, 解析成播放量时会出现五位数.
+          expect(item.count, lessThan(100000));
+          expect(item.text, isEmpty);
+        }
+      }
+    });
+
+    test('无人区榜给的是文案, 保留原文而不是截成数字', () {
+      final raw = File('test/fixtures/rank_zero.html').readAsStringSync();
+      final groups = RankHttp.parseRankHtml(raw, statKind: RankStatKind.text);
+      expect(groups, isNotEmpty);
+      final list = groups.first.list;
+      expect(list, isNotEmpty);
+      expect(list.first.text, contains('%'));
+      expect(list.first.count, 0);
+    });
 
     test('无人区按分区分组, 分组名不是时间维度', () {
       final raw = File('test/fixtures/rank_zero.html').readAsStringSync();
@@ -124,9 +150,9 @@ void main() {
       expect(groups.first.list, isNotEmpty);
       expect(groups.first.period, -1);
       for (final item in groups.first.list) {
-        expect(item.hid, isNotEmpty);
-        expect(item.title, isNotEmpty);
-        expect(item.cover, startsWith('http'));
+        expect(item.video.hid, isNotEmpty);
+        expect(item.video.title, isNotEmpty);
+        expect(item.video.cover, startsWith('http'));
       }
     });
 
@@ -139,9 +165,9 @@ void main() {
         expect(groups.first.period, -1);
         expect(groups.first.list, isNotEmpty);
         for (final item in groups.first.list) {
-          expect(item.hid, isNotEmpty);
-          expect(item.title, isNotEmpty);
-          expect(item.cover, contains('tucao.my'));
+          expect(item.video.hid, isNotEmpty);
+          expect(item.video.title, isNotEmpty);
+          expect(item.video.cover, contains('tucao.my'));
         }
       });
     }
