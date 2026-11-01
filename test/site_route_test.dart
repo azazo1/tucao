@@ -51,10 +51,26 @@ void main() {
     }
   });
 
+  test('域名对不上时按路径识别站内页面', () {
+    for (final raw in [
+      'https://tucao.new-domain.example/play/h4107869/#2',
+      'new-domain.example/play/h4107869/',
+      'http://1.2.3.4:8080/play/h4107869',
+    ]) {
+      final uri = parseSiteUrlInput(raw);
+      expect(uri, isNotNull, reason: raw);
+      final route = siteRouteOf(uri!);
+      expect(route?.kind, SiteRouteKind.video, reason: raw);
+      expect(route?.id, '4107869', reason: raw);
+    }
+  });
+
   test('站外地址与普通关键词不当作站点地址', () {
     for (final raw in [
-      'https://evil.example/play/d1/',
-      'https://tucao.my.evil.example/play/d1/',
+      // 域名对不上且路径不是站内页面时不认.
+      'https://evil.example/data/',
+      'https://evil.example/play/h0/',
+      'ftp://evil.example/play/h1/',
       'javascript:alert(1)',
       '播放页',
       'play/h4107869/',

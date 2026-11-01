@@ -41,6 +41,10 @@ final _anchor = RegExp(r'^[0-9]+$');
 /// 搜索栏允许直接粘贴站点链接, 用户从浏览器地址栏复制的写法常常省略协议,
 /// 这里先补上 https 再判断. 省略协议时主机名就是输入的第一段, 因此普通
 /// 关键词不会被误认成地址.
+///
+/// 站点域名时常更换, 用户手里的链接可能来自新域名或镜像域名, 所以域名
+/// 对不上时只看路径: 能解析成站内页面 (见 [siteRouteOf]) 的 http(s) 地址
+/// 也算. 这里的输入是用户自己粘贴的, 富文本里别人提交的链接不走这条规则.
 Uri? parseSiteUrlInput(String raw) {
   final text = raw.trim();
   if (text.isEmpty) {
@@ -50,10 +54,18 @@ Uri? parseSiteUrlInput(String raw) {
   final uri = parsed != null && parsed.hasScheme
       ? parsed
       : Uri.tryParse('https://$text');
-  if (uri == null || !isSiteUrl(uri.toString())) {
+  if (uri == null) {
     return null;
   }
-  return uri;
+  if (isSiteUrl(uri.toString())) {
+    return uri;
+  }
+  final scheme = uri.scheme.toLowerCase();
+  final isWeb = scheme == 'http' || scheme == 'https';
+  if (isWeb && uri.host.isNotEmpty && siteRouteOf(uri) != null) {
+    return uri;
+  }
+  return null;
 }
 
 /// 站内地址对应的应用内页面, 站点没有对应页面时返回 null.
