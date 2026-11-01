@@ -21,6 +21,7 @@ import 'package:tucao/services/cast/proxy.dart';
 import 'package:tucao/services/cast/renderer.dart';
 import 'package:tucao/services/cast/session.dart';
 import 'package:tucao/services/block_service.dart';
+import 'package:tucao/services/history_service.dart';
 import 'package:tucao/services/pip_service.dart';
 import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/site_links.dart';
@@ -30,18 +31,23 @@ import 'package:url_launcher/url_launcher.dart';
 /// 视频播放页.
 ///
 /// 路由参数 `hid` 与可选的 `part` (分P序号, 从 0 开始).
+///
+/// 不带 `part` 时按该视频的观看历史恢复上次看的分P. 列表入口都不传,
+/// 只有本来就指着某一集的入口 (继续观看卡片, 播放历史页) 才显式带上.
 class VideoPage extends StatefulWidget {
   const VideoPage({super.key});
 
   /// 从列表页进入, 带上已有的视频信息可以少一次白屏.
   ///
+  /// [part] 为空时按观看历史恢复上次看的分P, 收藏, 排行与首页时间表
+  /// 这些入口都不传.
   /// [heroTag] 是被点卡片封面的一次性 tag, 带上时封面会飞进播放器.
-  static void open(VideoModel video, {int part = 0, String? heroTag}) {
+  static void open(VideoModel video, {int? part, String? heroTag}) {
     Get.toNamed(
       Routes.video,
       parameters: {
         'hid': video.hid,
-        'part': part.toString(),
+        if (part != null) 'part': part.toString(),
         CoverHero.parameter: ?heroTag,
       },
       arguments: video,
@@ -49,10 +55,12 @@ class VideoPage extends StatefulWidget {
   }
 
   /// 只有 hid 时进入.
-  static void openByHid(String hid, {int part = 0}) {
+  ///
+  /// [part] 为空时按观看历史恢复上次看的分P.
+  static void openByHid(String hid, {int? part}) {
     Get.toNamed(
       Routes.video,
-      parameters: {'hid': hid, 'part': part.toString()},
+      parameters: {'hid': hid, if (part != null) 'part': part.toString()},
     );
   }
 
@@ -107,13 +115,27 @@ class _VideoPageState extends State<VideoPage>
   /// 切换分P时收起投屏, 否则电视还在放上一个分P.
   Worker? _partWorker;
 
+  /// 路由里明确指定了分P就用它, 否则按观看历史恢复上次看的分P.
+  ///
+  /// 首页时间表, 收藏, 排行这些入口只带 hid, 从卡片进来时应当接着上次
+  /// 看的那一集; 播放历史页与继续观看卡片自带分P, 不受影响.
+  static int _resolvePart(String hid, String? rawPart) {
+    if (rawPart != null) {
+      return int.tryParse(rawPart) ?? 0;
+    }
+    if (hid.isEmpty || !Get.isRegistered<HistoryService>()) {
+      return 0;
+    }
+    return HistoryService.instance.latestOf(hid)?.part ?? 0;
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     final parameters = Get.parameters;
     final hid = parameters['hid'] ?? '';
-    final part = int.tryParse(parameters['part'] ?? '') ?? 0;
+    final part = _resolvePart(hid, parameters['part']);
     _coverHeroTag = parameters[CoverHero.parameter];
     final argument = Get.arguments;
     _controller = Get.put(
