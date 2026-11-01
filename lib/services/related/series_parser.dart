@@ -15,6 +15,7 @@ class SeriesInfo {
     this.season,
     this.part,
     this.episode,
+    this.variant,
   });
 
   /// 作品名, 第一项是主名, 后面是别名, 最多 [SeriesParser.aliasLimit] 个.
@@ -33,6 +34,20 @@ class SeriesInfo {
 
   /// 是否为一眼能看出的单集投稿.
   bool get isEpisode => episode != null;
+
+  /// 作品名后面粘着的续作标记, 比如 `超电磁炮S` 的 `s`, `物语系列01` 的 `01`.
+  /// 罗马数字直接记成季数, 不放在这里.
+  final String? variant;
+
+  /// 补上季数, 用于只写了续作标记的单集.
+  SeriesInfo withSeason(int value) => SeriesInfo(
+    aliases: aliases,
+    kind: kind,
+    season: value,
+    part: part,
+    episode: episode,
+    variant: variant,
+  );
 
   /// 排序用的季序号, 没写季数的正篇按第一季算.
   int get seasonOrder => season ?? 1;
@@ -125,14 +140,33 @@ abstract final class SeriesParser {
     r'|(?<![a-z0-9])(?:season\s*|s)[0-9]{1,2}(?![0-9a-z])'
     r'|最终季|最終季|最终章|final\s*season'
     r'|剧场版|劇場版|映画|电影版|(?<![a-z])(?:ova|oad)(?![a-z])'
-    r'|外传|外傳|番外|总集篇|總集篇|新编集版|新編集版|特别篇'
+    r'|外传|外傳|番外|总集篇|總集篇|新编集版|新編集版|特别篇|特典'
     r'|(?<![a-z])(?:bd|web|tv)\s*rip|(?<![0-9])[0-9]{3,4}p(?![a-z])'
     r'|(?<![0-9])[0-9]{1,3}\s*[-~～]\s*[0-9]{1,3}'
     r'|全[0-9一二三四五六七八九十]+[季集话話]|全集|合集'
+    r'|(?<![0-9])[0-9]{1,3}\s*(?:[话話集]|全)'
+    r'|(?<![a-z])sp\s*[0-9]{1,2}(?![0-9])'
     r'|\s[0-9]{1,3}(?=\s|$)'
     r'|\s\S{1,8}篇(?=\s|$)',
     caseSensitive: false,
   );
+
+  /// 中文名后面直接粘着的字母数字尾巴, 比如 `超电磁炮S`, `物语系列01`.
+  static final _cjkTail = RegExp(
+    r'^(.*[\u3040-\u30ff\u3400-\u9fff])([0-9A-Za-zⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+)$',
+  );
+
+  /// 续作标记: 罗马数字, 单个字母, 一两位数字.
+  static final _variantToken = RegExp(
+    r'^(?:[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]|[IVX]{2,4}|[A-Za-z]|[0-9]{1,2})$',
+  );
+
+  /// 次要名字以这些字结尾时多是篇名, 搜出来对不上作品.
+  static final _arcName = RegExp(r'[篇章话話]$');
+
+  static final _digitsOnly = RegExp(r'^[0-9]+$');
+
+  static final _asciiRoman = RegExp(r'^[IVX]{2,4}$');
 
   /// 合集特征: 集数范围, 合集, 全集, 全 N 话. `第14-15集` 这种双集连发不算.
   static final _collection = RegExp(
@@ -153,21 +187,63 @@ abstract final class SeriesParser {
   static final _cjk = RegExp(r'[\u3040-\u30ff\u3400-\u9fff]');
 
   /// 解析一个标题. [typeId] 用来补充类型判断, 不知道时传 0.
+  ///
+  /// 显式写出的季数优先, 其次是作品名后的罗马数字, 比如 `魔法禁书目录Ⅲ`.
+  /// 罗马数字不参与类型判断, 剧场版里的罗马数字按第几部处理, `伤物语 Ⅰ`
+  /// 与 `伤物语1` 记成同一个续作标记.
   static SeriesInfo parse(String title, {int typeId = 0}) {
-    final season = _parseSeason(title);
+    final explicit = _parseSeason(title);
     final outside = title.replaceAll(_brackets, ' ');
+    final names = _extractNames(title);
+    final tail = names.variant;
+    final roman = tail == null ? null : _romanValue(tail);
+    // 剧场版的罗马数字是第几部, 不是第几季, 按续作标记处理.
+    final romanSeason = roman != null && !_movie.hasMatch(title) ? roman : null;
+    final String? variant;
+    if (tail == null || romanSeason != null) {
+      variant = null;
+    } else {
+      variant = _variantKey(roman == null ? tail : '$roman');
+    }
     return SeriesInfo(
-      aliases: parseAliases(title),
+      aliases: names.aliases,
       kind: _parseKind(
         title,
         outside,
         typeId: typeId,
-        hasSeason: season != null,
+        hasSeason: explicit != null,
       ),
-      season: season,
+      season: explicit ?? romanSeason,
       part: _parsePart(title),
       episode: _parseEpisode(title, outside, typeId: typeId),
+      variant: variant,
     );
+  }
+
+  /// 续作标记的比较键, 数字补齐三位, 让 `2` 排在 `10` 前面.
+  static String _variantKey(String raw) {
+    final number = int.tryParse(raw);
+    return number == null ? normalizeKey(raw) : '$number'.padLeft(3, '0');
+  }
+
+  /// 罗马数字的值, 不是罗马数字时为空. 单个 `I`, `V`, `X` 太容易误认, 不算.
+  static int? _romanValue(String raw) {
+    const unicode = 'ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ';
+    if (raw.length == 1) {
+      final index = unicode.indexOf(raw);
+      return index < 0 ? null : index + 1;
+    }
+    if (!_asciiRoman.hasMatch(raw)) {
+      return null;
+    }
+    const values = {'I': 1, 'V': 5, 'X': 10};
+    var total = 0;
+    for (var i = 0; i < raw.length; i++) {
+      final value = values[raw[i]]!;
+      final next = i + 1 < raw.length ? values[raw[i + 1]]! : 0;
+      total += value < next ? -value : value;
+    }
+    return total > 0 && total <= 20 ? total : null;
   }
 
   /// 单集投稿的集数. 完结番组分区与带合集特征的标题都按整季处理.
@@ -185,8 +261,12 @@ abstract final class SeriesParser {
     return value == null || value <= 0 ? null : value;
   }
 
-  /// 从标题里取出作品名与别名.
-  static List<String> parseAliases(String title) {
+  /// 从标题里取出作品名与别名, 不带季数与续作标记.
+  static List<String> parseAliases(String title) =>
+      _extractNames(title).aliases;
+
+  /// 取作品名, 同时带出主名后面的续作标记.
+  static ({List<String> aliases, String? variant}) _extractNames(String title) {
     var text = title.replaceAll(_brackets, ' ').replaceAll(_quotes, ' ').trim();
     // 标记在开头时去掉它接着找, 比如 `剧场版 咒术回战 0`.
     for (var i = 0; i < 4; i++) {
@@ -204,20 +284,26 @@ abstract final class SeriesParser {
 
     final aliases = <String>[];
     final keys = <String>{};
+    String? variant;
     for (final segment in text.split(_separator)) {
-      for (final candidate in _splitScripts(segment)) {
+      for (final (candidate, tail) in _splitScripts(segment)) {
         final alias = candidate.replaceAll(_edgePunct, '');
         final key = normalizeKey(alias);
-        if (!_isUsable(alias, key) || !keys.add(key)) {
+        if (!_isUsable(alias, key) ||
+            (aliases.isNotEmpty && _arcName.hasMatch(alias)) ||
+            !keys.add(key)) {
           continue;
+        }
+        if (aliases.isEmpty) {
+          variant = tail;
         }
         aliases.add(alias);
         if (aliases.length >= aliasLimit) {
-          return aliases;
+          return (aliases: aliases, variant: variant);
         }
       }
     }
-    return aliases;
+    return (aliases: aliases, variant: variant);
   }
 
   /// 比较用的键: 小写, 全角转半角, 只留字母数字与中日文字符.
@@ -242,15 +328,20 @@ abstract final class SeriesParser {
     return buffer.toString();
   }
 
-  /// 按空格拆开, 中文词各自成名, 相邻的英文词拼回一个名字.
+  /// 按空格与文字种类拆开, 每项带上紧跟在后面的续作标记.
   ///
-  /// `缘之空 Yosuga no Sora` 拆成 `缘之空` 与 `Yosuga no Sora`.
-  static List<String> _splitScripts(String segment) {
-    final result = <String>[];
+  /// - 中文词各自成名, 相邻的英文词拼回一个名字:
+  ///   `缘之空 Yosuga no Sora` 拆成 `缘之空` 与 `Yosuga no Sora`.
+  /// - 中文名后粘着的短尾巴是续作标记: `魔法禁书目录Ⅲ`, `超电磁炮S`, `物语系列01`.
+  ///   长的英文尾巴另成一个名字: `缘之空Yosuga` 拆成 `缘之空` 与 `Yosuga`.
+  /// - 中文名后单独一个标记词同样算续作标记: `魔法禁书目录 II`.
+  /// - 英文开头再接中文的整词不拆, 比如 `JOJO的奇妙冒险`.
+  static List<(String, String?)> _splitScripts(String segment) {
+    final result = <(String, String?)>[];
     final latin = <String>[];
     void flushLatin() {
       if (latin.isNotEmpty) {
-        result.add(latin.join(' '));
+        result.add((latin.join(' '), null));
         latin.clear();
       }
     }
@@ -261,20 +352,42 @@ abstract final class SeriesParser {
       }
       if (_cjk.hasMatch(token)) {
         flushLatin();
-        result.add(token);
-      } else {
-        latin.add(token);
+        final glued = _cjkTail.firstMatch(token);
+        final tail = glued?.group(2);
+        if (glued == null || tail == null) {
+          result.add((token, null));
+        } else if (_variantToken.hasMatch(tail)) {
+          result.add((glued.group(1)!, tail));
+        } else {
+          result.add((glued.group(1)!, null));
+          latin.add(tail);
+        }
+        continue;
       }
+      // 紧跟在中文名后面的标记词并到它身上, 不再当成名字.
+      if (latin.isEmpty &&
+          result.isNotEmpty &&
+          result.last.$2 == null &&
+          _cjk.hasMatch(result.last.$1) &&
+          _variantToken.hasMatch(token)) {
+        result[result.length - 1] = (result.last.$1, token);
+        continue;
+      }
+      latin.add(token);
     }
     flushLatin();
     return result;
   }
 
   /// 太短的名字搜出来全是噪声, 中文至少两个字, 纯英文至少四个字母数字.
+  /// 纯数字与纯罗马数字不算名字.
   static bool _isUsable(String alias, String key) {
     final cjkCount = _cjk.allMatches(alias).length;
     if (cjkCount > 0) {
       return cjkCount >= 2;
+    }
+    if (_digitsOnly.hasMatch(key) || _asciiRoman.hasMatch(alias)) {
+      return false;
     }
     return key.length >= 4;
   }

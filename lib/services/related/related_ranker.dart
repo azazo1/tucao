@@ -35,13 +35,13 @@ abstract final class RelatedRanker {
     ].where((key) => key.isNotEmpty).toList();
 
     final seen = <String>{current.hid};
-    final entries = <RelatedEntry>[];
+    final parsed = <RelatedEntry>[];
     for (final video in candidates) {
       if (video.hid.isEmpty || !seen.add(video.hid)) {
         continue;
       }
       final titleKey = SeriesParser.normalizeKey(video.title);
-      entries.add(
+      parsed.add(
         RelatedEntry(
           video: video,
           series: SeriesParser.parse(video.title, typeId: video.typeId),
@@ -49,8 +49,43 @@ abstract final class RelatedRanker {
         ),
       );
     }
-    entries.sort(_compare);
+    final entries = _fillSeasons(parsed)..sort(_compare);
     return _collapseEpisodes(entries);
+  }
+
+  /// 单集常常只写续作标记不写季数, 比如 `超电磁炮S 02`. 别的投稿写过
+  /// `超电磁炮S【第2季】` 时, 照着补上季数, 让它和整季投稿排在一起.
+  static List<RelatedEntry> _fillSeasons(List<RelatedEntry> entries) {
+    final seasons = <String, int>{};
+    for (final entry in entries) {
+      final key = _variantKey(entry);
+      final season = entry.series.season;
+      if (key != null && season != null) {
+        seasons.putIfAbsent(key, () => season);
+      }
+    }
+    if (seasons.isEmpty) {
+      return entries;
+    }
+    return [
+      for (final entry in entries)
+        switch ((entry.series.season, seasons[_variantKey(entry)])) {
+          (null, final int season) => RelatedEntry(
+            video: entry.video,
+            series: entry.series.withSeason(season),
+            sameSeries: entry.sameSeries,
+          ),
+          _ => entry,
+        },
+    ];
+  }
+
+  static String? _variantKey(RelatedEntry entry) {
+    final variant = entry.series.variant;
+    if (variant == null || entry.series.aliases.isEmpty) {
+      return null;
+    }
+    return '${SeriesParser.normalizeKey(entry.series.aliases.first)}|$variant';
   }
 
   /// 收起单集投稿.
@@ -80,13 +115,16 @@ abstract final class RelatedRanker {
     ];
   }
 
-  /// 同一作品同一季的分组键.
+  /// 同一作品同一季的分组键. 没有季数时用续作标记区分, 免得
+  /// `超电磁炮S` 的单集被第一季的合集收掉.
   static String _seasonKey(RelatedEntry entry) {
     final series = entry.series;
     final name = series.aliases.isEmpty
         ? entry.video.title
         : SeriesParser.normalizeKey(series.aliases.first);
-    return '$name|${series.kind.name}|${series.seasonOrder}|${series.part ?? 0}';
+    final variant = series.season == null ? series.variant ?? '' : '';
+    return '$name|${series.kind.name}|${series.seasonOrder}|$variant|'
+        '${series.part ?? 0}';
   }
 
   static int _compare(RelatedEntry a, RelatedEntry b) {
@@ -101,6 +139,13 @@ abstract final class RelatedRanker {
       final bySeason = a.series.seasonOrder.compareTo(b.series.seasonOrder);
       if (bySeason != 0) {
         return bySeason;
+      }
+      // 没有季数的按续作标记排, 不带标记的在前: 超电磁炮, S, T.
+      final byVariant = (a.series.variant ?? '').compareTo(
+        b.series.variant ?? '',
+      );
+      if (byVariant != 0) {
+        return byVariant;
       }
       final byPart = (a.series.part ?? 0).compareTo(b.series.part ?? 0);
       if (byPart != 0) {
