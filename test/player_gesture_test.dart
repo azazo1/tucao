@@ -71,6 +71,7 @@ Future<Offset> _mount(
   SeekPreviewCallback? onSeekPreview,
   PlayerBrightness? brightness,
   bool doubleTapSeek = false,
+  bool fullscreen = false,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -88,6 +89,7 @@ Future<Offset> _mount(
                 onSeekPreview: onSeekPreview,
                 brightness: brightness,
                 doubleTapSeek: doubleTapSeek,
+                fullscreen: fullscreen,
               ),
             ),
           ],
@@ -174,6 +176,27 @@ void main() {
     await tester.pump();
     expect(brightness.values.last, closeTo(0.4 + 80 / 240, 0.01));
     expect(controller.volumes, isEmpty);
+    await tester.pump(const Duration(milliseconds: 400));
+  });
+
+  testWidgets('全屏时屏幕边缘的竖滑不调音量, 中间区域照常', (tester) async {
+    final controller = _Controller();
+    final origin = await _mount(tester, controller, fullscreen: true);
+    // 顶部边缘的下滑留给系统状态栏, 不能变成调音量.
+    await tester.dragFrom(
+      origin + const Offset(300, 10),
+      const Offset(0, 80),
+    );
+    await tester.pump();
+    expect(controller.volumes, isEmpty);
+    // 同样的手势从中间开始仍然调音量.
+    await tester.dragFrom(
+      origin + const Offset(300, 120),
+      const Offset(0, 80),
+    );
+    await tester.pump();
+    expect(controller.volumes, hasLength(1));
+    expect(controller.volumes.single, closeTo(50 - 80 / 240 * 100, 0.01));
     await tester.pump(const Duration(milliseconds: 400));
   });
 

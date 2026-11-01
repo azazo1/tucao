@@ -268,6 +268,7 @@ class _VideoPlayerViewState extends State<VideoPlayerView> {
               longPressSpeed: Pref.playerLongPressSpeed,
               doubleTapSeek: Pref.playerDoubleTapSeek,
               brightness: widget.brightness,
+              fullscreen: widget.fullscreen,
             ),
           ),
         // 锁定后手势只用来唤出锁按钮, 不响应拖动与双击.

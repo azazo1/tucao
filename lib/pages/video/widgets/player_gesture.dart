@@ -37,9 +37,16 @@ class PlayerGestureDetector extends StatefulWidget {
     this.longPressSpeed = PlayerSpeeds.defaultLongPress,
     this.doubleTapSeek = false,
     this.brightness,
+    this.fullscreen = false,
   });
 
   final PlayerPageController controller;
+
+  /// 是否处于全屏.
+  ///
+  /// 全屏时系统栏被隐藏, 从屏幕边缘下滑是系统呼出状态栏与导航栏的手势,
+  /// 这时不把边缘的拖动当成亮度与音量调节.
+  final bool fullscreen;
 
   /// 左半侧竖滑调节的画面亮度, 为空时左半侧不响应竖滑.
   final PlayerBrightness? brightness;
@@ -74,6 +81,16 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
 
   /// 竖向拖满屏幕高度对应的音量变化量.
   static const _volumeScreenRatio = 1.0;
+
+  /// 全屏时让给系统手势的边缘宽度.
+  ///
+  /// 全屏用的是沉浸模式, 状态栏与导航栏都藏起来了, 手指从屏幕边缘下滑是
+  /// 系统呼出它们的手势. 这个范围内的拖动不调亮度与音量, 与 piliplus 的
+  /// 做法一致 (它在 PointerDown 时用 25 逻辑像素屏蔽四边的手势).
+  static const _edgeGuard = 25.0;
+
+  /// 本次拖动起点落在屏幕边缘, 不处理任何拖动.
+  bool _dragIgnored = false;
 
   double _startX = 0;
   double _startY = 0;
@@ -245,7 +262,22 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
     setState(() {});
   }
 
+  /// 全屏时屏幕四边的拖动留给系统手势, 其余位置照常调亮度与音量.
+  bool _isDragStartAllowed(Offset local) {
+    final size = context.size;
+    if (size == null || size.isEmpty) {
+      return true;
+    }
+    return local.dx >= _edgeGuard &&
+        local.dy >= _edgeGuard &&
+        local.dx <= size.width - _edgeGuard &&
+        local.dy <= size.height - _edgeGuard;
+  }
+
   void _onDragStart(DragStartDetails details) {
+    // dragStartBehavior 是 down, localPosition 就是手指按下的位置.
+    _dragIgnored =
+        widget.fullscreen && !_isDragStartAllowed(details.localPosition);
     _startX = details.globalPosition.dx;
     _startY = details.globalPosition.dy;
     _startLocalX = details.localPosition.dx;
@@ -258,6 +290,9 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
   }
 
   void _onHorizontalDragUpdate(DragUpdateDetails details) {
+    if (_dragIgnored) {
+      return;
+    }
     final total = widget.controller.player.duration;
     if (total <= Duration.zero) {
       return;
@@ -303,6 +338,9 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
   }
 
   void _onVerticalDragUpdate(DragUpdateDetails details) {
+    if (_dragIgnored) {
+      return;
+    }
     final dy = details.globalPosition.dy - _startY;
     if (dy.abs() < _volumeThreshold &&
         _volumeTarget == null &&
@@ -341,6 +379,7 @@ class _PlayerGestureDetectorState extends State<PlayerGestureDetector> {
     // 只有横向拖动会产生预览, 通知外层收起跟随状态.
     final hadPreview = _seekTarget != null;
     setState(() {
+      _dragIgnored = false;
       _seekCancelling = false;
       _seekTarget = null;
       _volumeTarget = null;
