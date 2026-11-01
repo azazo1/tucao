@@ -158,10 +158,11 @@ class CastProxy {
       }
       return;
     }
+    final remote = target!;
     try {
-      await _forward(request, target!);
+      await _forward(request, remote);
     } on SocketException catch (error) {
-      Log.w('转发媒体失败 ${target.host}: $error');
+      Log.w('转发媒体失败 ${remote.host}: $error');
       await _abort(response, HttpStatus.badGateway);
     } catch (error) {
       Log.w('转发媒体出错: $error');
