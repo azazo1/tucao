@@ -75,6 +75,7 @@ class _RichParagraphText extends StatefulWidget {
     required this.paragraph,
     this.fallbackAlign,
     this.forceBold = false,
+    this.background,
   });
 
   final RichParagraph paragraph;
@@ -84,6 +85,12 @@ class _RichParagraphText extends StatefulWidget {
 
   /// 整段强制加粗, 表格里的 `<th>` 表头用.
   final bool forceBold;
+
+  /// 这段文字实际的底色.
+  ///
+  /// 判断站点颜色还看不看得清时以它为准, 表格格子会传进去; 段落直接铺在
+  /// 页面背景上时为 null, 用主题的表面色.
+  final Color? background;
 
   @override
   State<_RichParagraphText> createState() => _RichParagraphTextState();
@@ -163,7 +170,10 @@ class _RichParagraphTextState extends State<_RichParagraphText> {
 
   TextStyle _spanStyle(RichStyle style, ColorScheme scheme, double baseSize) {
     final isLink = style.url != null;
-    final color = _readableColor(style.color, scheme.surface);
+    final color = _readableColor(
+      style.color,
+      widget.background ?? scheme.surface,
+    );
     final linkColor = color ?? scheme.primary;
     return TextStyle(
       fontWeight: widget.forceBold || style.bold ? FontWeight.bold : null,
@@ -196,12 +206,14 @@ class _RichParagraphTextState extends State<_RichParagraphText> {
     if (color == null || color.a == 0) {
       return null;
     }
-    final a = color.computeLuminance();
+    // 站点偶尔写半透明色, 先按它实际盖住的底色合成, 再判断看不看得清.
+    final effective = color.a < 1 ? Color.alphaBlend(color, background) : color;
+    final a = effective.computeLuminance();
     final b = background.computeLuminance();
     // 阈值取 2: 站点常用的灰色小标题 #999999 在白底上约 2.85, 要保留;
     // 深色模式下 #333333 这类深色字约 1.5, 交还给主题.
     final contrast = (math.max(a, b) + 0.05) / (math.min(a, b) + 0.05);
-    return contrast < 2 ? null : color;
+    return contrast < 2 ? null : effective;
   }
 }
 
@@ -333,9 +345,11 @@ class _RichTableView extends StatelessWidget {
     if (cell == null) {
       return const SizedBox.shrink();
     }
+    final scheme = Theme.of(context).colorScheme;
     final align = cell.align ?? (cell.header ? TextAlign.center : null);
+    final background = _cellBackground(cell.background, scheme);
     return Container(
-      color: cell.background,
+      color: background,
       padding: _cellPadding,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -351,6 +365,7 @@ class _RichTableView extends StatelessWidget {
                 paragraph: paragraph,
                 fallbackAlign: align,
                 forceBold: cell.header,
+                background: background,
               ),
               final RichImageRow row => _RichImageRowView(
                 row: row,
@@ -368,6 +383,27 @@ class _RichTableView extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// 把站点的格子底色搬到当前主题上.
+  ///
+  /// 站点是按白底挑的颜色, 表头常见 `rgb(238, 238, 238)` 这种浅灰. 底色必须
+  /// 和跟着主题走的文字色处在同明暗的一端, 否则浅色字压浅色底会糊成一片.
+  /// 因此深色模式把底色压进深色区间, 浅色模式把站点偶尔用的深色底提到浅色
+  /// 区间, 两边都只动明度, 保住色相与饱和度. 明度越高的底压得越狠, 格子之间
+  /// 原来的深浅关系仍然分得开.
+  static Color? _cellBackground(Color? raw, ColorScheme scheme) {
+    if (raw == null || raw.a == 0) {
+      return null;
+    }
+    final hsl = HSLColor.fromColor(raw);
+    if (scheme.brightness == Brightness.dark) {
+      return hsl.withLightness(0.10 + hsl.lightness * 0.14).toColor();
+    }
+    if (hsl.lightness < 0.5) {
+      return hsl.withLightness(0.84 + hsl.lightness * 0.10).toColor();
+    }
+    return raw;
   }
 
   /// 计算各列宽度.
