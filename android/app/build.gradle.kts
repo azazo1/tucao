@@ -65,6 +65,12 @@ android {
     }
 
     buildTypes {
+        // 调试包用独立包名, 与手机上安装的正式版互不覆盖: 数据, 通知和权限各自独立.
+        // 只影响 debug 变体, release 与 ci 产物仍然是 com.azazo1.tucao.
+        getByName("debug") {
+            applicationIdSuffix = ".debug"
+            manifestPlaceholders["appLabel"] = "吐槽.debug"
+        }
         release {
             signingConfig = releaseSigning ?: signingConfigs.getByName("debug")
             isMinifyEnabled = false
