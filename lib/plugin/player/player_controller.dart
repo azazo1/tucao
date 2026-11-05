@@ -95,6 +95,9 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
 
   final error = RxnString();
 
+  /// 详情接口表明本条目已转到另一个视频时, 记下目标 hid, 由页面换成目标视频.
+  final redirectHid = RxnString();
+
   /// 当前分P的播放地址, 为空表示没有可用地址.
   final playUrl = ''.obs;
 
@@ -386,6 +389,13 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
         error.value = response.message ?? '视频加载失败';
         return;
       }
+      final redirect = response.result!.redirectHid;
+      if (redirect != null) {
+        // 转向条目没有可播放的分P, 页面会换成目标视频, 保持加载状态.
+        Log.i('视频 h$hid 已转到 h$redirect');
+        redirectHid.value = redirect;
+        return;
+      }
       video.value = response.result;
       if (loadPlayPage) {
         unawaited(_loadPlayPage(hid));
@@ -398,7 +408,7 @@ class PlayerPageController extends GetxController with WidgetsBindingObserver {
         error.value = '视频加载失败, 请稍后重试';
       }
     } finally {
-      if (_requests.isCurrent(request)) {
+      if (_requests.isCurrent(request) && redirectHid.value == null) {
         firstLoading.value = false;
       }
     }

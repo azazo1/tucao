@@ -123,6 +123,20 @@ class VideoModel {
   /// 站内相对地址, 部分接口不返回.
   final String? url;
 
+  /// 站点把这个条目转到的另一个视频, 不是转向条目时为空.
+  ///
+  /// 站点会把重复投稿或旧投稿改成转向条目, 例如 h4099155 等多个出包王女合集
+  /// 都转到 h4070523. 这类条目详情接口的 `url` 指向目标视频的播放页,
+  /// 分P只剩标题, 没有播放地址; 网页版播放页靠一段脚本跳到 `url`.
+  /// 正常条目的 `url` 就是自己的播放页, 列表接口不返回 `url`.
+  String? get redirectHid {
+    final target = RegExp(r'/play/h(\d+)').firstMatch(url ?? '')?.group(1);
+    if (target == null || target == hid) {
+      return null;
+    }
+    return target;
+  }
+
   /// 分P列表, 列表接口也会返回.
   final List<VideoPart> parts;
 

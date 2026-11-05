@@ -76,6 +76,9 @@ class _VideoPageState extends State<VideoPage>
 
   late final PlayerPageController _controller;
 
+  /// 监听转向条目, 页面销毁时释放.
+  late final Worker _redirectWorker;
+
   /// 列表封面飞进来时用的 tag, 直接打开播放页时为空.
   String? _coverHeroTag;
 
@@ -138,6 +141,7 @@ class _VideoPageState extends State<VideoPage>
       tag: _tag,
     );
     _controller.player.addListener(_syncPipAutoEnter);
+    _redirectWorker = ever<String?>(_controller.redirectHid, _onRedirect);
     PipService.instance.inPipMode.addListener(_onPipModeChanged);
     _castFlow = CastFlow(controller: _controller, toast: _toast)
       ..addListener(_onCastChanged);
@@ -147,6 +151,7 @@ class _VideoPageState extends State<VideoPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _redirectWorker.dispose();
     _controller.player.removeListener(_syncPipAutoEnter);
     PipService.instance.inPipMode.removeListener(_onPipModeChanged);
     // 离开播放页后不再自动进入小窗.
@@ -171,6 +176,29 @@ class _VideoPageState extends State<VideoPage>
     if (state == AppLifecycleState.paused && !Pref.playerBackground) {
       _controller.player.pause();
     }
+  }
+
+  /// 当前条目已转到另一个视频: 用目标视频替换本页, 返回时不再回到转向条目.
+  ///
+  /// 网页版播放页也是这样直接跳过去. 转向条目的分P与目标视频对不上,
+  /// 因此不带分P, 按目标视频的观看历史恢复.
+  void _onRedirect(String? target) {
+    if (target == null || !mounted) {
+      return;
+    }
+    if (!(ModalRoute.of(context)?.isCurrent ?? false)) {
+      // 上层压着别的页面时不能替换本页, 留下提示, 重试会重新判断.
+      Log.w('播放页不在最前面, 不跳转到 h$target');
+      _controller.redirectHid.value = null;
+      _controller.firstLoading.value = false;
+      _controller.error.value = '该视频已转到 h$target, 请重试';
+      return;
+    }
+    Get.offNamed(
+      Routes.video,
+      parameters: {'hid': target},
+      preventDuplicates: false,
+    );
   }
 
   /// 查询画中画支持情况, 支持时才接入自动进入.
