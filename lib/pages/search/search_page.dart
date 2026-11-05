@@ -96,14 +96,27 @@ class _SearchPageState extends State<SearchPage> {
     _controller.clearKeyword();
   }
 
-  /// 输入的是站点地址时直接跳到对应页面, 返回是否已经处理.
+  /// 输入的是站内编号或站点地址时直接跳到对应页面, 返回是否已经处理.
   ///
+  /// 依次识别 `h4070523` 这类编号, 整段站点地址, 以及分享文案里夹带的链接.
   /// 站点没有对应页面的地址给出提示, 不退回关键词搜索: 拿链接去搜不到东西,
   /// 用户也很难看出是哪里不对.
   bool _openSiteInput(String text) {
+    final direct = parseSiteIdInput(text);
+    if (direct != null) {
+      _focusNode.unfocus();
+      openSiteRoute(direct);
+      return true;
+    }
     final uri = parseSiteUrlInput(text);
     if (uri == null) {
-      return false;
+      final shared = findSiteRouteInText(text);
+      if (shared == null) {
+        return false;
+      }
+      _focusNode.unfocus();
+      openSiteRoute(shared);
+      return true;
     }
     final route = siteRouteOf(uri);
     if (route == null) {
@@ -167,7 +180,7 @@ class _SearchPageState extends State<SearchPage> {
       },
       onSubmitted: _submit,
       decoration: InputDecoration(
-        hintText: '搜索视频或站点链接',
+        hintText: '搜索视频, 站点链接或 h 编号',
         hintStyle: const TextStyle(fontSize: 14),
         prefixIcon: const Padding(
           padding: EdgeInsets.only(left: 12, right: 6),

@@ -94,6 +94,68 @@ void main() {
     }
   });
 
+  test('搜索栏输入的站内编号直接解析为页面', () {
+    void expectRoute(String raw, SiteRouteKind kind, String id, [int? part]) {
+      final route = parseSiteIdInput(raw);
+      expect(route?.kind, kind, reason: raw);
+      expect(route?.id, id, reason: raw);
+      expect(route?.part, part, reason: raw);
+    }
+
+    for (final raw in [
+      'h4070523',
+      'H4070523',
+      ' h4070523/ ',
+      'play/h4070523/',
+      '/play/h4070523',
+      'ｈ４０７０５２３',
+      '4070523',
+    ]) {
+      expectRoute(raw, SiteRouteKind.video, '4070523');
+    }
+    expectRoute('h4070523#2', SiteRouteKind.video, '4070523', 1);
+    expectRoute('h4070523/#3', SiteRouteKind.video, '4070523', 2);
+    expectRoute('h4070523#0', SiteRouteKind.video, '4070523');
+    expectRoute('d7120', SiteRouteKind.article, '7120');
+    expectRoute('U82749', SiteRouteKind.space, '82749');
+    // 带 play/ 时就是站点路径, 不限位数.
+    expectRoute('play/h12/', SiteRouteKind.video, '12');
+  });
+
+  test('编码名, 年份与普通关键词不当作站内编号', () {
+    for (final raw in [
+      'h264',
+      'H265',
+      'u2',
+      '2024',
+      '1080',
+      'h0000',
+      '0000000',
+      'h4070523 第二集',
+      'x4070523',
+      '出包王女',
+      '',
+    ]) {
+      expect(parseSiteIdInput(raw), isNull, reason: raw);
+    }
+  });
+
+  test('分享文案里夹带的站点链接能被找出来', () {
+    final route = findSiteRouteInText(
+      '【无修】To LOVE 出包王女 全四季 https://www.tucao.my/play/h4070523/#2，快来看',
+    );
+    expect(route?.kind, SiteRouteKind.video);
+    expect(route?.id, '4070523');
+    expect(route?.part, 1);
+    expect(
+      findSiteRouteInText('看这个 (https://tucao.my/play/d7120/).')?.id,
+      '7120',
+    );
+    // 只有站外链接或者没有链接时不处理, 交给关键词搜索.
+    expect(findSiteRouteInText('https://evil.example/data/ 出包王女'), isNull);
+    expect(findSiteRouteInText('出包王女 第四季'), isNull);
+  });
+
   test('空编号与全 0 编号不生成目标', () {
     for (final path in ['/play/h0/', '/play/h000/', '/play/d0/', '/play/u0/']) {
       expect(

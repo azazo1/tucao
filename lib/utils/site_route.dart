@@ -68,6 +68,84 @@ Uri? parseSiteUrlInput(String raw) {
   return null;
 }
 
+/// 搜索栏里直接输入的站内编号, 例如 `h4070523`, `H4070523#2`,
+/// `h4070523/`, `play/h4070523/`, `/play/d7120/`, `u82749`.
+final _bareId = RegExp(
+  r'^(/?play/)?([hdu])([0-9]+)/?(?:#([0-9]+))?$',
+  caseSensitive: false,
+);
+
+/// 不带 `play/` 的编号至少要有这么多位.
+///
+/// `h264`, `h265` 是常见的编码名, `u2` 之类也可能是正经关键词,
+/// 位数太少时仍按关键词搜索. 真实的视频编号是 7 位, 档案和用户编号也有 4 位以上.
+const _minBareIdDigits = 4;
+
+/// 纯数字按视频编号处理的最少位数.
+///
+/// 视频编号都是 7 位, `2024`, `1080` 这类较短的数字更可能是关键词.
+final _bareHid = RegExp(r'^[0-9]{7,}$');
+
+/// 分享文案里夹带的链接, 遇到空白, 引号或中文标点时截止.
+final _urlInText = RegExp(r'''https?://[^\s<>"'，。、；！？）】」』]+''');
+
+/// 把用户输入当作站内编号解析, 不像编号的输入返回 null.
+///
+/// 输入法全角状态下打出来的 `ｈ４０７０５２３` 先转成半角再判断.
+/// 视频编号可以用站点的 `#分P` 写法带上分P, 分P从 1 开始.
+SiteRoute? parseSiteIdInput(String raw) {
+  final text = _toHalfWidth(raw).trim();
+  final match = _bareId.firstMatch(text);
+  if (match != null) {
+    final id = match.group(3)!;
+    final hasPlayPrefix = match.group(1) != null;
+    if (!_nonZero.hasMatch(id) ||
+        (!hasPlayPrefix && id.length < _minBareIdDigits)) {
+      return null;
+    }
+    return switch (match.group(2)!.toLowerCase()) {
+      'h' => SiteRoute(
+        kind: SiteRouteKind.video,
+        id: id,
+        part: _partOf(match.group(4) ?? ''),
+      ),
+      'd' => SiteRoute(kind: SiteRouteKind.article, id: id),
+      _ => SiteRoute(kind: SiteRouteKind.space, id: id),
+    };
+  }
+  if (_bareHid.hasMatch(text) && _nonZero.hasMatch(text)) {
+    return SiteRoute(kind: SiteRouteKind.video, id: text);
+  }
+  return null;
+}
+
+/// 从分享文案里找出第一个能打开站内页面的链接, 找不到返回 null.
+///
+/// 浏览器和聊天软件分享出来的常是 "标题 + 链接" 的一段文字, 整段不是地址,
+/// 这里逐个取出其中的链接判断, 只认能解析成站内页面的那个.
+SiteRoute? findSiteRouteInText(String raw) {
+  // 链接本身都是半角, 不做全角转换, 免得把紧跟链接的中文逗号变成半角并进链接里.
+  for (final match in _urlInText.allMatches(raw)) {
+    // 句末的半角标点不属于链接.
+    final url = match.group(0)!.replaceFirst(RegExp(r'[.,;:!?)\]}]+$'), '');
+    final uri = parseSiteUrlInput(url);
+    final route = uri == null ? null : siteRouteOf(uri);
+    if (route != null) {
+      return route;
+    }
+  }
+  return null;
+}
+
+/// 全角 ASCII 字符 (U+FF01 到 U+FF5E) 转成对应的半角字符, 其余字符保持不变.
+String _toHalfWidth(String text) {
+  return String.fromCharCodes(
+    text.runes.map(
+      (rune) => rune >= 0xFF01 && rune <= 0xFF5E ? rune - 0xFEE0 : rune,
+    ),
+  );
+}
+
 /// 站内地址对应的应用内页面, 站点没有对应页面时返回 null.
 SiteRoute? siteRouteOf(Uri uri) {
   final match = _path.firstMatch(uri.path);
