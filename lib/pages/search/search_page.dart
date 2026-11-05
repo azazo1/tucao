@@ -100,6 +100,21 @@ class _SearchPageState extends State<SearchPage> {
     await _controller.search(keyword);
   }
 
+  /// 把 [text] 追加到输入框末尾, 不覆盖已有内容, 然后聚焦输入框.
+  ///
+  /// 已有内容末尾没有空格时补一个空格隔开. 光标放到最后, 方便接着输入.
+  void _appendToInput(String text) {
+    HapticFeedback.selectionClick();
+    final current = _inputController.text;
+    final separator = current.isEmpty || current.endsWith(' ') ? '' : ' ';
+    final next = '$current$separator$text';
+    _inputController.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: next.length),
+    );
+    _focusNode.requestFocus();
+  }
+
   void _clearInput() {
     _inputController.clear();
     _controller.clearKeyword();
@@ -272,14 +287,19 @@ class _SearchPageState extends State<SearchPage> {
                   runSpacing: 2,
                   children: [
                     for (final keyword in items)
-                      InputChip(
-                        label: Text(keyword),
-                        labelStyle: const TextStyle(fontSize: 13),
-                        visualDensity: VisualDensity.compact,
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        onPressed: () => _submit(keyword),
-                        deleteIcon: const Icon(Icons.close, size: 15),
-                        onDeleted: () => _controller.removeHistory(keyword),
+                      // 短按直接搜索, 长按把这条历史追加到输入框里继续编辑.
+                      GestureDetector(
+                        onLongPress: () => _appendToInput(keyword),
+                        child: InputChip(
+                          label: Text(keyword),
+                          labelStyle: const TextStyle(fontSize: 13),
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                          onPressed: () => _submit(keyword),
+                          deleteIcon: const Icon(Icons.close, size: 15),
+                          onDeleted: () => _controller.removeHistory(keyword),
+                        ),
                       ),
                   ],
                 ),
