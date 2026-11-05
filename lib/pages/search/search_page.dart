@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:tucao/common/adaptive.dart';
 import 'package:tucao/common/style.dart';
@@ -68,7 +69,15 @@ class _SearchPageState extends State<SearchPage> {
     super.dispose();
   }
 
-  Future<void> _submit(String value, {bool fromRoute = false}) async {
+  /// 提交搜索.
+  ///
+  /// [raw] 为 true 时不识别编号和链接, 原文直接按关键词搜索,
+  /// 用于搜索标题里带 `h4070523` 这类写法的投稿. 长按放大镜时使用.
+  Future<void> _submit(
+    String value, {
+    bool fromRoute = false,
+    bool raw = false,
+  }) async {
     if (_fromRouteKeyword != fromRoute && mounted) {
       setState(() => _fromRouteKeyword = fromRoute);
     }
@@ -78,7 +87,7 @@ class _SearchPageState extends State<SearchPage> {
       return;
     }
     // 粘贴站点地址时直接进对应页面, 不把它当成关键词搜索.
-    if (_openSiteInput(keyword)) {
+    if (!raw && _openSiteInput(keyword)) {
       return;
     }
     if (_inputController.text != keyword) {
@@ -180,11 +189,24 @@ class _SearchPageState extends State<SearchPage> {
       },
       onSubmitted: _submit,
       decoration: InputDecoration(
-        hintText: '搜索视频, 站点链接或 h 编号',
+        hintText: '搜索视频, 站点链接或编号',
         hintStyle: const TextStyle(fontSize: 14),
-        prefixIcon: const Padding(
-          padding: EdgeInsets.only(left: 12, right: 6),
-          child: Icon(Icons.search, size: 20),
+        // 短按与回车一致, 长按不识别编号和链接, 原文按关键词搜索.
+        prefixIcon: Semantics(
+          button: true,
+          label: '搜索, 长按按原文搜索',
+          child: InkResponse(
+            onTap: () => _submit(_inputController.text),
+            onLongPress: () {
+              HapticFeedback.mediumImpact();
+              _submit(_inputController.text, raw: true);
+            },
+            radius: 20,
+            child: const Padding(
+              padding: EdgeInsets.only(left: 12, right: 6),
+              child: Icon(Icons.search, size: 20),
+            ),
+          ),
         ),
         prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
         suffixIcon: ValueListenableBuilder<TextEditingValue>(
