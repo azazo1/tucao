@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:tucao/common/constants.dart';
+import 'package:tucao/plugin/player/player_error.dart';
 import 'package:tucao/utils/logger.dart';
 import 'package:tucao/utils/storage_pref.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -79,6 +80,17 @@ class TucaoPlayer extends ChangeNotifier {
   double _speed = 1;
   double _volume = 100;
   String? _error;
+
+  /// 出错时的缓存末尾位置与出错时间, 用于判断网络是否真的恢复.
+  ///
+  /// 缓存末尾 (demuxer-cache-time) 只在 demuxer 读到新数据时前进,
+  /// 播放位置推进只说明在消费缓存, 不能作为恢复依据.
+  Duration? _errorBuffered;
+  Timer? _errorTimer;
+  Timer? _pendingErrorTimer;
+
+  /// 还没确认的播放错误, 观察窗内缓存恢复就丢弃, 否则转正显示.
+  String? _pendingError;
 
   /// 播放器是否已经创建.
   bool get initialized => _player != null;
@@ -184,6 +196,7 @@ class TucaoPlayer extends ChangeNotifier {
       final player = _player!;
       Log.i('加载播放地址: $url');
       _completed = false;
+      _clearErrors();
       _error = null;
       _playing = false;
       _buffering = false;
@@ -264,6 +277,7 @@ class TucaoPlayer extends ChangeNotifier {
       _playing = false;
       _buffering = false;
       _hasFrame = false;
+      _clearErrors();
       _error = null;
       _position = Duration.zero;
       _notifiedPosition = Duration.zero;
@@ -330,6 +344,9 @@ class TucaoPlayer extends ChangeNotifier {
           return;
         }
         _position = value;
+        // 位置吃掉缓存是判断断流的关键, 但缓存不前进时 buffer 流不会有事件,
+        // 只能靠位置流来触发裁决.
+        _resolvePendingError();
         if (!_hasFrame && value > Duration.zero) {
           _hasFrame = true;
           _notifiedPosition = value;
@@ -354,6 +371,7 @@ class TucaoPlayer extends ChangeNotifier {
           return;
         }
         _buffered = value;
+        _resolvePendingError();
         _notify();
       }),
       player.stream.buffering.listen((value) {
@@ -378,24 +396,114 @@ class TucaoPlayer extends ChangeNotifier {
         if (message.isEmpty) {
           return;
         }
-        // 硬件解码器打不开时 mpv 会回退到软件解码继续播放,
-        // 这类 error 级别的日志不是播放失败, 不应该盖住正常画面.
-        if (_isRecoverableError(message)) {
+        // mpv 明说解码器要回退到软解, 语义确定, 直接忽略.
+        if (PlayerError.codecFallback(message)) {
           Log.w('播放器解码回退: $message');
           return;
         }
-        _error = message;
-        _buffering = false;
-        Log.e('播放出错: $message');
-        _notify();
+        _scheduleError(message);
       }),
     ]);
   }
 
-  /// 判断播放器错误是否只是解码器回退, 不影响继续播放.
-  static bool _isRecoverableError(String message) {
-    final lower = message.toLowerCase();
-    return lower.contains('could not open codec');
+  /// 先把错误挂起观察, 确认网络没恢复再显示.
+  ///
+  /// 单次读写失败和真的断流在文本上完全一样, 只能看后续缓存是否还在前进.
+  /// 不能直接用播放位置判断: 缓存里还剩几秒时位置会继续走, 走完就卡死,
+  /// 而 mpv 那时不会再补发错误.
+  void _scheduleError(String message) {
+    _pendingError = message;
+    _errorBuffered = _buffered;
+    _pendingErrorTimer?.cancel();
+    _pendingErrorTimer = Timer(PlayerError.grace, _settlePendingError);
+  }
+
+  /// 观察窗到点后裁决挂起的错误.
+  void _settlePendingError() {
+    _pendingErrorTimer?.cancel();
+    _pendingErrorTimer = null;
+    if (_disposed) {
+      return;
+    }
+    final pending = _pendingError;
+    if (pending == null) {
+      return;
+    }
+    // 缓存末尾往前走了, 说明 demuxer 又能读到数据, 抖动已经过去.
+    if (_cacheAdvanced()) {
+      _pendingError = null;
+      Log.w('播放已恢复, 忽略错误: $pending');
+      return;
+    }
+    _pendingError = null;
+    _showError(pending);
+  }
+
+  /// 缓存末尾相对出错时是否已经前进.
+  bool _cacheAdvanced() {
+    final from = _errorBuffered;
+    if (from == null) {
+      return false;
+    }
+    return PlayerError.cacheAdvanced(from, _buffered);
+  }
+
+  /// 观察窗内缓存恢复就撤掉挂起的错误, 缓存已经吃光则立刻裁决.
+  void _resolvePendingError() {
+    final pending = _pendingError;
+    if (pending == null) {
+      return;
+    }
+    if (_cacheAdvanced()) {
+      _pendingError = null;
+      _pendingErrorTimer?.cancel();
+      _pendingErrorTimer = null;
+      Log.w('播放已恢复, 忽略错误: $pending');
+      return;
+    }
+    // 缓存已经见底, 再等下去画面就要卡住了, 提前给出提示.
+    if (PlayerError.cacheDrained(_position, _buffered)) {
+      _settlePendingError();
+    }
+  }
+
+  void _showError(String message) {
+    _error = message;
+    _buffering = false;
+    Log.e('播放出错: $message');
+    // 显示之后仍要盯着缓存, 播放真恢复时把提示撤掉.
+    _watchErrorRecovery();
+    _notify();
+  }
+
+  /// 已显示的错误在缓存重新前进后自动撤掉.
+  void _watchErrorRecovery() {
+    _errorTimer?.cancel();
+    _errorTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
+      if (_disposed || _error == null) {
+        timer.cancel();
+        _errorTimer = null;
+        return;
+      }
+      if (!_cacheAdvanced()) {
+        return;
+      }
+      Log.i('播放已恢复, 清除错误提示: $_error');
+      timer.cancel();
+      _errorTimer = null;
+      _error = null;
+      _errorBuffered = null;
+      _notify();
+    });
+  }
+
+  void _clearErrors() {
+    _pendingError = null;
+    _pendingErrorTimer?.cancel();
+    _pendingErrorTimer = null;
+    _errorTimer?.cancel();
+    _errorTimer = null;
+    _errorBuffered = null;
   }
 
   /// 开始播放时暂停其他播放器, 新打开的页面优先, 之前的页面停下.
@@ -441,6 +549,7 @@ class TucaoPlayer extends ChangeNotifier {
     }
     _disposed = true;
     _playing = false;
+    _clearErrors();
     _instances.remove(this);
     _requests.close();
     for (final subscription in _subscriptions) {
